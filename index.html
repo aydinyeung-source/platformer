@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Platformer</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="corner">
+    <span class="corner__version">v1.5.1</span>
+    <div class="corner__actions">
+      <button class="button button--secondary is-on" type="button" data-toggle="sound" aria-pressed="true">Sound</button>
+      <button class="button button--secondary" type="button" data-action="fullscreen">Fullscreen</button>
+    </div>
+  </div>
+
+  <main class="stage">
+    <section class="screen screen--wide is-active" data-screen="play">
+      <p class="label">Main menu</p>
+      <h1 class="title">Platformer</h1>
+
+      <article class="seed">
+        <div class="seed__group">
+          <p class="label">Seed</p>
+          <div class="chips" role="group" aria-label="Seed source">
+            <button class="chip is-active" type="button" data-source="custom" aria-pressed="true">Custom</button>
+            <button class="chip" type="button" data-source="daily" aria-pressed="false">Daily</button>
+            <button class="chip" type="button" data-source="random" aria-pressed="false">Random</button>
+          </div>
+          <input class="seed__input" type="text" data-seed aria-label="Seed"
+                 autocomplete="off" spellcheck="false" maxlength="32">
+          <p class="seed__resolved" data-resolved></p>
+        </div>
+
+        <div class="seed__group">
+          <p class="label">Run length</p>
+          <div class="chips" role="group" aria-label="Run length">
+            <button class="chip is-active" type="button" data-mode="1k" aria-pressed="true">1000 m</button>
+            <button class="chip" type="button" data-mode="2k" aria-pressed="false">2 km</button>
+            <button class="chip" type="button" data-mode="5k" aria-pressed="false">5 km</button>
+            <button class="chip" type="button" data-mode="10k" aria-pressed="false">10 km</button>
+          </div>
+        </div>
+      </article>
+
+      <button class="button button--primary" type="button" data-action="play">Play</button>
+
+      <p class="label controls__label">Controls</p>
+      <dl class="controls" data-controls></dl>
+    </section>
+  </main>
+
+  <div class="loader" data-loader hidden>
+    <div class="loader__panel">
+      <p class="label">Loading</p>
+      <p class="loader__stage" data-stage>Hashing seed</p>
+      <div class="loader__track"><span class="loader__fill" data-fill></span></div>
+      <p class="loader__meta" data-loader-meta></p>
+    </div>
+  </div>
+
+  <div class="game" data-game hidden>
+    <canvas class="game__canvas" data-game-canvas></canvas>
+    <div class="game__hud">
+      <p class="game__seed" data-hud-seed></p>
+      <p class="game__distance" data-hud-distance></p>
+    </div>
+    <button class="button button--secondary game__quit" type="button" data-action="quit">Quit</button>
+  </div>
+
+  <script src="js/rng.js"></script>
+  <script src="js/input.js"></script>
+  <script src="js/camera.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/level.js"></script>
+  <script src="js/physics.js"></script>
+  <script src="js/player.js"></script>
+  <script src="js/game.js"></script>
+  <script src="script.js"></script>
+</body>
+</html>

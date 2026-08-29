@@ -1,0 +1,500 @@
+/* styles.css — page layout, canvas sizing, UI overlays */
+
+/* Palette: "Fernstone sage" */
+:root {
+  --paper: #e7ebe8;
+  --paper-raised: #f9fbfa;
+  --ink: #232b28;
+  --ink-soft: #4d5a56;
+  --ink-muted: #7f8c88;
+  --accent: #47705d;
+  --accent-light: #9cbbaa;
+  --rule: rgba(35, 43, 40, 0.13);
+  /* The one warm colour in the palette, spent only on the runner and the
+     arrow that finds them. Nothing else may use it. */
+  --alert: #c4632a;
+  /* Terrain. Blocks are drawn as real tiles with faces and seams, so they need
+     their own weights rather than a wash of ink at low opacity. */
+  --lava: #d9793a;
+  --lava-top: #eaa864;
+  --stone: #c2cac5;
+  --stone-deep: #bac2bd;
+  --haze-far: #dde2df;
+  --haze-near: #d2d9d5;
+
+  --rounded: "Nunito", "Segoe UI", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+  --ease-soft: cubic-bezier(0.22, 0.85, 0.24, 1);
+
+  --stack-indent: clamp(16px, 4vw, 40px);
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  min-height: 100vh;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+/* The signature micro-label: all-caps mono, never larger than 11px. */
+.label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  color: var(--ink-muted);
+}
+
+/* ------------------------------------------------------------ corner cluster */
+
+.corner {
+  position: fixed;
+  top: clamp(18px, 4vw, 34px);
+  right: clamp(22px, 7vw, 96px);
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.corner__version {
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  color: var(--ink-muted);
+}
+
+.corner__actions {
+  display: flex;
+  gap: 8px;
+}
+
+/* ------------------------------------------------------------------- screens */
+
+.stage {
+  padding: clamp(32px, 6vw, 76px) clamp(22px, 7vw, 96px) clamp(56px, 10vw, 110px);
+}
+
+.screen {
+  display: none;
+  max-width: 460px;
+}
+
+.screen.is-active {
+  display: block;
+}
+
+.screen > * {
+  margin-left: var(--stack-indent);
+}
+
+.screen--wide {
+  max-width: 820px;
+}
+
+.title {
+  margin-top: 10px;
+  font-family: var(--rounded);
+  font-weight: 700;
+  font-size: 30px;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+  color: var(--ink);
+}
+
+.title--sub {
+  font-size: 21px;
+}
+
+.placeholder {
+  margin-top: 20px;
+  padding-top: 18px;
+  border-top: 1px solid var(--rule);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--ink-muted);
+}
+
+.note {
+  margin-top: 16px;
+  font-size: 11px;
+  color: var(--ink-soft);
+}
+
+.note[hidden] {
+  display: none;
+}
+
+/* -------------------------------------------------------------- profile card */
+
+.profile {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  margin-top: 28px;
+  padding: 22px 24px;
+  background: var(--paper-raised);
+  border: 1px solid var(--rule);
+  border-radius: 16px;
+  /* Negative spread: reads as lift, never as a visible shadow. */
+  box-shadow: 0 18px 40px -32px rgba(35, 43, 40, 0.45);
+}
+
+/* The one element allowed to break its container — a second overlap would read as a mistake. */
+.profile__avatar {
+  flex: none;
+  width: 68px;
+  height: 68px;
+  margin-left: -46px;
+  display: grid;
+  place-items: center;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: 20px;
+  font-family: var(--rounded);
+  font-weight: 700;
+  font-size: 21px;
+  color: var(--ink-soft);
+}
+
+.profile__body {
+  min-width: 0;
+}
+
+.profile__name {
+  font-family: var(--rounded);
+  font-weight: 700;
+  font-size: 21px;
+  line-height: 1.3;
+}
+
+.profile__stats {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--rule);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--ink-muted);
+}
+
+/* ------------------------------------------------------------------ seed lab */
+
+.seed {
+  margin-top: 28px;
+  padding: 22px 24px 20px;
+  background: var(--paper-raised);
+  border: 1px solid var(--rule);
+  border-radius: 16px;
+  box-shadow: 0 18px 40px -32px rgba(35, 43, 40, 0.45);
+}
+
+.seed__row {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.seed__field {
+  flex: 1 1 220px;
+}
+
+.seed__input {
+  width: 100%;
+  margin-top: 8px;
+  padding: 11px 13px;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: 12px;
+  font-family: var(--mono);
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: var(--ink);
+  transition: border-color 420ms var(--ease-soft);
+}
+
+.seed__input:focus {
+  border-color: var(--accent);
+  outline: none;
+}
+
+.seed__actions {
+  display: flex;
+  gap: 8px;
+}
+
+.seed__group + .seed__group {
+  margin-top: 20px;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.chip {
+  padding: 7px 14px;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  font-family: var(--mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--ink-muted);
+  cursor: pointer;
+  transition: color 300ms var(--ease-soft), background 300ms var(--ease-soft),
+    border-color 300ms var(--ease-soft);
+}
+
+.chip:hover {
+  color: var(--ink);
+  border-color: var(--ink-muted);
+}
+
+.chip.is-active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--paper-raised);
+}
+
+/* ------------------------------------------------------------------- buttons */
+
+.button--primary {
+  display: inline-block;
+  margin-top: 26px;
+  padding: 20px 44px;
+  background: var(--accent);
+  border-radius: 16px;
+  font-family: var(--rounded);
+  font-weight: 700;
+  font-size: 21px;
+  color: var(--paper-raised);
+  transition: background-color 420ms var(--ease-soft), transform 320ms var(--ease-soft);
+}
+
+.button--primary:hover,
+.button--primary:focus-visible {
+  background: var(--ink);
+}
+
+.button--primary:active {
+  transform: translateY(1px);
+}
+
+.button--secondary {
+  padding: 8px 14px;
+  border: 1px solid var(--rule);
+  border-radius: 12px;
+  font-family: var(--mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--ink-soft);
+  transition: color 420ms var(--ease-soft), border-color 420ms var(--ease-soft);
+}
+
+.button--secondary:hover,
+.button--secondary:focus-visible {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.button--secondary.is-on {
+  color: var(--accent);
+}
+
+:focus-visible {
+  outline: 1px solid var(--accent);
+  outline-offset: 3px;
+}
+
+/* -------------------------------------------------------------------- motion */
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 14px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.screen.is-active > * {
+  animation: rise 700ms var(--ease-soft) both;
+}
+
+.screen.is-active > *:nth-child(2) { animation-delay: 80ms; }
+.screen.is-active > *:nth-child(3) { animation-delay: 160ms; }
+.screen.is-active > *:nth-child(4) { animation-delay: 240ms; }
+.screen.is-active > *:nth-child(5) { animation-delay: 320ms; }
+
+@media (prefers-reduced-motion: reduce) {
+  .screen.is-active > * {
+    animation: none;
+  }
+
+  *,
+  *::before,
+  *::after {
+    transition-duration: 1ms !important;
+    animation-duration: 1ms !important;
+  }
+}
+
+/* ------------------------------------------------------------------ controls */
+
+.controls {
+  display: grid;
+  padding-top: 20px;
+  border-top: 1px solid var(--rule);
+  grid-template-columns: auto 1fr;
+  gap: 11px 26px;
+  max-width: 340px;
+  margin-top: 24px;
+}
+
+.controls__action {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--ink-muted);
+}
+
+.controls__keys {
+  font-size: 12px;
+  color: var(--ink);
+}
+
+.controls__label {
+  margin-top: 34px;
+}
+
+/* ------------------------------------------------------------------- loading */
+
+/* Honest about what this is: the level generates in about three milliseconds.
+   The stages are paced so the run feels like it was built for you. */
+.loader {
+  position: fixed;
+  inset: 0;
+  z-index: 5;
+  display: grid;
+  place-items: center;
+  background: var(--paper);
+}
+
+.loader[hidden] {
+  display: none;
+}
+
+.loader__panel {
+  width: min(430px, 78vw);
+}
+
+.loader__stage {
+  margin-top: 12px;
+  font-family: var(--rounded);
+  font-weight: 700;
+  font-size: 21px;
+  color: var(--ink);
+}
+
+.loader__track {
+  display: block;
+  height: 3px;
+  margin-top: 22px;
+  background: var(--rule);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.loader__fill {
+  display: block;
+  width: 0;
+  height: 100%;
+  background: var(--accent);
+}
+
+.loader__meta {
+  margin-top: 14px;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--ink-muted);
+}
+
+/* ---------------------------------------------------------------- game view */
+
+.game {
+  position: fixed;
+  inset: 0;
+  z-index: 4;
+  background: var(--paper);
+}
+
+.game[hidden] {
+  display: none;
+}
+
+.game__canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.game__hud {
+  position: absolute;
+  top: clamp(18px, 4vw, 34px);
+  right: clamp(22px, 7vw, 96px);
+  left: clamp(22px, 7vw, 96px);
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  pointer-events: none;
+}
+
+/* The HUD sits over whatever terrain happens to be behind it, so it carries
+   its own ground rather than relying on the sky being empty. */
+.game__seed,
+.game__distance {
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: var(--paper);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--ink-muted);
+}
+
+.game__distance {
+  color: var(--accent);
+}
+
+.game__quit {
+  position: absolute;
+  right: clamp(22px, 7vw, 96px);
+  bottom: clamp(24px, 5vw, 44px);
+  background: var(--paper-raised);
+}
