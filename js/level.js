@@ -136,6 +136,19 @@ const Level = (() => {
 
       // Only build what the way out needs. Filling a room with ledges every
       // three rows turns every chamber into the same lattice of flying islands.
+      // A ladder up one wall, so the height of the room is reachable and not
+      // just scenery.
+      if (rng.chance(0.7)) ladder(x0 + 1, floorY - 1, top + 1);
+
+      // A pool across part of the floor: something to clear on the way through.
+      if (x1 - x0 > 16 && rng.chance(0.4)) {
+        const wide = rng.int(2, 3);
+        const at0 = rng.int(x0 + 5, x1 - wide - 5);
+        for (let cx = at0; cx < at0 + wide; cx++) {
+          for (let y = floorY - 2; y <= floorY; y++) put(cx, y, TILE.LAVA);
+        }
+      }
+
       const stairTop = rise > 0 ? floorY - rise : floorY - LEDGE_RISE;
       let side = 0;
       for (let ledgeY = floorY - LEDGE_RISE; ledgeY >= stairTop && ledgeY > top + 1; ledgeY -= LEDGE_RISE) {
@@ -192,6 +205,10 @@ const Level = (() => {
           rungs.push({ x, y: fromY - LEDGE_RISE });
         }
       }
+
+      // A drop gets a ladder so it is not one-way. Being able to climb back up
+      // the way you came is what makes a wrong turn a detour instead of a run.
+      if (toY > fromY) ladder(x + w - 1, bottom - 1, top - 1);
 
       places.push({ type: toY < fromY ? "climb" : "drop", x0: x, x1: x + w - 1, fromY, toY, rungs });
     }
@@ -268,14 +285,14 @@ const Level = (() => {
       let kind = rng.weighted([
         { value: "run", weight: 22 },
         { value: "pit", weight: 12 },
-        { value: "lava", weight: 11 },
-        { value: "column", weight: 12 },
+        { value: "lava", weight: 18 },
+        { value: "column", weight: 20 },
         { value: "chamber", weight: 16 },
-        { value: "under", weight: 18 },
+        { value: "under", weight: 22 },
         { value: "climb", weight: 11 },
         { value: "ladderup", weight: 12 },
         { value: "tube", weight: 12 },
-        { value: "back", weight: 14 },
+        { value: "back", weight: 24 },
       ]);
 
       if (room < 40) kind = "run";
@@ -408,6 +425,34 @@ const Level = (() => {
         if (peek(at0 + i, place.floorY) !== TILE.GROUND) continue;
         put(at0 + i, place.floorY - 1, TILE.SPIKE);
         spikes++;
+      }
+    }
+
+    // Ladders anywhere a face is too tall to jump. This runs over the finished
+    // world rather than being placed by the route, so a shelf the route never
+    // visits still gets a way up — the map should be climbable, not just
+    // completable.
+    for (let cx = 1; cx < width - 2; cx++) {
+      for (let cy = HEIGHT - 6; cy > ROOF + 2; cy--) {
+        // somewhere to start from, with a wall on the right
+        const below = peek(cx, cy + 1);
+        if (below !== TILE.GROUND && below !== TILE.PLATFORM) continue;
+        if (peek(cx, cy) !== TILE.EMPTY || peek(cx + 1, cy) !== TILE.GROUND) continue;
+
+        let topY = cy;
+        while (topY > ROOF && peek(cx + 1, topY) === TILE.GROUND) topY--;
+
+        const climb = cy - topY;
+        if (climb < 3 || climb > 20) continue;
+        if (peek(cx + 1, topY) !== TILE.EMPTY || peek(cx + 1, topY - 1) !== TILE.EMPTY) continue;
+
+        // the ladder needs open air to hang in
+        let clear = true;
+        for (let y = topY; y <= cy && clear; y++) if (peek(cx, y) !== TILE.EMPTY) clear = false;
+        if (!clear || !detail.chance(0.4)) continue;
+
+        ladder(cx, cy, topY);
+        cy = topY; // one ladder per face
       }
     }
 

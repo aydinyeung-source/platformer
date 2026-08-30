@@ -1,7 +1,7 @@
 // leaderboard.js — recording runs and reading your own recent ones
 
 const Runs = (() => {
-  const VERSION = "1.13.0";
+  const VERSION = "1.14.0";
 
   function playerId() {
     const session = window.Auth && window.Auth.loadSession();
