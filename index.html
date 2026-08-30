@@ -39,7 +39,7 @@
 
   <div class="app" hidden>
   <div class="corner">
-    <span class="corner__version">v1.9.0</span>
+    <span class="corner__version">v2.0.0</span>
     <span class="corner__player" data-player></span>
     <div class="corner__actions">
       <button class="button button--secondary is-on" type="button" data-toggle="sound" aria-pressed="true">Sound</button>
@@ -51,6 +51,13 @@
     <section class="screen screen--wide is-active" data-screen="play">
       <p class="label">Main menu</p>
       <h1 class="title">Platformer</h1>
+
+      <div class="chips tabs" role="group" aria-label="Sections">
+        <button class="chip is-active" type="button" data-tab="play">Play</button>
+        <button class="chip" type="button" data-tab="runs">Recent runs</button>
+      </div>
+
+      <div data-panel="play">
 
       <article class="seed">
         <div class="seed__group">
@@ -76,16 +83,16 @@
         </div>
       </article>
 
-      <article class="board">
-        <p class="label">Best times</p>
-        <ol class="board__list" data-board-list></ol>
-        <p class="board__note" data-board-note>Sign in and finish a run to appear here</p>
-      </article>
-
       <button class="button button--primary" type="button" data-action="play">Play</button>
 
       <p class="label controls__label">Controls</p>
       <dl class="controls" data-controls></dl>
+      </div>
+
+      <div data-panel="runs" hidden>
+        <ol class="runs" data-runs-list></ol>
+        <p class="runs__note" data-runs-note>No runs yet</p>
+      </div>
     </section>
   </main>
 
@@ -116,7 +123,7 @@
   <script src="js/physics.js"></script>
   <script src="js/player.js"></script>
   <script src="js/game.js"></script>
-  <script src="js/leaderboard.js"></script>
+  <script src="js/runs.js"></script>
   <script src="script.js"></script>
   <script src="js/auth.js"></script>
 </body>

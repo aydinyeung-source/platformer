@@ -690,3 +690,60 @@ button {
   letter-spacing: 0.14em;
   color: var(--ink-muted);
 }
+
+/* -------------------------------------------------------------- recent runs */
+
+.tabs {
+  margin-top: 18px;
+}
+
+.runs {
+  margin-top: 22px;
+  border-top: 1px solid var(--rule);
+  list-style: none;
+}
+
+.run {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto auto auto;
+  align-items: baseline;
+  gap: 16px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--rule);
+  font-size: 11px;
+}
+
+.run__seed {
+  letter-spacing: 0.12em;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.run__mode,
+.run__reached,
+.run__when {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--ink-muted);
+}
+
+.run__time {
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-soft);
+}
+
+/* Reaching the door is the point, so a finished run says so in accent. */
+.run--finished .run__time {
+  color: var(--accent);
+}
+
+.runs__note {
+  margin-top: 18px;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--ink-muted);
+}

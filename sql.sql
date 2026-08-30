@@ -81,17 +81,16 @@ begin
 end $$;
 
 
--- ============================================================ 3. leaderboard
+-- ============================================================== 3. runs
 
--- WHAT THIS CAN AND CANNOT DO
+-- A personal history: what you played, how far you got, how long it took. The
+-- run itself is not stored, so nothing here is replayable.
+--
 -- The game is client-side and the anon key is public, so a determined person
--- can always POST a row by hand. The defences here, in order of worth:
---   1. Physically impossible times are rejected by the database itself.
---   2. Every run stores the inputs that produced it, so a suspicious entry can
---      be replayed and disproved later.
---   3. Nobody can edit or delete a run, or submit one as somebody else, so the
---      board can only be polluted — never quietly rewritten.
--- Removing an entry is yours alone: see the moderation snippets at the bottom.
+-- could POST a row by hand. Two things still hold: physically impossible times
+-- are rejected by the database itself, and nobody can edit or delete a run or
+-- file one under someone else name. Since this is your own history rather than
+-- a ranking, there is nothing to gain by faking it anyway.
 
 create table if not exists public.runs (
   id         uuid primary key default gen_random_uuid(),
@@ -102,9 +101,6 @@ create table if not exists public.runs (
   seconds    numeric(8,2) not null,
   falls      int  not null default 0,
   finished   boolean not null default false,
-  -- The run itself: a seed and the buttons pressed, at a fixed 60 Hz. This is
-  -- what makes a claim checkable rather than merely believable.
-  inputs     text,
   checksum   text,
   client     text,
   hidden     boolean not null default false,
@@ -117,6 +113,8 @@ alter table public.runs
   drop constraint if exists runs_time_possible,
   drop constraint if exists runs_finished_means_finished,
   drop constraint if exists runs_inputs_bounded;
+
+alter table public.runs drop column if exists inputs;
 
 alter table public.runs
   add constraint runs_mode_known check (mode in ('1k', '2k', '5k', '10k')),
@@ -132,9 +130,7 @@ alter table public.runs
   add constraint runs_finished_means_finished check (
     not finished or reached >= case mode
       when '1k' then 1000 when '2k' then 2000 when '5k' then 5000 else 10000 end
-  ),
-
-  add constraint runs_inputs_bounded check (inputs is null or length(inputs) <= 200000);
+  );
 
 create index if not exists runs_board on public.runs (seed, mode, seconds);
 
@@ -151,26 +147,9 @@ drop policy if exists "own runs insertable" on public.runs;
 create policy "own runs insertable" on public.runs
   for insert to authenticated with check (auth.uid() = player_id);
 
--- Best finished time per player, for one seed and distance.
+-- The board function is gone: runs are a personal history now, read straight
+-- from the table with a player_id filter, so there is nothing to rank.
 drop function if exists public.leaderboard(text, text, int);
-create function public.leaderboard(for_seed text, for_mode text, top int default 20)
-returns table (username text, seconds numeric, falls int, ran_at timestamptz)
-language sql security definer set search_path = public as $$
-  select best.username, best.seconds, best.falls, best.ran_at
-    from (
-      select distinct on (r.player_id)
-             p.username, r.seconds, r.falls, r.created_at as ran_at
-        from public.runs r
-        join public.profiles p on p.id = r.player_id
-       where r.seed = for_seed
-         and r.mode = for_mode
-         and r.finished
-         and not r.hidden
-       order by r.player_id, r.seconds asc
-    ) best
-   order by best.seconds asc
-   limit greatest(1, least(top, 100));
-$$;
 
 
 -- ============================================================= 4. moderation
@@ -187,9 +166,9 @@ $$;
 --   -- delete outright
 --   delete from public.runs where id = '<run id>';
 --
---   -- wipe one board completely
---   delete from public.runs where seed = '<SEED>' and mode = '1k';
+--   -- wipe every run on one seed
+--   delete from public.runs where seed = '<SEED>';
 
 
 -- Success looks like: no errors, "profiles" and "runs" in the Table Editor, and
--- claim_session, heartbeat and leaderboard under Database -> Functions.
+-- claim_session and heartbeat under Database -> Functions.

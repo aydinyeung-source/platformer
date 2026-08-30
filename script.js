@@ -95,7 +95,6 @@
   // Nothing about the run is generated here. The map is not built, drawn or
   // measured until Play is pressed, so the menu cannot give the level away.
   function refresh() {
-    refreshBoard();
     resolved.hidden = activeValue(sourceButtons, "source") !== "daily";
     if (resolved.hidden) return;
     resolved.textContent =
@@ -119,8 +118,7 @@
   modeButtons.forEach((button) => {
     button.addEventListener("click", () => {
       select(modeButtons, button);
-      refreshBoard();
-    });
+      });
   });
 
   // Typing is always a custom seed, whichever source put the text there.
@@ -135,57 +133,67 @@
     seedInput.blur();
   });
 
-  // -------------------------------------------------------------- leaderboard
+  // ------------------------------------------------------------ recent runs
 
-  const boardList = document.querySelector("[data-board-list]");
-  const boardNote = document.querySelector("[data-board-note]");
-  let boardTimer = null;
+  const tabs = Array.from(document.querySelectorAll("[data-tab]"));
+  const panels = Array.from(document.querySelectorAll("[data-panel]"));
+  const runsList = document.querySelector("[data-runs-list]");
+  const runsNote = document.querySelector("[data-runs-note]");
 
-  function renderBoard(rows) {
-    boardList.textContent = "";
+  function when(stamp) {
+    const days = Math.floor((Date.now() - new Date(stamp).getTime()) / 86400000);
+    if (days <= 0) return "today";
+    if (days === 1) return "yesterday";
+    if (days < 7) return days + " days ago";
+    return new Date(stamp).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+  }
+
+  function cell(row, className, text) {
+    const span = document.createElement("span");
+    span.className = className;
+    span.textContent = text;
+    row.append(span);
+  }
+
+  function renderRuns(rows) {
+    runsList.textContent = "";
     if (!rows || !rows.length) {
-      boardNote.hidden = false;
-      boardNote.textContent = "No finished runs on this seed yet";
+      runsNote.hidden = false;
+      runsNote.textContent = "No runs yet — finish one and it lands here";
       return;
     }
 
-    boardNote.hidden = true;
-    rows.forEach((row, index) => {
+    runsNote.hidden = true;
+    rows.forEach((row) => {
       const item = document.createElement("li");
-      item.className = "board__row";
-
-      const place = document.createElement("span");
-      place.className = "board__place";
-      place.textContent = String(index + 1).padStart(2, "0");
-
-      const who = document.createElement("span");
-      who.className = "board__who";
-      who.textContent = row.username;
-
-      const time = document.createElement("span");
-      time.className = "board__time";
-      time.textContent = Leaderboard.clock(Number(row.seconds));
-
-      item.append(place, who, time);
-      boardList.append(item);
+      item.className = row.finished ? "run run--finished" : "run";
+      cell(item, "run__seed", row.seed);
+      cell(item, "run__mode", Level.resolveMode(row.mode).label);
+      cell(item, "run__reached", Number(row.reached).toLocaleString("en-US") + " m");
+      cell(item, "run__time", Runs.clock(Number(row.seconds)));
+      cell(item, "run__when", when(row.created_at));
+      runsList.append(item);
     });
   }
 
-  // Typing a seed changes it on every keystroke, so the board waits for the
-  // typing to stop rather than asking the server about half-written seeds.
-  function refreshBoard() {
-    window.clearTimeout(boardTimer);
-    boardTimer = window.setTimeout(() => {
-      Leaderboard.top(Rng.keyFor(seedInput.value), activeValue(modeButtons, "mode"), 10)
-        .then(renderBoard)
-        .catch(() => {
-          boardNote.hidden = false;
-          boardNote.textContent = "Board unavailable";
-        });
-    }, 450);
+  function loadRuns() {
+    Runs.mine(10)
+      .then(renderRuns)
+      .catch(() => {
+        runsNote.hidden = false;
+        runsNote.textContent = "Sign in to see your runs";
+      });
   }
 
-  // ------------------------------------------------------------------ loading
+  function showPanel(name) {
+    tabs.forEach((tab) => tab.classList.toggle("is-active", tab.dataset.tab === name));
+    panels.forEach((panel) => {
+      panel.hidden = panel.dataset.panel !== name;
+    });
+    if (name === "runs") loadRuns();
+  }
+
+  tabs.forEach((tab) => tab.addEventListener("click", () => showPanel(tab.dataset.tab)));
 
   const loader = document.querySelector("[data-loader]");
   const stageLabel = document.querySelector("[data-stage]");
@@ -260,6 +268,10 @@
   const hudSeed = document.querySelector("[data-hud-seed]");
   const hudDistance = document.querySelector("[data-hud-distance]");
 
+  // World row where daylight stops. Above it is sky and parallax; below it is
+  // rock, and the backdrop must not show through it.
+  const SKY_BOTTOM = 26;
+
   const gameCamera = Camera.create({ viewW: 800, viewH: 400 });
   let session = null;
   let gameTile = 34;
@@ -284,9 +296,25 @@
     return dpr;
   }
 
-  // Two layers of blocky hills at different parallax rates. They are derived
-  // from the seed rather than stored, so a 10 km backdrop costs nothing.
+  // Two layers of blocky hills at different parallax rates, derived from the
+  // seed rather than stored, so a 10 km backdrop costs nothing.
+  //
+  // Clipped to the sky band. Hills are what is behind the world, and below
+  // ground there is no behind: left unclipped they show through every carved
+  // shaft, and their stepped silhouette reads as blocks floating in the rock.
   function drawBackdrop(ctx) {
+    const skyBottom = SKY_BOTTOM * gameTile - gameCamera.y;
+    if (skyBottom <= 0) return;
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(0, 0, gameCamera.viewW, skyBottom);
+    ctx.clip();
+    paintHills(ctx);
+    ctx.restore();
+  }
+
+  function paintHills(ctx) {
     const layers = [
       { factor: 0.22, colour: colours.hazeFar, span: 7, base: 0.5, amp: 5 },
       { factor: 0.46, colour: colours.hazeNear, span: 5, base: 0.66, amp: 3.5 },
@@ -381,14 +409,13 @@
     // Submit once, the moment the door is reached.
     if (player.finished && !session.submitted) {
       session.submitted = true;
-      Leaderboard.submit({
+      Runs.submit({
         seed: level.seed,
         mode: level.mode,
         reached: Player.metres(player),
         seconds: player.time,
         falls: player.falls,
         finished: true,
-        inputs: Game.tape(session),
         checksum: level.checksum,
       }).catch(() => {
         // A failed submission must never interrupt the run that earned it.
