@@ -207,7 +207,15 @@ const Level = (() => {
     // enough that walking into it is a decision you made. Where it came from is
     // not the point; that it is in your way is.
     function lavaColumn(x, w, floorY) {
-      const tall = rng.int(2, 3);
+      // Clearing a column means lifting your feet above it while your head stays
+      // under the ceiling: body plus column has to fit in the headroom. Two tiles
+      // is the most that leaves, and the pocket cut above makes sure the arc is
+      // not clipped short into the lava.
+      const tall = rng.int(1, 2);
+      for (let cx = x - 4; cx <= x + w + 4; cx++) {
+        dig(cx, floorY - HEADROOM - 1);
+        dig(cx, floorY - HEADROOM - 2);
+      }
       for (let cx = x; cx < x + w; cx++) {
         for (let y = floorY - tall; y <= floorY; y++) put(cx, y, TILE.LAVA);
       }
@@ -275,7 +283,7 @@ const Level = (() => {
         { value: "under", weight: 22 },
         { value: "climb", weight: 11 },
         { value: "tube", weight: 12 },
-        { value: "back", weight: 24 },
+        { value: "switchback", weight: 24 },
       ]);
 
       if (room < 40) kind = "run";
@@ -352,21 +360,21 @@ const Level = (() => {
         x = to;
         runOut(rng.int(6, 14));
       } else {
-        // Forced backtrack: the way forward at this level is simply not dug, so
-        // the only way on is back the way you came and down.
-        const back = rng.int(12, 26);
-        const below = Math.min(DEEP, y + rng.int(6, 12));
-        const from = Math.max(4, x - back);
+        // A switchback: the path turns back on itself and keeps going — right,
+        // down, left, down, right again. The direction reverses but the ground
+        // is always new, so it is a U-turn rather than retracing your steps.
+        const midY = Math.min(DEEP, y + rng.int(6, 12));
+        const lowY = Math.min(DEEP, midY + rng.int(6, 12));
+        const leftEnd = Math.max(6, x - rng.int(16, 34));
+        const onward = rng.int(30, 60);
 
-        // One roll, used twice. Rolling twice leaves the corridor ending at one
-        // distance and the walk resuming at another, with raw rock between them.
-        const onward = rng.int(20, 40);
+        shaft(x, 3, y, midY);
+        corridor(leftEnd, x + 3, midY, "switchback");
+        shaft(leftEnd, 3, midY, lowY);
+        corridor(leftEnd, Math.min(width - 1, x + onward), lowY, "switchback");
 
-        corridor(from, x, y);
-        shaft(from, 3, y, below);
-        corridor(from, Math.min(width - 1, x + onward), below, "under");
         x = Math.min(width - 1, x + onward);
-        y = below;
+        y = lowY;
         runOut(rng.int(6, 16));
       }
     }
@@ -394,10 +402,20 @@ const Level = (() => {
     // -------------------------------------------------------------- hazards
     let spikes = 0;
     for (const place of places) {
+      // Never in a squeeze. Three rows of headroom is not enough to hop a spike
+      // without cracking your head on the ceiling, and a spike you cannot clear
+      // is a wall the audit would not notice.
       if (place.type !== "corridor" && place.type !== "under") continue;
       if (place.x1 - place.x0 < 12 || !detail.chance(0.45)) continue;
       const at0 = detail.int(place.x0 + 4, place.x1 - 4);
-      const run = detail.int(1, 3);
+      const run = detail.int(1, 2);
+      // A spike needs room to be jumped. Cut an extra row of ceiling over it and
+      // its run-up, so the arc is not clipped short and dropped onto the points.
+      for (let cx = at0 - 4; cx <= at0 + run + 4; cx++) {
+        dig(cx, place.floorY - HEADROOM - 1);
+        dig(cx, place.floorY - HEADROOM - 2);
+      }
+
       for (let i = 0; i < run; i++) {
         if (peek(at0 + i, place.floorY) !== TILE.GROUND) continue;
         put(at0 + i, place.floorY - 1, TILE.SPIKE);
@@ -479,7 +497,10 @@ const Level = (() => {
   }
 
   // Can the player stand here: something solid underfoot, room for the body.
+  // Not on a spike — a patch of them has to be jumped, which is what makes the
+  // audit check that jumping it is possible rather than walking through.
   function standable(level, x, y) {
+    if (at(level, x, y) === TILE.SPIKE) return false;
     const under = at(level, x, y + 1);
     if (under !== TILE.GROUND && under !== TILE.PLATFORM) return false;
     return open(level, x, y) && open(level, x, y - 1);

@@ -155,8 +155,11 @@ const Player = (() => {
     // -------------------------------------------------------------- contacts
     // Lava costs a recovery, like every other hazard here: it puts you back on
     // your feet somewhere safe and takes the time off you.
-    const burned = Physics.overlaps(level, body, Level.TILE.LAVA).length;
-    if (player.recovering === 0 && (burned || Physics.overlaps(level, body, Level.TILE.SPIKE).length)) {
+    // A spike only bites the bottom half of its tile, so half a tile of lift
+    // clears one. Lava fills its tile properly.
+    const burned = Physics.touching(level, body, Level.TILE.LAVA, 0.08, 0.12);
+    const spiked = Physics.touching(level, body, Level.TILE.SPIKE, 0.25, 0.6);
+    if (player.recovering === 0 && (burned || spiked)) {
       recover(player, level);
       return player;
     }

@@ -91,8 +91,32 @@ const Physics = (() => {
     return { left, right };
   }
 
-  // Which tile types a box is currently overlapping — used for coins and spikes,
-  // neither of which are solid.
+  // Hazards are drawn as small shapes sitting on the floor and their reach ought
+  // to match. A full-tile hitbox makes a spike unjumpable under a low ceiling,
+  // because clearing it means lifting your feet a whole tile — which is exactly
+  // the height a four-row tunnel will not give you.
+  function touching(level, body, want, padX, padY) {
+    const left = Math.floor(body.x + EPS);
+    const right = Math.floor(body.x + body.w - EPS);
+    const top = Math.floor(body.y + EPS);
+    const bottom = Math.floor(body.y + body.h - EPS);
+
+    for (let tx = left; tx <= right; tx++) {
+      for (let ty = top; ty <= bottom; ty++) {
+        if (Level.at(level, tx, ty) !== want) continue;
+        const hx0 = tx + padX;
+        const hx1 = tx + 1 - padX;
+        const hy0 = ty + padY;
+        if (body.x < hx1 && body.x + body.w > hx0 && body.y + body.h > hy0 && body.y < ty + 1) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  // Which tile types a box is currently overlapping — used where the whole tile
+  // counts, not just the shape drawn in it.
   function overlaps(level, body, want) {
     const found = [];
     const left = Math.floor(body.x + EPS);
@@ -108,5 +132,5 @@ const Physics = (() => {
     return found;
   }
 
-  return { solidAt, oneWayAt, moveX, moveY, move, walls, overlaps };
+  return { solidAt, oneWayAt, moveX, moveY, move, walls, overlaps, touching };
 })();
