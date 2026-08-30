@@ -18,6 +18,10 @@ const Input = (() => {
   // something incidental.
   const RESERVED = ["KeyS"];
 
+  // Held for a faster sweep of the map. Watched but never swallowed — shift on
+  // its own has no default worth preventing.
+  const MODIFIERS = { ShiftLeft: 1, ShiftRight: 1 };
+
   const VIEW = {
     ArrowLeft: { x: -1, y: 0 },
     ArrowRight: { x: 1, y: 0 },
@@ -30,6 +34,7 @@ const Input = (() => {
     { action: "Jump", keys: "W or Space" },
     { action: "Wall jump", keys: "W or Space on a wall" },
     { action: "Camera", keys: "Arrow keys" },
+    { action: "Sweep", keys: "Shift + arrows" },
     { action: "Reserved", keys: "S" },
   ];
 
@@ -39,7 +44,7 @@ const Input = (() => {
   let attached = false;
 
   function watched(code) {
-    return code in BINDINGS || code in VIEW;
+    return code in BINDINGS || code in VIEW || code in MODIFIERS;
   }
 
   // Menus keep their keys: space still activates a focused button and the seed
@@ -64,7 +69,7 @@ const Input = (() => {
 
   function onKeyDown(event) {
     if (!watched(event.code) || isUiTarget(event.target)) return;
-    event.preventDefault(); // space and arrows would scroll the page
+    if (!(event.code in MODIFIERS)) event.preventDefault(); // space and arrows would scroll
     down.add(event.code);
     recompute();
   }
@@ -114,6 +119,10 @@ const Input = (() => {
   }
 
   // Not recorded, not simulated: this only ever moves the view.
+  function fastView() {
+    return down.has("ShiftLeft") || down.has("ShiftRight");
+  }
+
   function cameraAxis() {
     let x = 0;
     let y = 0;
@@ -129,5 +138,5 @@ const Input = (() => {
     };
   }
 
-  return { SIM, BINDINGS, RESERVED, VIEW, SCHEME, attach, detach, poll, held, cameraAxis };
+  return { SIM, BINDINGS, RESERVED, VIEW, MODIFIERS, SCHEME, attach, detach, poll, held, fastView, cameraAxis };
 })();

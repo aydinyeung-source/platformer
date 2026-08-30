@@ -15,6 +15,7 @@
   --alert: #c4632a;
   /* Terrain. Blocks are drawn as real tiles with faces and seams, so they need
      their own weights rather than a wash of ink at low opacity. */
+  --warn: #a4503c; // the one red in the palette, for things that went wrong
   --lava: #d9793a;
   --lava-top: #eaa864;
   --stone: #c2cac5;
@@ -497,4 +498,195 @@ button {
   right: clamp(22px, 7vw, 96px);
   bottom: clamp(24px, 5vw, 44px);
   background: var(--paper-raised);
+}
+
+/* --------------------------------------------------------------------- auth */
+
+.auth {
+  display: grid;
+  place-items: center;
+  min-height: 100vh;
+  padding: 24px;
+}
+
+.auth[hidden],
+.app[hidden] {
+  display: none;
+}
+
+.auth__panel {
+  width: min(380px, 100%);
+  padding: 38px 34px 30px;
+  background: var(--paper-raised);
+  border: 1px solid var(--rule);
+  border-radius: 20px;
+  box-shadow: 0 24px 56px -38px rgba(35, 43, 40, 0.5);
+  animation: rise 700ms var(--ease-soft) both;
+}
+
+.auth__title {
+  font-family: var(--rounded);
+  font-weight: 700;
+  font-size: 30px;
+  line-height: 1.2;
+  color: var(--ink);
+}
+
+.auth__mode {
+  margin-top: 10px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--rule);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: var(--ink-muted);
+}
+
+.auth__field {
+  display: block;
+  margin-top: 18px;
+}
+
+.auth__field[hidden] {
+  display: none;
+}
+
+/* Eases in when sign-up is selected, so the panel grows rather than jumps. */
+.auth__field--reveal {
+  animation: rise 700ms var(--ease-soft) both;
+}
+
+.auth__label {
+  display: block;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: var(--ink-muted);
+}
+
+/* Filled with the page background so the field reads as recessed into the
+   raised card. The border is the focus indicator, so the outline goes. */
+.auth__input {
+  width: 100%;
+  margin-top: 8px;
+  padding: 12px 14px;
+  background: var(--paper);
+  border: 1px solid var(--rule);
+  border-radius: 10px;
+  font-family: var(--mono);
+  font-size: 14px;
+  color: var(--ink);
+  transition: border-color 300ms var(--ease-soft);
+}
+
+.auth__input:focus {
+  border-color: var(--accent);
+  outline: none;
+}
+
+.auth__actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 24px;
+}
+
+.auth__button {
+  flex: 1;
+  padding: 12px 0;
+  background: transparent;
+  border: 1px solid var(--rule);
+  border-radius: 10px;
+  font-family: var(--rounded);
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--accent);
+  cursor: pointer;
+  transition: background-color 300ms var(--ease-soft), color 300ms var(--ease-soft);
+}
+
+.auth__button.is-primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--paper-raised);
+}
+
+.auth__button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+/* Held open so the panel does not jump when a message appears. */
+.auth__message {
+  min-height: 1.4em;
+  margin-top: 16px;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--ink-muted);
+}
+
+.auth__message.is-error {
+  color: var(--warn);
+}
+
+.corner__player {
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+
+/* -------------------------------------------------------------- leaderboard */
+
+.board {
+  margin-top: 22px;
+  padding: 20px 24px 18px;
+  background: var(--paper-raised);
+  border: 1px solid var(--rule);
+  border-radius: 16px;
+  box-shadow: 0 18px 40px -32px rgba(35, 43, 40, 0.45);
+}
+
+.board__list {
+  margin-top: 12px;
+  list-style: none;
+}
+
+.board__row {
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 14px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--rule);
+  font-size: 11px;
+}
+
+.board__row:last-child {
+  border-bottom: none;
+}
+
+.board__place {
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  color: var(--ink-muted);
+}
+
+.board__who {
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.board__time {
+  font-variant-numeric: tabular-nums;
+  color: var(--accent);
+}
+
+.board__note {
+  margin-top: 12px;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--ink-muted);
 }

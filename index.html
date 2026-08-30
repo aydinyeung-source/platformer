@@ -7,8 +7,40 @@
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+  <section class="auth" id="auth" hidden>
+    <form class="auth__panel" id="auth-form" novalidate>
+      <h1 class="auth__title">Platformer</h1>
+      <p class="auth__mode">Log in or sign up</p>
+      <label class="auth__field">
+        <span class="auth__label">Username</span>
+        <input class="auth__input" id="auth-username" type="text"
+               autocomplete="username" required>
+      </label>
+      <label class="auth__field">
+        <span class="auth__label">Password</span>
+        <input class="auth__input" id="auth-password" type="password"
+               autocomplete="current-password" required>
+      </label>
+      <label class="auth__field auth__field--reveal"
+             id="auth-confirm-field" hidden>
+        <span class="auth__label">Confirm password</span>
+        <input class="auth__input" id="auth-confirm" type="password"
+               autocomplete="new-password">
+      </label>
+      <div class="auth__actions">
+        <button class="auth__button is-primary" id="auth-login"
+                type="button">Log in</button>
+        <button class="auth__button" id="auth-signup"
+                type="button">Sign up</button>
+      </div>
+      <p class="auth__message" id="auth-message"></p>
+    </form>
+  </section>
+
+  <div class="app" hidden>
   <div class="corner">
-    <span class="corner__version">v1.5.1</span>
+    <span class="corner__version">v1.9.0</span>
+    <span class="corner__player" data-player></span>
     <div class="corner__actions">
       <button class="button button--secondary is-on" type="button" data-toggle="sound" aria-pressed="true">Sound</button>
       <button class="button button--secondary" type="button" data-action="fullscreen">Fullscreen</button>
@@ -44,6 +76,12 @@
         </div>
       </article>
 
+      <article class="board">
+        <p class="label">Best times</p>
+        <ol class="board__list" data-board-list></ol>
+        <p class="board__note" data-board-note>Sign in and finish a run to appear here</p>
+      </article>
+
       <button class="button button--primary" type="button" data-action="play">Play</button>
 
       <p class="label controls__label">Controls</p>
@@ -68,6 +106,7 @@
     </div>
     <button class="button button--secondary game__quit" type="button" data-action="quit">Quit</button>
   </div>
+  </div>
 
   <script src="js/rng.js"></script>
   <script src="js/input.js"></script>
@@ -77,6 +116,8 @@
   <script src="js/physics.js"></script>
   <script src="js/player.js"></script>
   <script src="js/game.js"></script>
+  <script src="js/leaderboard.js"></script>
   <script src="script.js"></script>
+  <script src="js/auth.js"></script>
 </body>
 </html>

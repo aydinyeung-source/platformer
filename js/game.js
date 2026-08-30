@@ -7,21 +7,52 @@ const Game = (() => {
   const STEP = 1 / 60;
   const MAX_CATCHUP = 5;
 
+  // Time to read the map before the clock starts. The camera is free the whole
+  // time, which is the point: the route is worth looking at before you run it.
+  const SCOUT_SECONDS = 10;
+
   function create(level) {
     return {
       level,
       player: Player.create(level),
+      scout: SCOUT_SECONDS,
+      // Every button press, at a fixed 60 Hz. A seed plus this tape reproduces
+      // the run exactly, which is what lets a claimed time be checked rather
+      // than taken on trust.
+      tape: [],
       accumulator: 0,
       steps: 0,
     };
   }
 
+  // Run-length encoded, because a run is mostly the same buttons held down: a
+  // two-minute run collapses from 7200 steps to a few hundred pairs.
+  function record(session, mask) {
+    const last = session.tape[session.tape.length - 1];
+    if (last && last[0] === mask) last[1]++;
+    else session.tape.push([mask, 1]);
+  }
+
+  function tape(session) {
+    return session.tape.map((pair) => pair[0].toString(16) + "x" + pair[1]).join(".");
+  }
+
   function advance(session, dt, poll) {
+    // Scouting: the view moves, the runner does not, and the clock has not
+    // started. Jump cuts it short for anyone who already knows the seed.
+    if (session.scout > 0) {
+      session.scout = Math.max(0, session.scout - dt);
+      if (poll().jumpPressed) session.scout = 0;
+      return session;
+    }
+
     session.accumulator += Math.min(dt, 0.25);
 
     let taken = 0;
     while (session.accumulator >= STEP && taken < MAX_CATCHUP) {
-      Player.update(session.player, session.level, poll(), STEP);
+      const input = poll();
+      record(session, input.mask || 0);
+      Player.update(session.player, session.level, input, STEP);
       session.accumulator -= STEP;
       session.steps++;
       taken++;
@@ -33,5 +64,5 @@ const Game = (() => {
     return session;
   }
 
-  return { STEP, MAX_CATCHUP, create, advance };
+  return { STEP, MAX_CATCHUP, SCOUT_SECONDS, create, advance, tape };
 })();

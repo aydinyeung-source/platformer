@@ -95,6 +95,7 @@
   // Nothing about the run is generated here. The map is not built, drawn or
   // measured until Play is pressed, so the menu cannot give the level away.
   function refresh() {
+    refreshBoard();
     resolved.hidden = activeValue(sourceButtons, "source") !== "daily";
     if (resolved.hidden) return;
     resolved.textContent =
@@ -116,7 +117,10 @@
   });
 
   modeButtons.forEach((button) => {
-    button.addEventListener("click", () => select(modeButtons, button));
+    button.addEventListener("click", () => {
+      select(modeButtons, button);
+      refreshBoard();
+    });
   });
 
   // Typing is always a custom seed, whichever source put the text there.
@@ -130,6 +134,56 @@
     event.preventDefault();
     seedInput.blur();
   });
+
+  // -------------------------------------------------------------- leaderboard
+
+  const boardList = document.querySelector("[data-board-list]");
+  const boardNote = document.querySelector("[data-board-note]");
+  let boardTimer = null;
+
+  function renderBoard(rows) {
+    boardList.textContent = "";
+    if (!rows || !rows.length) {
+      boardNote.hidden = false;
+      boardNote.textContent = "No finished runs on this seed yet";
+      return;
+    }
+
+    boardNote.hidden = true;
+    rows.forEach((row, index) => {
+      const item = document.createElement("li");
+      item.className = "board__row";
+
+      const place = document.createElement("span");
+      place.className = "board__place";
+      place.textContent = String(index + 1).padStart(2, "0");
+
+      const who = document.createElement("span");
+      who.className = "board__who";
+      who.textContent = row.username;
+
+      const time = document.createElement("span");
+      time.className = "board__time";
+      time.textContent = Leaderboard.clock(Number(row.seconds));
+
+      item.append(place, who, time);
+      boardList.append(item);
+    });
+  }
+
+  // Typing a seed changes it on every keystroke, so the board waits for the
+  // typing to stop rather than asking the server about half-written seeds.
+  function refreshBoard() {
+    window.clearTimeout(boardTimer);
+    boardTimer = window.setTimeout(() => {
+      Leaderboard.top(Rng.keyFor(seedInput.value), activeValue(modeButtons, "mode"), 10)
+        .then(renderBoard)
+        .catch(() => {
+          boardNote.hidden = false;
+          boardNote.textContent = "Board unavailable";
+        });
+    }, 450);
+  }
 
   // ------------------------------------------------------------------ loading
 
@@ -323,7 +377,27 @@
     });
 
     const player = session.player;
-    const line = player.finished
+
+    // Submit once, the moment the door is reached.
+    if (player.finished && !session.submitted) {
+      session.submitted = true;
+      Leaderboard.submit({
+        seed: level.seed,
+        mode: level.mode,
+        reached: Player.metres(player),
+        seconds: player.time,
+        falls: player.falls,
+        finished: true,
+        inputs: Game.tape(session),
+        checksum: level.checksum,
+      }).catch(() => {
+        // A failed submission must never interrupt the run that earned it.
+      });
+    }
+
+    const line = session.scout > 0
+      ? "Scan the map · " + Math.ceil(session.scout) + "s · jump to start"
+      : player.finished
       ? "Through the door · " + clock(player.time)
       : Player.metres(player).toLocaleString("en-US") + " / " + level.meters.toLocaleString("en-US") +
         " m · " + clock(player.time) +
@@ -367,6 +441,7 @@
       right: (frame.mask & Input.SIM.RIGHT) !== 0,
       jumpHeld: (frame.mask & Input.SIM.JUMP) !== 0,
       jumpPressed: (frame.pressed & Input.SIM.JUMP) !== 0,
+      mask: frame.mask,
     };
   }
 
@@ -411,9 +486,10 @@
       updateLoading(now);
     } else if (phase === "game") {
       Game.advance(session, dt, readInput);
-      // Twice the running speed, flat — fast enough to get ahead of the runner,
-      // slow enough that the view is somewhere you put deliberately.
-      Camera.update(gameCamera, dt, Input.cameraAxis(), Player.TUNING.runSpeed * 2 * gameTile);
+      // A step and a half faster than the runner for placing the view, two and a
+      // half with shift for sweeping the map — both flat, neither ramps.
+      const sweep = Input.fastView() ? 2.5 : 1.5;
+      Camera.update(gameCamera, dt, Input.cameraAxis(), Player.TUNING.runSpeed * sweep * gameTile);
       renderGame();
     }
 
@@ -427,7 +503,15 @@
     requestAnimationFrame(frame);
   }
 
-  seedInput.value = Rng.randomSeed();
-  setSource("random");
-  refresh();
+  function boot() {
+    seedInput.value = Rng.randomSeed();
+    setSource("random");
+    refresh();
+  }
+
+  // The menu waits for the gate. Booting behind the login card would roll a seed
+  // and start the loop for someone who is not signed in yet.
+  const gate = document.querySelector(".app");
+  if (!gate || !gate.hidden) boot();
+  else window.addEventListener("platformer:unlocked", boot, { once: true });
 })();
