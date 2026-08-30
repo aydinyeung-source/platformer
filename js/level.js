@@ -133,18 +133,28 @@ const Level = (() => {
       const top = Math.max(ROOF, floorY - tall);
       for (let x = x0; x <= x1; x++) for (let y = top; y < floorY; y++) dig(x, y);
 
-      let ledgeY = floorY - LEDGE_RISE;
+      // Only build what the way out needs. Filling a room with ledges every
+      // three rows turns every chamber into the same lattice of flying islands.
+      const stairTop = rise > 0 ? floorY - rise : floorY - LEDGE_RISE;
       let side = 0;
-      while (ledgeY > top + 1) {
+      for (let ledgeY = floorY - LEDGE_RISE; ledgeY >= stairTop && ledgeY > top + 1; ledgeY -= LEDGE_RISE) {
         const span = rng.int(3, 6);
-        // Once the stair is within reach of the way out, it hugs the exit wall.
-        // Alternating all the way up can strand the last ledge on the far side
-        // of the room from the door out of it.
+        // Once the stair is within reach of the way out it hugs the exit wall:
+        // alternating all the way up can strand the last ledge across the room
+        // from the door out of it.
         const nearExit = rise > 0 && ledgeY <= floorY - rise + LEDGE_RISE;
         const lx = nearExit || !side ? x1 - span : x0 + 1;
         for (let i = 0; i < span; i++) put(lx + i, ledgeY, TILE.PLATFORM);
-        ledgeY -= LEDGE_RISE;
         side = side ? 0 : 1;
+      }
+
+      // Something to look at and not reach. Four rows above anything you can
+      // stand on and clear of both walls, so no jump and no wall climb gets
+      // near it — it is scenery, and it says the room is bigger than the route.
+      if (top + 4 < stairTop - 4 && rng.chance(0.5)) {
+        const span = rng.int(3, 5);
+        const lx = rng.int(x0 + 3, Math.max(x0 + 3, x1 - span - 3));
+        for (let i = 0; i < span; i++) put(lx + i, stairTop - 5, TILE.PLATFORM);
       }
 
       places.push({ type: "chamber", x0, x1, floorY, top });

@@ -56,6 +56,7 @@ const Game = (() => {
       const input = poll();
       record(session, input.mask || 0);
       Player.update(session.player, session.level, input, STEP);
+      if (session.player.dead) break;
       session.accumulator -= STEP;
       session.steps++;
       taken++;

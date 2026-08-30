@@ -50,6 +50,7 @@ const Player = (() => {
       lockout: 0,
       onWall: false,
       falls: 0,
+      dead: false,
       time: 0,
       finished: false,
       // Where to put the player back when the ground gives out. There is no
@@ -84,6 +85,7 @@ const Player = (() => {
   }
 
   function update(player, level, input, dt) {
+    if (player.dead) return player;
     const body = player.body;
 
     if (!player.finished) player.time += dt;
@@ -153,9 +155,17 @@ const Player = (() => {
     Physics.move(level, body, dt);
 
     // -------------------------------------------------------------- contacts
-    // Lava is a hazard like any other here: it costs you, it does not kill you.
-    const scorched = Physics.overlaps(level, body, Level.TILE.LAVA).length;
-    if (player.recovering === 0 && (scorched || Physics.overlaps(level, body, Level.TILE.SPIKE).length)) {
+    // Lava ends the run. Everything else in this game costs you time and puts
+    // you back on your feet; this is the one thing that does not, which is what
+    // makes a pool worth reading the map to avoid.
+    if (Physics.overlaps(level, body, Level.TILE.LAVA).length) {
+      player.dead = true;
+      body.vx = 0;
+      body.vy = 0;
+      return player;
+    }
+
+    if (player.recovering === 0 && Physics.overlaps(level, body, Level.TILE.SPIKE).length) {
       recover(player, level);
       return player;
     }

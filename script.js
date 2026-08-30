@@ -407,8 +407,8 @@
 
     const player = session.player;
 
-    // Submit once, the moment the door is reached.
-    if (player.finished && !session.submitted) {
+    // Submit once, whether the run ended at the door or in the lava.
+    if ((player.finished || player.dead) && !session.submitted) {
       session.submitted = true;
       Runs.submit({
         seed: level.seed,
@@ -416,7 +416,7 @@
         reached: Player.metres(player),
         seconds: player.time,
         falls: player.falls,
-        finished: true,
+        finished: player.finished,
         checksum: level.checksum,
       }).catch(() => {
         // A failed submission must never interrupt the run that earned it.
@@ -425,6 +425,8 @@
 
     const line = session.scout > 0
       ? "Scan the map · " + Math.ceil(session.scout) + "s · arrows to look, shift to sweep"
+      : player.dead
+      ? "Lost to the lava · " + Player.metres(player).toLocaleString("en-US") + " m · escape to leave"
       : player.finished
       ? "Through the door · " + clock(player.time)
       : Player.metres(player).toLocaleString("en-US") + " / " + level.meters.toLocaleString("en-US") +
