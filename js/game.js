@@ -41,8 +41,11 @@ const Game = (() => {
     // Scouting: the view moves, the runner does not, and the clock has not
     // started. Jump cuts it short for anyone who already knows the seed.
     if (session.scout > 0) {
+      // The ten seconds are the point, so they are not skippable: the map is
+      // meant to be read before it is run, and a skip button turns that into a
+      // thing you press to get past.
       session.scout = Math.max(0, session.scout - dt);
-      if (poll().jumpPressed) session.scout = 0;
+      poll(); // consumed so a held jump does not buffer into the start
       return session;
     }
 

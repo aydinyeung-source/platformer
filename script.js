@@ -290,6 +290,7 @@
     gameTile = Math.max(26, Math.min(52, Math.round(h / 14)));
 
     Camera.resize(gameCamera, w, h);
+    gameCamera.overscan = gameTile * 12;
     if (level) Camera.setWorld(gameCamera, level.width * gameTile, level.height * gameTile);
     // A level shorter than the window is centred rather than pinned to the top.
     gameOffsetY = level ? Math.max(0, (h - level.height * gameTile) / 2) : 0;
@@ -423,7 +424,7 @@
     }
 
     const line = session.scout > 0
-      ? "Scan the map · " + Math.ceil(session.scout) + "s · jump to start"
+      ? "Scan the map · " + Math.ceil(session.scout) + "s · arrows to look, shift to sweep"
       : player.finished
       ? "Through the door · " + clock(player.time)
       : Player.metres(player).toLocaleString("en-US") + " / " + level.meters.toLocaleString("en-US") +

@@ -15,6 +15,10 @@ const Camera = (() => {
       worldW: options.worldW || 0,
       worldH: options.worldH || 0,
       speed: options.speed || DEFAULT_SPEED,
+      // Room to rise above the world. Rock reaches the very top row in most
+      // columns, so stopping dead at the world edge leaves a wall filling the
+      // screen with no way to get above it and see what you are looking at.
+      overscan: options.overscan || 0,
     };
   }
 
@@ -22,7 +26,7 @@ const Camera = (() => {
     const maxX = Math.max(0, camera.worldW - camera.viewW);
     const maxY = Math.max(0, camera.worldH - camera.viewH);
     camera.x = Math.min(maxX, Math.max(0, camera.x));
-    camera.y = Math.min(maxY, Math.max(0, camera.y));
+    camera.y = Math.min(maxY, Math.max(-camera.overscan, camera.y));
     return camera;
   }
 
