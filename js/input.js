@@ -4,19 +4,18 @@ const Input = (() => {
   // Simulation inputs are the only ones a replay records. Camera keys are
   // deliberately excluded: where someone pointed the view can never change the
   // outcome of a run, so a recorded run stays valid however it is watched.
-  const SIM = { LEFT: 1, RIGHT: 2, JUMP: 4 };
+  const SIM = { LEFT: 1, RIGHT: 2, JUMP: 4, UP: 8, DOWN: 16 };
 
   const BINDINGS = {
     KeyA: SIM.LEFT,
     KeyD: SIM.RIGHT,
-    KeyW: SIM.JUMP,
+    KeyW: SIM.UP,
     Space: SIM.JUMP,
+    // S was held back for a verb that had not been designed yet. This is it:
+    // climbing down a ladder. W climbs up, and off a ladder both W and space
+    // still jump, so nothing anyone already learned has changed.
+    KeyS: SIM.DOWN,
   };
-
-  // KeyS is unbound on purpose. It is the last free key in the scheme and it is
-  // being held for a verb that has not been designed yet — do not spend it on
-  // something incidental.
-  const RESERVED = ["KeyS"];
 
   // Held for a faster sweep of the map. Watched but never swallowed — shift on
   // its own has no default worth preventing.
@@ -32,10 +31,10 @@ const Input = (() => {
   const SCHEME = [
     { action: "Move", keys: "A / D" },
     { action: "Jump", keys: "W or Space" },
+    { action: "Climb", keys: "W and S on a ladder" },
     { action: "Wall jump", keys: "W or Space on a wall" },
     { action: "Camera", keys: "Arrow keys" },
     { action: "Sweep", keys: "Shift + arrows" },
-    { action: "Reserved", keys: "S" },
   ];
 
   const down = new Set();
@@ -138,5 +137,5 @@ const Input = (() => {
     };
   }
 
-  return { SIM, BINDINGS, RESERVED, VIEW, MODIFIERS, SCHEME, attach, detach, poll, held, fastView, cameraAxis };
+  return { SIM, BINDINGS, VIEW, MODIFIERS, SCHEME, attach, detach, poll, held, fastView, cameraAxis };
 })();

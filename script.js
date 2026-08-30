@@ -469,8 +469,11 @@
     return {
       left: (frame.mask & Input.SIM.LEFT) !== 0,
       right: (frame.mask & Input.SIM.RIGHT) !== 0,
-      jumpHeld: (frame.mask & Input.SIM.JUMP) !== 0,
-      jumpPressed: (frame.pressed & Input.SIM.JUMP) !== 0,
+      jumpHeld: (frame.mask & (Input.SIM.JUMP | Input.SIM.UP)) !== 0,
+      jumpPressed: (frame.pressed & (Input.SIM.JUMP | Input.SIM.UP)) !== 0,
+      leapPressed: (frame.pressed & Input.SIM.JUMP) !== 0,
+      up: (frame.mask & Input.SIM.UP) !== 0,
+      down: (frame.mask & Input.SIM.DOWN) !== 0,
       mask: frame.mask,
     };
   }

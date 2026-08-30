@@ -19,6 +19,7 @@ const Player = (() => {
     minHold: 0.06, // a jump always gets off the ground before it can be cut
     maxFall: 55,
     coyote: 0.1, // grace after walking off an edge
+    climbSpeed: 6, // ladders are climbed steadily, not sprinted up
     wallSlide: 9, // terminal speed while hugging a wall — a slow scrape, not a stop
     wallJumpY: 24,
     wallJumpX: 5.5,
@@ -91,6 +92,11 @@ const Player = (() => {
     if (!player.finished) player.time += dt;
     if (player.recovering > 0) player.recovering = Math.max(0, player.recovering - dt);
 
+    // ----------------------------------------------------------------- ladder
+    // Holding a ladder suspends gravity: you go up, down, or nowhere. Stepping
+    // sideways or pressing space is how you leave it.
+    player.onLadder = Physics.overlaps(level, body, Level.TILE.LADDER).length > 0;
+
     // ------------------------------------------------------------------ walls
     const touching = Physics.walls(level, body);
     player.onWall = !body.onGround && (touching.left || touching.right);
@@ -116,7 +122,16 @@ const Player = (() => {
     player.coyote = body.onGround ? TUNING.coyote : Math.max(0, player.coyote - dt);
     player.buffer = input.jumpPressed ? TUNING.buffer : Math.max(0, player.buffer - dt);
 
-    if (player.buffer > 0 && player.coyote > 0) {
+    // On a ladder W climbs, so only space jumps off it.
+    if (player.onLadder && input.leapPressed) {
+      body.vy = -TUNING.jumpSpeed;
+      player.onLadder = false;
+      player.buffer = 0;
+      player.holding = true;
+      player.holdTime = 0;
+    } else if (player.onLadder) {
+      player.buffer = 0;
+    } else if (player.buffer > 0 && player.coyote > 0) {
       body.vy = -TUNING.jumpSpeed;
       body.onGround = false;
       player.buffer = 0;
@@ -147,7 +162,12 @@ const Player = (() => {
     }
     if (body.vy >= 0) player.holding = false;
 
-    body.vy = Math.min(TUNING.maxFall, body.vy + TUNING.gravity * dt);
+    if (player.onLadder) {
+      const climb = (input.down ? 1 : 0) - (input.up ? 1 : 0);
+      body.vy = climb * TUNING.climbSpeed;
+    } else {
+      body.vy = Math.min(TUNING.maxFall, body.vy + TUNING.gravity * dt);
+    }
 
     // Scraping down a wall is slow enough to think on.
     if (player.onWall && body.vy > TUNING.wallSlide) body.vy = TUNING.wallSlide;

@@ -8,6 +8,7 @@ const Level = (() => {
     SPIKE: 3,
     DOOR: 4,
     LAVA: 5,
+    LADDER: 6,
   };
 
   // The movement envelope the generator promises never to exceed. Levels are
@@ -151,10 +152,15 @@ const Level = (() => {
       // Something to look at and not reach. Four rows above anything you can
       // stand on and clear of both walls, so no jump and no wall climb gets
       // near it — it is scenery, and it says the room is bigger than the route.
-      if (top + 4 < stairTop - 4 && rng.chance(0.5)) {
+      if (tall >= 8 && rng.chance(0.6)) {
         const span = rng.int(3, 5);
         const lx = rng.int(x0 + 3, Math.max(x0 + 3, x1 - span - 3));
-        for (let i = 0; i < span; i++) put(lx + i, stairTop - 5, TILE.PLATFORM);
+        const islandY = top + 2;
+        for (let i = 0; i < span; i++) put(lx + i, islandY, TILE.PLATFORM);
+
+        // Half of them get a ladder. The rest stay out of reach — a room should
+        // have some of it you only ever look at.
+        if (rng.chance(0.5) && lx - 1 > x0) ladder(lx - 1, floorY - 1, islandY - 1);
       }
 
       places.push({ type: "chamber", x0, x1, floorY, top });
@@ -188,6 +194,24 @@ const Level = (() => {
       }
 
       places.push({ type: toY < fromY ? "climb" : "drop", x0: x, x1: x + w - 1, fromY, toY, rungs });
+    }
+
+    // A column of lava standing in a corridor. Narrow enough to jump, tall
+    // enough that walking into it is a decision you made. Where it came from is
+    // not the point; that it is in your way is.
+    function lavaColumn(x, w, floorY) {
+      const tall = rng.int(2, 3);
+      for (let cx = x; cx < x + w; cx++) {
+        for (let y = floorY - tall; y <= floorY; y++) put(cx, y, TILE.LAVA);
+      }
+      places.push({ type: "column", x0: x, x1: x + w - 1, floorY });
+    }
+
+    // A ladder: one column of rungs you climb straight up, for reaching what a
+    // jump cannot. Not solid — you pass through it, and hold on to it.
+    function ladder(x, fromY, toY) {
+      for (let y = toY; y <= fromY; y++) put(x, y, TILE.LADDER);
+      places.push({ type: "ladder", x0: x, x1: x, floorY: fromY, top: toY });
     }
 
     // A hole in the floor with lava at the bottom of it. Narrow enough to jump,
@@ -244,10 +268,12 @@ const Level = (() => {
       let kind = rng.weighted([
         { value: "run", weight: 22 },
         { value: "pit", weight: 12 },
-        { value: "lava", weight: 12 },
+        { value: "lava", weight: 11 },
+        { value: "column", weight: 12 },
         { value: "chamber", weight: 16 },
         { value: "under", weight: 18 },
-        { value: "climb", weight: 14 },
+        { value: "climb", weight: 11 },
+        { value: "ladderup", weight: 12 },
         { value: "tube", weight: 12 },
         { value: "back", weight: 14 },
       ]);
@@ -267,6 +293,13 @@ const Level = (() => {
         const spot = rng.int(from + 3, Math.max(from + 3, x - 4 - wide));
         lavaHole(spot, wide, y);
         runOut(rng.int(8, 14));
+      } else if (kind === "column") {
+        const from = x;
+        runOut(rng.int(10, 16));
+        const wide = rng.int(1, 2);
+        const spot = rng.int(from + 3, Math.max(from + 3, x - 4 - wide));
+        lavaColumn(spot, wide, y);
+        runOut(rng.int(6, 12));
       } else if (kind === "pit") {
         runOut(rng.int(4, 8));
         pit(x - rng.int(3, 6), rng.int(2, 4), y);
@@ -303,6 +336,19 @@ const Level = (() => {
         y = above;
         x += 3;
         runOut(rng.int(10, 24));
+      } else if (kind === "ladderup") {
+        // A slot two wide with a ladder up one side. You climb it and step off
+        // onto the corridor at the top — no jumping involved.
+        const rise = rng.int(6, 15);
+        const above = Math.max(ROOF + HEADROOM, y - rise);
+        for (let cy = above - HEADROOM; cy < y; cy++) {
+          dig(x, cy);
+          dig(x + 1, cy);
+        }
+        ladder(x + 1, y - 1, above - 1);
+        y = above;
+        x += 2;
+        runOut(rng.int(10, 22));
       } else if (kind === "tube") {
         // An enclosed pipe with open ground either side of it, so it reads as
         // something you are inside rather than something you are on.
@@ -438,8 +484,10 @@ const Level = (() => {
     return tile !== TILE.GROUND && tile !== TILE.LAVA;
   }
 
-  // Can the player stand here: something solid underfoot, room for the body.
+  // Somewhere the player can hold position: solid underfoot, or a ladder to
+  // hang on to.
   function standable(level, x, y) {
+    if (at(level, x, y) === TILE.LADDER) return true;
     const under = at(level, x, y + 1);
     if (under !== TILE.GROUND && under !== TILE.PLATFORM) return false;
     return open(level, x, y) && open(level, x, y - 1);
@@ -474,6 +522,12 @@ const Level = (() => {
           if (standable(level, x + dx, y - rise)) visit(x + dx, y - rise);
         }
       }
+    }
+
+    // Straight up or down a ladder, one rung at a time.
+    if (at(level, x, y) === TILE.LADDER) {
+      if (standable(level, x, y - 1)) visit(x, y - 1);
+      if (standable(level, x, y + 1)) visit(x, y + 1);
     }
 
     // Leaving a ledge and landing lower: falling keeps your speed, so this is
@@ -656,6 +710,13 @@ const Level = (() => {
           ctx.lineTo(px + tilePx - 1, py + tilePx);
           ctx.closePath();
           ctx.fill();
+        } else if (tile === TILE.LADDER) {
+          const mid = px + tilePx / 2;
+          const rail = Math.max(1, tilePx * 0.06);
+          ctx.fillStyle = colours.ink;
+          ctx.fillRect(mid - tilePx * 0.18, py, rail, tilePx);
+          ctx.fillRect(mid + tilePx * 0.18 - rail, py, rail, tilePx);
+          ctx.fillRect(mid - tilePx * 0.18, py + tilePx * 0.42, tilePx * 0.36, rail);
         } else if (tile === TILE.LAVA) {
           ctx.fillStyle = colours.lava;
           ctx.fillRect(px, py, tilePx + 0.5, tilePx + 0.5);
@@ -673,7 +734,7 @@ const Level = (() => {
     ctx.restore();
   }
 
-  const GLYPHS = { 0: ".", 1: "#", 2: "=", 3: "^", 4: "D", 5: "L" };
+  const GLYPHS = { 0: ".", 1: "#", 2: "=", 3: "^", 4: "D", 5: "L", 6: "H" };
 
   function toText(level) {
     const rows = [];
