@@ -407,8 +407,8 @@
 
     const player = session.player;
 
-    // Submit once, whether the run ended at the door or in the lava.
-    if ((player.finished || player.dead) && !session.submitted) {
+    // Submit once, the moment the door is reached.
+    if (player.finished && !session.submitted) {
       session.submitted = true;
       Runs.submit({
         seed: level.seed,
@@ -416,7 +416,7 @@
         reached: Player.metres(player),
         seconds: player.time,
         falls: player.falls,
-        finished: player.finished,
+        finished: true,
         checksum: level.checksum,
       }).catch(() => {
         // A failed submission must never interrupt the run that earned it.
@@ -425,8 +425,6 @@
 
     const line = session.scout > 0
       ? "Scan the map · " + Math.ceil(session.scout) + "s · arrows to look, shift to sweep"
-      : player.dead
-      ? "Lost to the lava · " + Player.metres(player).toLocaleString("en-US") + " m · escape to leave"
       : player.finished
       ? "Through the door · " + clock(player.time)
       : Player.metres(player).toLocaleString("en-US") + " / " + level.meters.toLocaleString("en-US") +
@@ -469,11 +467,8 @@
     return {
       left: (frame.mask & Input.SIM.LEFT) !== 0,
       right: (frame.mask & Input.SIM.RIGHT) !== 0,
-      jumpHeld: (frame.mask & (Input.SIM.JUMP | Input.SIM.UP)) !== 0,
-      jumpPressed: (frame.pressed & (Input.SIM.JUMP | Input.SIM.UP)) !== 0,
-      leapPressed: (frame.pressed & Input.SIM.JUMP) !== 0,
-      up: (frame.mask & Input.SIM.UP) !== 0,
-      down: (frame.mask & Input.SIM.DOWN) !== 0,
+      jumpHeld: (frame.mask & Input.SIM.JUMP) !== 0,
+      jumpPressed: (frame.pressed & Input.SIM.JUMP) !== 0,
       mask: frame.mask,
     };
   }

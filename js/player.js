@@ -19,7 +19,6 @@ const Player = (() => {
     minHold: 0.06, // a jump always gets off the ground before it can be cut
     maxFall: 55,
     coyote: 0.1, // grace after walking off an edge
-    climbSpeed: 6, // ladders are climbed steadily, not sprinted up
     wallSlide: 9, // terminal speed while hugging a wall — a slow scrape, not a stop
     wallJumpY: 24,
     wallJumpX: 5.5,
@@ -51,7 +50,6 @@ const Player = (() => {
       lockout: 0,
       onWall: false,
       falls: 0,
-      dead: false,
       time: 0,
       finished: false,
       // Where to put the player back when the ground gives out. There is no
@@ -86,16 +84,10 @@ const Player = (() => {
   }
 
   function update(player, level, input, dt) {
-    if (player.dead) return player;
     const body = player.body;
 
     if (!player.finished) player.time += dt;
     if (player.recovering > 0) player.recovering = Math.max(0, player.recovering - dt);
-
-    // ----------------------------------------------------------------- ladder
-    // Holding a ladder suspends gravity: you go up, down, or nowhere. Stepping
-    // sideways or pressing space is how you leave it.
-    player.onLadder = Physics.overlaps(level, body, Level.TILE.LADDER).length > 0;
 
     // ------------------------------------------------------------------ walls
     const touching = Physics.walls(level, body);
@@ -122,16 +114,7 @@ const Player = (() => {
     player.coyote = body.onGround ? TUNING.coyote : Math.max(0, player.coyote - dt);
     player.buffer = input.jumpPressed ? TUNING.buffer : Math.max(0, player.buffer - dt);
 
-    // On a ladder W climbs, so only space jumps off it.
-    if (player.onLadder && input.leapPressed) {
-      body.vy = -TUNING.jumpSpeed;
-      player.onLadder = false;
-      player.buffer = 0;
-      player.holding = true;
-      player.holdTime = 0;
-    } else if (player.onLadder) {
-      player.buffer = 0;
-    } else if (player.buffer > 0 && player.coyote > 0) {
+    if (player.buffer > 0 && player.coyote > 0) {
       body.vy = -TUNING.jumpSpeed;
       body.onGround = false;
       player.buffer = 0;
@@ -162,12 +145,7 @@ const Player = (() => {
     }
     if (body.vy >= 0) player.holding = false;
 
-    if (player.onLadder) {
-      const climb = (input.down ? 1 : 0) - (input.up ? 1 : 0);
-      body.vy = climb * TUNING.climbSpeed;
-    } else {
-      body.vy = Math.min(TUNING.maxFall, body.vy + TUNING.gravity * dt);
-    }
+    body.vy = Math.min(TUNING.maxFall, body.vy + TUNING.gravity * dt);
 
     // Scraping down a wall is slow enough to think on.
     if (player.onWall && body.vy > TUNING.wallSlide) body.vy = TUNING.wallSlide;
@@ -175,17 +153,10 @@ const Player = (() => {
     Physics.move(level, body, dt);
 
     // -------------------------------------------------------------- contacts
-    // Lava ends the run. Everything else in this game costs you time and puts
-    // you back on your feet; this is the one thing that does not, which is what
-    // makes a pool worth reading the map to avoid.
-    if (Physics.overlaps(level, body, Level.TILE.LAVA).length) {
-      player.dead = true;
-      body.vx = 0;
-      body.vy = 0;
-      return player;
-    }
-
-    if (player.recovering === 0 && Physics.overlaps(level, body, Level.TILE.SPIKE).length) {
+    // Lava costs a recovery, like every other hazard here: it puts you back on
+    // your feet somewhere safe and takes the time off you.
+    const burned = Physics.overlaps(level, body, Level.TILE.LAVA).length;
+    if (player.recovering === 0 && (burned || Physics.overlaps(level, body, Level.TILE.SPIKE).length)) {
       recover(player, level);
       return player;
     }

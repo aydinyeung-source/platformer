@@ -8,7 +8,6 @@ const Level = (() => {
     SPIKE: 3,
     DOOR: 4,
     LAVA: 5,
-    LADDER: 6,
   };
 
   // The movement envelope the generator promises never to exceed. Levels are
@@ -64,7 +63,8 @@ const Level = (() => {
   const SKY = 26; // carve above this and daylight gets in
   const ROOF = 6; // never carve higher than this
   const DEEP = HEIGHT - 8;
-  const HEADROOM = 5; // clear rows above a walking floor
+  const HEADROOM = 4; // clear rows above a walking floor — enough to jump, no more
+  const SQUEEZE = 3; // a passage you cannot jump properly inside
   const LEDGE_RISE = 3; // rung spacing — one plain jump
 
   // Carving costs a fraction of a millisecond and the audit little more, so an
@@ -107,9 +107,10 @@ const Level = (() => {
     };
 
     // A walkable run: floor stays solid, the space above it does not.
-    function corridor(x0, x1, floorY, tag) {
+    function corridor(x0, x1, floorY, tag, head) {
+      const clear = head || HEADROOM;
       for (let x = Math.min(x0, x1); x <= Math.max(x0, x1); x++) {
-        for (let y = floorY - HEADROOM; y < floorY; y++) dig(x, y);
+        for (let y = floorY - clear; y < floorY; y++) dig(x, y);
       }
       places.push({ type: tag || "corridor", x0: Math.min(x0, x1), x1: Math.max(x0, x1), floorY });
     }
@@ -136,10 +137,6 @@ const Level = (() => {
 
       // Only build what the way out needs. Filling a room with ledges every
       // three rows turns every chamber into the same lattice of flying islands.
-      // A ladder up one wall, so the height of the room is reachable and not
-      // just scenery.
-      if (rng.chance(0.7)) ladder(x0 + 1, floorY - 1, top + 1);
-
       // A pool across part of the floor: something to clear on the way through.
       if (x1 - x0 > 16 && rng.chance(0.4)) {
         const wide = rng.int(2, 3);
@@ -171,9 +168,6 @@ const Level = (() => {
         const islandY = top + 2;
         for (let i = 0; i < span; i++) put(lx + i, islandY, TILE.PLATFORM);
 
-        // Half of them get a ladder. The rest stay out of reach — a room should
-        // have some of it you only ever look at.
-        if (rng.chance(0.5) && lx - 1 > x0) ladder(lx - 1, floorY - 1, islandY - 1);
       }
 
       places.push({ type: "chamber", x0, x1, floorY, top });
@@ -206,10 +200,6 @@ const Level = (() => {
         }
       }
 
-      // A drop gets a ladder so it is not one-way. Being able to climb back up
-      // the way you came is what makes a wrong turn a detour instead of a run.
-      if (toY > fromY) ladder(x + w - 1, bottom - 1, top - 1);
-
       places.push({ type: toY < fromY ? "climb" : "drop", x0: x, x1: x + w - 1, fromY, toY, rungs });
     }
 
@@ -222,13 +212,6 @@ const Level = (() => {
         for (let y = floorY - tall; y <= floorY; y++) put(cx, y, TILE.LAVA);
       }
       places.push({ type: "column", x0: x, x1: x + w - 1, floorY });
-    }
-
-    // A ladder: one column of rungs you climb straight up, for reaching what a
-    // jump cannot. Not solid — you pass through it, and hold on to it.
-    function ladder(x, fromY, toY) {
-      for (let y = toY; y <= fromY; y++) put(x, y, TILE.LADDER);
-      places.push({ type: "ladder", x0: x, x1: x, floorY: fromY, top: toY });
     }
 
     // A hole in the floor with lava at the bottom of it. Narrow enough to jump,
@@ -287,10 +270,10 @@ const Level = (() => {
         { value: "pit", weight: 12 },
         { value: "lava", weight: 18 },
         { value: "column", weight: 20 },
-        { value: "chamber", weight: 16 },
+        { value: "chamber", weight: 7 },
+        { value: "squeeze", weight: 20 },
         { value: "under", weight: 22 },
         { value: "climb", weight: 11 },
-        { value: "ladderup", weight: 12 },
         { value: "tube", weight: 12 },
         { value: "back", weight: 24 },
       ]);
@@ -300,7 +283,14 @@ const Level = (() => {
       if (kind === "run") {
         const step = rng.int(-2, RULES.maxStepUp);
         y = Math.max(ROOF + HEADROOM, Math.min(DEEP, y - step));
-        runOut(rng.int(10, 26));
+        runOut(rng.int(6, 14));
+      } else if (kind === "squeeze") {
+        // Three rows of headroom: you can walk it and clear a small gap, but
+        // there is no room to jump properly. Tight on purpose.
+        const to = Math.min(width - 1, x + rng.int(10, 22));
+        corridor(x, to, y, "squeeze", SQUEEZE);
+        if (y <= SKY) outdoor.push({ x0: x, x1: to, floorY: y });
+        x = to;
       } else if (kind === "lava") {
         // Sunk in the middle of a flat run with clear ground either side, so the
         // jump over it always has a run-up and a landing.
@@ -323,8 +313,8 @@ const Level = (() => {
         runOut(rng.int(6, 12));
       } else if (kind === "chamber") {
         // A room you cross, sometimes leaving higher than you came in.
-        const wide = rng.int(14, 30);
-        const tall = rng.int(7, 13);
+        const wide = rng.int(10, 18);
+        const tall = rng.int(6, 9);
         // Decided before carving, so the stair inside can be built to reach it.
         const rise = rng.chance(0.45) ? rng.int(3, tall - 4) : 0;
         chamber(x, x + wide, y, tall, rise);
@@ -353,19 +343,6 @@ const Level = (() => {
         y = above;
         x += 3;
         runOut(rng.int(10, 24));
-      } else if (kind === "ladderup") {
-        // A slot two wide with a ladder up one side. You climb it and step off
-        // onto the corridor at the top — no jumping involved.
-        const rise = rng.int(6, 15);
-        const above = Math.max(ROOF + HEADROOM, y - rise);
-        for (let cy = above - HEADROOM; cy < y; cy++) {
-          dig(x, cy);
-          dig(x + 1, cy);
-        }
-        ladder(x + 1, y - 1, above - 1);
-        y = above;
-        x += 2;
-        runOut(rng.int(10, 22));
       } else if (kind === "tube") {
         // An enclosed pipe with open ground either side of it, so it reads as
         // something you are inside rather than something you are on.
@@ -425,34 +402,6 @@ const Level = (() => {
         if (peek(at0 + i, place.floorY) !== TILE.GROUND) continue;
         put(at0 + i, place.floorY - 1, TILE.SPIKE);
         spikes++;
-      }
-    }
-
-    // Ladders anywhere a face is too tall to jump. This runs over the finished
-    // world rather than being placed by the route, so a shelf the route never
-    // visits still gets a way up — the map should be climbable, not just
-    // completable.
-    for (let cx = 1; cx < width - 2; cx++) {
-      for (let cy = HEIGHT - 6; cy > ROOF + 2; cy--) {
-        // somewhere to start from, with a wall on the right
-        const below = peek(cx, cy + 1);
-        if (below !== TILE.GROUND && below !== TILE.PLATFORM) continue;
-        if (peek(cx, cy) !== TILE.EMPTY || peek(cx + 1, cy) !== TILE.GROUND) continue;
-
-        let topY = cy;
-        while (topY > ROOF && peek(cx + 1, topY) === TILE.GROUND) topY--;
-
-        const climb = cy - topY;
-        if (climb < 3 || climb > 20) continue;
-        if (peek(cx + 1, topY) !== TILE.EMPTY || peek(cx + 1, topY - 1) !== TILE.EMPTY) continue;
-
-        // the ladder needs open air to hang in
-        let clear = true;
-        for (let y = topY; y <= cy && clear; y++) if (peek(cx, y) !== TILE.EMPTY) clear = false;
-        if (!clear || !detail.chance(0.4)) continue;
-
-        ladder(cx, cy, topY);
-        cy = topY; // one ladder per face
       }
     }
 
@@ -529,10 +478,8 @@ const Level = (() => {
     return tile !== TILE.GROUND && tile !== TILE.LAVA;
   }
 
-  // Somewhere the player can hold position: solid underfoot, or a ladder to
-  // hang on to.
+  // Can the player stand here: something solid underfoot, room for the body.
   function standable(level, x, y) {
-    if (at(level, x, y) === TILE.LADDER) return true;
     const under = at(level, x, y + 1);
     if (under !== TILE.GROUND && under !== TILE.PLATFORM) return false;
     return open(level, x, y) && open(level, x, y - 1);
@@ -567,12 +514,6 @@ const Level = (() => {
           if (standable(level, x + dx, y - rise)) visit(x + dx, y - rise);
         }
       }
-    }
-
-    // Straight up or down a ladder, one rung at a time.
-    if (at(level, x, y) === TILE.LADDER) {
-      if (standable(level, x, y - 1)) visit(x, y - 1);
-      if (standable(level, x, y + 1)) visit(x, y + 1);
     }
 
     // Leaving a ledge and landing lower: falling keeps your speed, so this is
@@ -755,13 +696,6 @@ const Level = (() => {
           ctx.lineTo(px + tilePx - 1, py + tilePx);
           ctx.closePath();
           ctx.fill();
-        } else if (tile === TILE.LADDER) {
-          const mid = px + tilePx / 2;
-          const rail = Math.max(1, tilePx * 0.06);
-          ctx.fillStyle = colours.ink;
-          ctx.fillRect(mid - tilePx * 0.18, py, rail, tilePx);
-          ctx.fillRect(mid + tilePx * 0.18 - rail, py, rail, tilePx);
-          ctx.fillRect(mid - tilePx * 0.18, py + tilePx * 0.42, tilePx * 0.36, rail);
         } else if (tile === TILE.LAVA) {
           ctx.fillStyle = colours.lava;
           ctx.fillRect(px, py, tilePx + 0.5, tilePx + 0.5);
@@ -779,7 +713,7 @@ const Level = (() => {
     ctx.restore();
   }
 
-  const GLYPHS = { 0: ".", 1: "#", 2: "=", 3: "^", 4: "D", 5: "L", 6: "H" };
+  const GLYPHS = { 0: ".", 1: "#", 2: "=", 3: "^", 4: "D", 5: "L" };
 
   function toText(level) {
     const rows = [];
