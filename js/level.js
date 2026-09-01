@@ -70,6 +70,7 @@ const Level = (() => {
   const ROOF = 5; // never carve higher than this
   const HEADROOM = 4; // clear rows above a walking floor — enough to jump, no more
   const LEDGE_RISE = 3; // rung spacing — one plain jump
+  const CHIMNEY_RISE = 8; // resting points in a chimney, inside one wall climb
   const CELL_W = 26;
   const CELL_H = 14;
   const BAND_TOP = 7; // first row the grid may use
@@ -79,6 +80,8 @@ const Level = (() => {
   const CRUST = 2; // rows of rock that must sit under a pool of lava
   const CRAWL = 2; // a crawlway: room to walk, none to jump
   const CRAWL_CHANCE = 0.2;
+  const DUCT = 1; // a slit through the rock: no room to be anything but sliding
+  const DUCT_CHANCE = 0.3;
 
   // Carving costs a fraction of a millisecond and the audit little more, so an
   // unlucky layout is recarved from the next stream rather than special-cased.
@@ -105,7 +108,6 @@ const Level = (() => {
 
     const tiles = new Uint8Array(width * height).fill(TILE.GROUND);
     const places = [];
-    const ladders = []; // rungs, laid last so nothing can dig them away
     const shafts = []; // columns a hazard must keep out of
     const crawls = []; // low stretches, checked afterwards for anything unjumpable
 
@@ -226,6 +228,9 @@ const Level = (() => {
       let segX = fromX;
       let segY = fromY;
       let segHead = head;
+      let stone = 0; // tiles of rock still to lay across a crossing
+      let bridge = 0; // tiles of plank still to lay over a narrow one
+      let gap = 0; // tiles of nothing still to leave
 
       const closeSegment = (x) => {
         if (Math.abs(x - segX) >= 6) {
@@ -266,7 +271,43 @@ const Level = (() => {
         }
 
         for (let cy = y - head; cy < y; cy++) dig(x, cy);
-        if (peek(x, y) !== TILE.GROUND) put(x, y, TILE.PLATFORM);
+
+        // Underfoot. Through rock there is already a floor and nothing to do.
+        // Across something already open there is a choice, and the obvious one
+        // is wrong: a one-way platform laid the whole way over reads as a wire
+        // strung across the room, and a hundred of them read as scaffolding.
+        // Stones instead — two tiles of rock, a gap short enough to jump, two
+        // more — so a high route crossing a chamber is stepping stones over it
+        // rather than a floor through the middle of it.
+        if (peek(x, y) === TILE.GROUND) {
+          stone = 0;
+          gap = 0;
+          bridge = 0;
+        } else {
+          if (stone === 0 && gap === 0 && bridge === 0) {
+            // How far does the hole go? A shaft is three wide and a corridor
+            // four: those get planked, because three tiles of one-way platform
+            // is a step over something, and because sealing a shaft with rock
+            // would take the way up out of it. Anything wider is a chamber, and
+            // a chamber gets stones.
+            let across = 0;
+            while (across < 48 && peek(x + across * step, y) !== TILE.GROUND) across++;
+            if (across <= 4) bridge = across;
+            else stone = 2; // the first step off the edge is always solid
+          }
+
+          if (bridge > 0) {
+            put(x, y, TILE.PLATFORM);
+            bridge--;
+          } else if (stone > 0) {
+            put(x, y, TILE.GROUND);
+            stone--;
+            if (stone === 0) gap = 3;
+          } else {
+            gap--;
+            if (gap === 0) stone = 2;
+          }
+        }
       }
 
       closeSegment(toX);
@@ -288,19 +329,12 @@ const Level = (() => {
         for (let y = top - HEADROOM; y < bottom; y++) dig(cx, y);
       }
 
-      const rungs = [];
-      let side = 0;
-      for (let y = top + LEDGE_RISE; y <= bottom - LEDGE_RISE; y += LEDGE_RISE) {
-        rungs.push({ x: side ? x : x + w - 2, y });
-        side = side ? 0 : 1;
-      }
-      // The last step onto the floor has to be a jump like all the others.
-      const lowest = rungs.length ? rungs[rungs.length - 1].y : top;
-      if (bottom - lowest > LEDGE_RISE) rungs.push({ x, y: bottom - LEDGE_RISE });
-
-      for (const rung of rungs) ladders.push(rung);
-      shafts.push({ x0: x, x1: x + w - 1 });
-      places.push({ type: "shaft", x0: x, x1: x + w - 1, fromY, toY, rungs });
+      // Where the rungs go is not decided here. It depends on which walls this
+      // shaft still has, and a stub dug later can take one away — so the shaft
+      // is only recorded, and the ladder is worked out at the end against the
+      // rock as it finally stands.
+      shafts.push({ x0: x, x1: x + w - 1, x, w, top, bottom });
+      places.push({ type: "shaft", x0: x, x1: x + w - 1, fromY, toY });
     }
 
     // A pool of lava lying in a dip in the floor, its surface flush with the
@@ -449,7 +483,10 @@ const Level = (() => {
         const x1 = sx + SHAFT_W + rng.int(3, 8);
         for (let x = x0; x <= x1; x++) {
           for (let y = bottom - HEADROOM; y < bottom; y++) dig(x, y);
-          if (peek(x, bottom) !== TILE.GROUND) put(x, bottom, TILE.PLATFORM);
+          // No floor is laid. Where the pocket bottoms out in rock it has one
+          // already; where it breaks into something already open it becomes a
+          // way into that instead, which is a better answer than either a plank
+          // strung across it or a slab dropped through its ceiling.
         }
         places.push({ type: "corridor", x0, x1, floorY: bottom });
         stubs++;
@@ -472,6 +509,44 @@ const Level = (() => {
     put(doorX, exit.floorY - 1, TILE.DOOR);
     put(doorX, exit.floorY - 2, TILE.DOOR);
     const goal = { x: doorX, y: exit.floorY - 1 };
+
+    // ---------------------------------------------------------------- ducts
+    // A slit through the rock, one tile tall. Nothing can stand up in one, so
+    // nothing can walk one, and verify() cannot see it at all: standing wants
+    // two open rows and a duct has one. That is the whole design. A duct is cut
+    // only between rooms the maze deliberately did not join, so it is never a
+    // way through that a level depends on — it is a wall with a gap in it, for
+    // a player low enough to use it, skipping the way round that the maze meant
+    // them to take.
+    //
+    // Cut last of all the digging, because a duct is the one passage that stops
+    // being itself the moment anything opens its roof.
+    let ducts = 0;
+    for (let i = 0; i < count; i++) {
+      const j = i + 1;
+      if (j >= count || colOf(j) === 0) continue; // same row, next column along
+      if (linked.has(key(i, j))) continue; // where the maze already goes, no need
+      const a = rooms[i];
+      const b = rooms[j];
+      // It can neither climb nor step: one row leaves no room to do either.
+      if (a.floorY !== b.floorY || !rng.chance(DUCT_CHANCE)) continue;
+
+      // Only through rock. Threaded across something already open it would be a
+      // slit with no roof, which is to say not a slit.
+      let solid = true;
+      for (let x = a.x1 + 1; x < b.x0 && solid; x++) {
+        for (let cy = a.floorY - DUCT - 1; cy <= a.floorY; cy++) {
+          if (peek(x, cy) !== TILE.GROUND) solid = false;
+        }
+      }
+      if (!solid) continue;
+
+      for (let x = a.x1; x <= b.x0; x++) {
+        for (let cy = a.floorY - DUCT; cy < a.floorY; cy++) dig(x, cy);
+      }
+      places.push({ type: "duct", x0: a.x1, x1: b.x0, floorY: a.floorY, head: DUCT });
+      ducts++;
+    }
 
     // --------------------------------------------------------------- hazards
     // Lava, and nothing else. It is the one hazard that reads at a glance from
@@ -502,12 +577,16 @@ const Level = (() => {
 
       // Read the roof off the tiles rather than off the label. Places overlap —
       // a chamber's span can cover a crawlway's columns — so the only honest
-      // answer to "is there room to jump here" is the rock itself.
-      const lowRoof = (x, w) => {
-        for (let cx = x - 1; cx <= x + w; cx++) {
-          if (peek(cx, place.floorY - CRAWL - 1) === TILE.GROUND) return true;
+      // answer to "how much room is there here" is the rock itself. Counted
+      // over the hazard's own columns, because that is the air a jump needs.
+      const clearance = (x, w) => {
+        let rows = 9;
+        for (let cx = x; cx < x + w; cx++) {
+          let open = 0;
+          while (open < 9 && peek(cx, place.floorY - 1 - open) !== TILE.GROUND) open++;
+          rows = Math.min(rows, open);
         }
-        return false;
+        return rows;
       };
 
       if (roll < 20) {
@@ -517,14 +596,18 @@ const Level = (() => {
         let w = detail.int(2, 4);
         const at0 = spotIn(place, w);
         if (at0 < 0) continue;
-        if (lowRoof(at0, w)) w = Math.min(w, 2);
+        // Under two rows nothing crosses at all, not even a skim, so nothing is
+        // put there. Under three, only a skim, and a skim crosses two tiles.
+        const room = clearance(at0, w);
+        if (room < 2) continue;
+        if (room < 3) w = Math.min(w, 2);
         if (lavaPool(at0, w, place.floorY)) shallow++;
       } else if (roll < 34) {
         // Never a deep one under a low roof: a hole you cannot jump, in a
         // passage you cannot jump in, is a wall.
         const w = detail.int(2, 3);
         const at0 = spotIn(place, w);
-        if (at0 < 0 || lowRoof(at0, w)) continue;
+        if (at0 < 0 || clearance(at0, w) < 3) continue;
         if (lavaHole(at0, w, place.floorY)) pools++;
       }
     }
@@ -583,13 +666,48 @@ const Level = (() => {
     // ---------------------------------------------------------- the ladders
     // Laid last and over the top of everything, because a shaft without its
     // rungs is a one-way drop.
-    // Nothing is cleared above them: the space inside a shaft is already open,
-    // hazards are kept off these columns, and a passage crossing a shaft leaves
-    // only one-way platforms, which are something to stand on rather than
-    // something in the way. Clearing anyway would rub out the rung above.
-    for (const rung of ladders) {
-      put(rung.x, rung.y, TILE.PLATFORM);
-      put(rung.x + 1, rung.y, TILE.PLATFORM);
+    // Worked out here, at the end, because a ladder is a claim about a climb
+    // and a climb depends on the walls. Everything has finished digging, so the
+    // rock these read is the rock the player will meet.
+    //
+    // A rung is placed against stone, never out in the middle of the air, and
+    // how far the next one goes depends on where this one stands. A shaft
+    // bottoms out inside a room, and a rung in that room's open air has nothing
+    // beside it to bounce off: from there the only way up is a plain jump.
+    // Higher, once a rung has rock either side of it, the climb becomes a
+    // chimney — wall to wall — and the rungs can spread out into resting points
+    // instead of a staircase built up the middle of a shaft that never needed
+    // one. Spreading them on the strength of walls that are not there is
+    // invisible and total: every shaft in the map becomes a one-way drop.
+    for (const shaft of shafts) {
+      const { x, w, top, bottom } = shaft;
+      if (bottom - top <= LEDGE_RISE) continue;
+
+      const anchored = (lx, y) =>
+        peek(lx - 1, y) === TILE.GROUND || peek(lx + 2, y) === TILE.GROUND;
+      const chimney = w <= 3 &&
+        peek(x - 1, Math.round((top + bottom) / 2)) === TILE.GROUND &&
+        peek(x + w, Math.round((top + bottom) / 2)) === TILE.GROUND;
+
+      let side = 0;
+      const addRung = (y) => {
+        const turn = side ? x : x + w - 2;
+        const other = side ? x + w - 2 : x;
+        const lx = anchored(turn, y) || !anchored(other, y) ? turn : other;
+        put(lx, y, TILE.PLATFORM);
+        put(lx + 1, y, TILE.PLATFORM);
+        side = side ? 0 : 1;
+      };
+
+      let y = bottom - LEDGE_RISE;
+      addRung(y);
+      for (;;) {
+        const walled = peek(x - 1, y - 1) === TILE.GROUND || peek(x + w, y - 1) === TILE.GROUND;
+        const reach = walled ? RULES.maxWallClimb - 1 : LEDGE_RISE;
+        if (y - top <= reach) break;
+        y = Math.max(top + 1, y - (walled && chimney ? CHIMNEY_RISE : LEDGE_RISE));
+        addRung(y);
+      }
     }
 
     // A hard lid on the world. Rock is the boundary, so there is no lip to get
@@ -617,6 +735,7 @@ const Level = (() => {
       links: Array.from(linked, (k) => k.split("|").map(Number)),
       rules: RULES,
       tally: {
+        ducts,
         crawlways: crawls.filter((s) => s.head < HEADROOM).length,
         shallow,
         pools,
