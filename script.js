@@ -599,6 +599,7 @@
     motes.length = 0;
     dustSeen = 0;
     fallsSeen = 0;
+    victoryShown = false; // a new run has its own ending to show
 
     fitGame();
     const body = session.player.body;
@@ -617,7 +618,7 @@
     loader.hidden = true;
     lesson.hidden = true;
     victory.hidden = true;
-    leaving = 0;
+    victoryShown = false;
   }
 
   // One poll per simulation step, so a jump press is consumed by exactly one
@@ -684,7 +685,10 @@
   // ------------------------------------------------------------- the doorway
   const victory = document.querySelector("[data-victory]");
   const victoryStats = document.querySelector("[data-victory-stats]");
-  let leaving = 0; // seconds left before the run bows out on its own
+  // The card is shown once per run and stays until it is dismissed. Without a
+  // flag it would come straight back: the frame after it is hidden the runner
+  // is still finished, and the loop would put it up again.
+  let victoryShown = false;
 
   function stat(label, value) {
     const term = document.createElement("dt");
@@ -700,8 +704,10 @@
     stat("Mode", level.tutorial ? "200 m" : Level.resolveMode(level.mode).label);
     stat("Time", clock(player.time));
     stat("Falls", String(player.falls));
+    // No timer. A card that takes itself away is a card you were still
+    // reading, and its numbers are the whole point of having finished.
     victory.hidden = false;
-    leaving = 2.5;
+    victoryShown = true;
 
     // Finishing it once is what counts as having done it.
     if (level.tutorial) {
@@ -717,7 +723,6 @@
   // run just wrote a row to.
   function returnToLobby() {
     if (phase !== "game") return;
-    leaving = 0;
     victory.hidden = true;
     gameView.classList.add("is-leaving");
     window.setTimeout(() => {
@@ -831,11 +836,7 @@
       // A lesson waiting to be read, and a run waiting to bow out. Both are
       // about the frame loop noticing something the simulation decided.
       if (session.lesson && lesson.hidden) showLesson(session.lesson);
-      if (session.player.finished && victory.hidden && leaving === 0) showVictory(session.player);
-      if (leaving > 0) {
-        leaving = Math.max(0, leaving - dt);
-        if (leaving === 0) returnToLobby();
-      }
+      if (session.player.finished && !victoryShown) showVictory(session.player);
 
       // A step and a half faster than the runner for placing the view, two and a
       // half with shift for sweeping the map — both flat, neither ramps.

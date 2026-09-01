@@ -571,7 +571,11 @@ const Level = (() => {
       return -1;
     };
 
-    for (const place of places) {
+    // Over a snapshot, because placing a hazard records it and a for..of walks
+    // straight into whatever it appended. Nothing goes wrong today — a pool is
+    // not a corridor, so the filter below drops it — but that is the filter
+    // holding up the loop, and the loop should hold itself up.
+    for (const place of places.slice()) {
       if (place.type !== "corridor" && place.type !== "chamber") continue;
       if (place.x1 - place.x0 < 13) continue;
       if (place.floorY <= CEIL_LIMIT + 1) continue;

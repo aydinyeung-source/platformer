@@ -16,6 +16,18 @@ const Physics = (() => {
   // what stops a body from catching on the seam between two flush tiles.
   function moveX(level, body, dx) {
     body.x += dx;
+
+    // The world ends at its edges, and every tile outside them reads as empty
+    // rather than solid — so nothing but this stops a runner walking off the
+    // side of the map into space that was never carved because it is not there.
+    if (body.x < 0) {
+      body.x = 0;
+      body.vx = 0;
+    } else if (body.x > level.width - body.w) {
+      body.x = level.width - body.w;
+      body.vx = 0;
+    }
+
     if (dx > -EPS && dx < EPS) return;
 
     const top = Math.floor(body.y + EPS);

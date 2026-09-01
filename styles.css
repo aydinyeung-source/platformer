@@ -15,7 +15,7 @@
   --alert: #c4632a;
   /* Terrain. Blocks are drawn as real tiles with faces and seams, so they need
      their own weights rather than a wash of ink at low opacity. */
-  --warn: #a4503c; // the one red in the palette, for things that went wrong
+  --warn: #a4503c; /* the one red in the palette, for things that went wrong */
   --lava: #d9793a;
   --lava-top: #eaa864;
   --stone: #c2cac5;
