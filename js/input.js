@@ -4,38 +4,76 @@ const Input = (() => {
   // Simulation inputs are the only ones a replay records. Camera keys are
   // deliberately excluded: where someone pointed the view can never change the
   // outcome of a run, so a recorded run stays valid however it is watched.
-  const SIM = { LEFT: 1, RIGHT: 2, JUMP: 4, SLIDE: 8 };
+  const SIM = { LEFT: 1, RIGHT: 2, JUMP: 4, DOWN: 8 };
 
-  const BINDINGS = {
-    KeyA: SIM.LEFT,
-    KeyD: SIM.RIGHT,
-    KeyW: SIM.JUMP,
-    Space: SIM.JUMP,
-    KeyS: SIM.SLIDE,
+  // Two ways to hold the game, and they disagree about what the arrow keys are
+  // for. Modern moves on the letters and looks with the arrows; retro moves on
+  // the arrows and looks with the letters. Down is down in both: at a run it
+  // slides, standing still it crouches.
+  //
+  // The simulation only ever sees the four bits above, so a scheme is a way of
+  // typing rather than a rule of the game — the same run replays identically
+  // whichever one recorded it.
+  const SCHEMES = {
+    modern: {
+      id: "modern",
+      label: "Modern",
+      bindings: {
+        KeyA: SIM.LEFT,
+        KeyD: SIM.RIGHT,
+        KeyW: SIM.JUMP,
+        Space: SIM.JUMP,
+        KeyS: SIM.DOWN,
+      },
+      view: {
+        ArrowLeft: { x: -1, y: 0 },
+        ArrowRight: { x: 1, y: 0 },
+        ArrowUp: { x: 0, y: -1 },
+        ArrowDown: { x: 0, y: 1 },
+      },
+      controls: [
+        { action: "Move", keys: "A / D" },
+        { action: "Jump", keys: "W or Space" },
+        { action: "Wall jump", keys: "W or Space on a wall" },
+        { action: "Slide / crouch", keys: "S" },
+        { action: "Camera", keys: "Arrow keys" },
+        { action: "Sweep", keys: "Shift + arrows" },
+      ],
+    },
+    retro: {
+      id: "retro",
+      label: "Retro Arcade",
+      bindings: {
+        ArrowLeft: SIM.LEFT,
+        ArrowRight: SIM.RIGHT,
+        KeyZ: SIM.JUMP,
+        Space: SIM.JUMP,
+        ArrowDown: SIM.DOWN,
+      },
+      view: {
+        KeyA: { x: -1, y: 0 },
+        KeyD: { x: 1, y: 0 },
+        KeyW: { x: 0, y: -1 },
+        KeyS: { x: 0, y: 1 },
+      },
+      controls: [
+        { action: "Move", keys: "Left / Right" },
+        { action: "Jump", keys: "Z or Space" },
+        { action: "Wall jump", keys: "Z or Space on a wall" },
+        { action: "Slide / crouch", keys: "Down" },
+        { action: "Camera", keys: "W A S D" },
+        { action: "Sweep", keys: "Shift + WASD" },
+      ],
+    },
   };
 
-  // KeyS was held back for a verb worth spending it on. This is that verb.
-  const RESERVED = [];
+  let scheme = SCHEMES.modern;
+  let BINDINGS = scheme.bindings;
+  let VIEW = scheme.view;
 
   // Held for a faster sweep of the map. Watched but never swallowed — shift on
   // its own has no default worth preventing.
   const MODIFIERS = { ShiftLeft: 1, ShiftRight: 1 };
-
-  const VIEW = {
-    ArrowLeft: { x: -1, y: 0 },
-    ArrowRight: { x: 1, y: 0 },
-    ArrowUp: { x: 0, y: -1 },
-    ArrowDown: { x: 0, y: 1 },
-  };
-
-  const SCHEME = [
-    { action: "Move", keys: "A / D" },
-    { action: "Jump", keys: "W or Space" },
-    { action: "Wall jump", keys: "W or Space on a wall" },
-    { action: "Slide", keys: "S while running" },
-    { action: "Camera", keys: "Arrow keys" },
-    { action: "Sweep", keys: "Shift + arrows" },
-  ];
 
   const down = new Set();
   let mask = 0;
@@ -137,5 +175,60 @@ const Input = (() => {
     };
   }
 
-  return { SIM, BINDINGS, RESERVED, VIEW, MODIFIERS, SCHEME, attach, detach, poll, held, fastView, cameraAxis };
+  // Switching scheme drops every key that was down. Half a keypress held across
+  // a rebinding is a key the game thinks is still held under a binding that no
+  // longer exists — which is how a player ends up walking into a wall for ever.
+  function setScheme(id) {
+    if (!SCHEMES[id] || scheme.id === id) return scheme.id;
+    scheme = SCHEMES[id];
+    BINDINGS = scheme.bindings;
+    VIEW = scheme.view;
+    down.clear();
+    recompute();
+    latched = 0;
+    try {
+      localStorage.setItem("platformer.scheme", id);
+    } catch (err) {
+      // Private windows and blocked storage: the choice just does not persist.
+    }
+    return scheme.id;
+  }
+
+  function schemeId() {
+    return scheme.id;
+  }
+
+  function schemes() {
+    return Object.values(SCHEMES).map((s) => ({ id: s.id, label: s.label }));
+  }
+
+  function controls() {
+    return scheme.controls;
+  }
+
+  try {
+    const saved = localStorage.getItem("platformer.scheme");
+    if (saved && SCHEMES[saved]) {
+      scheme = SCHEMES[saved];
+      BINDINGS = scheme.bindings;
+      VIEW = scheme.view;
+    }
+  } catch (err) {
+    // No stored choice to honour; modern it is.
+  }
+
+  return {
+    SIM,
+    MODIFIERS,
+    attach,
+    detach,
+    poll,
+    held,
+    fastView,
+    cameraAxis,
+    setScheme,
+    schemeId,
+    schemes,
+    controls,
+  };
 })();

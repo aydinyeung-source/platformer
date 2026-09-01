@@ -39,7 +39,7 @@
 
   <div class="app" hidden>
   <div class="corner">
-    <span class="corner__version">v1.21.0</span>
+    <span class="corner__version">v1.22.0</span>
     <span class="corner__player" data-player></span>
     <div class="corner__actions">
       <button class="button button--secondary is-on" type="button" data-toggle="sound" aria-pressed="true">Sound</button>
@@ -86,6 +86,10 @@
       <button class="button button--primary" type="button" data-action="play">Play</button>
 
       <p class="label controls__label">Controls</p>
+      <div class="chips" role="group" aria-label="Control scheme">
+        <button class="chip is-active" type="button" data-scheme="modern" aria-pressed="true">Modern</button>
+        <button class="chip" type="button" data-scheme="retro" aria-pressed="false">Retro Arcade</button>
+      </div>
       <dl class="controls" data-controls></dl>
       </div>
 

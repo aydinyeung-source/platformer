@@ -471,7 +471,7 @@
       right: (frame.mask & Input.SIM.RIGHT) !== 0,
       jumpHeld: (frame.mask & Input.SIM.JUMP) !== 0,
       jumpPressed: (frame.pressed & Input.SIM.JUMP) !== 0,
-      slideHeld: (frame.mask & Input.SIM.SLIDE) !== 0,
+      slideHeld: (frame.mask & Input.SIM.DOWN) !== 0,
       mask: frame.mask,
     };
   }
@@ -485,17 +485,41 @@
 
   // --------------------------------------------------------------------- boot
 
-  Input.SCHEME.forEach((entry) => {
-    const term = document.createElement("dt");
-    term.className = "controls__action";
-    term.textContent = entry.action;
+  // The controls list is the scheme, so it is drawn from the scheme rather than
+  // written out beside it — otherwise switching would leave the menu confidently
+  // describing keys that no longer do anything.
+  const controlsList = document.querySelector("[data-controls]");
+  const schemeChips = document.querySelectorAll("[data-scheme]");
 
-    const detail = document.createElement("dd");
-    detail.className = "controls__keys";
-    detail.textContent = entry.keys;
+  function drawControls() {
+    controlsList.textContent = "";
+    Input.controls().forEach((entry) => {
+      const term = document.createElement("dt");
+      term.className = "controls__action";
+      term.textContent = entry.action;
 
-    document.querySelector("[data-controls]").append(term, detail);
+      const detail = document.createElement("dd");
+      detail.className = "controls__keys";
+      detail.textContent = entry.keys;
+
+      controlsList.append(term, detail);
+    });
+
+    schemeChips.forEach((chip) => {
+      const on = chip.dataset.scheme === Input.schemeId();
+      chip.classList.toggle("is-active", on);
+      chip.setAttribute("aria-pressed", on ? "true" : "false");
+    });
+  }
+
+  schemeChips.forEach((chip) => {
+    chip.addEventListener("click", () => {
+      Input.setScheme(chip.dataset.scheme);
+      drawControls();
+    });
   });
+
+  drawControls();
 
   Input.attach();
 

@@ -22,6 +22,12 @@ const Player = (() => {
     wallSlide: 9, // terminal speed while hugging a wall — a slow scrape, not a stop
     wallJumpY: 24,
     wallJumpX: 5.5,
+    // Kicking off the wall opposite the one you last kicked is a chimney climb
+    // rather than a scrape up a single face, and it pays what a chimney climb
+    // is worth: higher, and hard enough across to put you on the far wall with
+    // the height to kick again. Same wall twice and it is the ordinary push.
+    chimneyY: 28.5,
+    chimneyX: 8,
     wallStick: 0.09, // input is ignored briefly so the push actually lands
     wallCoyote: 0.09,
     buffer: 0.12, // jump pressed just before landing still counts
@@ -93,6 +99,7 @@ const Player = (() => {
       wallCoyote: 0,
       lockout: 0,
       onWall: false,
+      lastWallKicked: 0, // -1 left wall, 1 right wall, 0 since standing on the ground
       sliding: false,
       skimming: false,
       slideTime: 0,
@@ -162,12 +169,17 @@ const Player = (() => {
     player.slideCool = Math.max(0, player.slideCool - dt);
 
     if (!player.sliding && wantSlide && body.onGround && player.slideCool === 0 &&
-        player.recovering === 0 && Math.abs(body.vx) >= TUNING.runSpeed * TUNING.slideEntry) {
+        player.recovering === 0) {
+      // Down at a run is a slide; down standing still is a crouch. Same key,
+      // same posture, and the difference is only whether you brought any speed
+      // to it — so a crouch starts where a slide has already finished, at a
+      // crawl, and cannot be used to skip the run-up.
+      const running = Math.abs(body.vx) >= TUNING.runSpeed * TUNING.slideEntry;
       player.sliding = true;
-      player.slideTime = 0;
-      player.slideDir = body.vx < 0 ? -1 : 1;
+      player.slideTime = running ? 0 : TUNING.slideDecay;
+      player.slideDir = running ? (body.vx < 0 ? -1 : 1) : player.facing;
       setHeight(body, TUNING.slideHeight);
-      body.vx = player.slideDir * TUNING.runSpeed * TUNING.slideBoost;
+      if (running) body.vx = player.slideDir * TUNING.runSpeed * TUNING.slideBoost;
     }
 
     if (player.sliding) {
@@ -184,18 +196,27 @@ const Player = (() => {
         // Coiled. See the jump below: this is the window, and nothing says so.
         player.uncoil = TUNING.uncoil;
       } else if (body.onGround) {
-        // Held down by the roof rather than by the key: you cannot stand, but
-        // you can at least choose which way out. Without this a low roof is a
-        // one-way street you committed to before you could see it.
-        if (!wantSlide) {
-          const turn = (input.right ? 1 : 0) - (input.left ? 1 : 0);
-          if (turn !== 0) player.slideDir = turn;
-        }
         // Boost first, crawl by the end of it, smoothly in between. Held down
         // for ever it is a crawl, so holding it is not a way to go faster.
         const t = Math.min(1, player.slideTime / TUNING.slideDecay);
-        const scale = TUNING.slideBoost + (TUNING.crawlSpeed - TUNING.slideBoost) * t;
-        body.vx = player.slideDir * TUNING.runSpeed * scale;
+
+        if (t < 1) {
+          // Still carrying the slide: committed to the direction you went down
+          // in, because that is what makes it a slide and not a walk.
+          body.vx = player.slideDir * TUNING.runSpeed * TUNING.slideBoost +
+            player.slideDir * TUNING.runSpeed * (TUNING.crawlSpeed - TUNING.slideBoost) * t;
+        } else {
+          // Spent. Now it is a crouch, and a crouch steers: left and right
+          // crawl and turn, nothing at all stays put. This is also the way out
+          // from under a roof too low to stand up beneath, which would
+          // otherwise be a corridor you committed to before you could see it.
+          const turn = (input.right ? 1 : 0) - (input.left ? 1 : 0);
+          if (turn !== 0) {
+            player.slideDir = turn;
+            player.facing = turn;
+          }
+          body.vx = turn === 0 ? 0 : turn * TUNING.runSpeed * TUNING.crawlSpeed;
+        }
       }
     }
     player.uncoil = Math.max(0, player.uncoil - dt);
@@ -255,11 +276,14 @@ const Player = (() => {
       player.coyote = 0;
       player.holdTime = 0;
     } else if (player.buffer > 0 && player.wallCoyote > 0) {
-      // Off the wall and up. The push is deliberately small: with air control
-      // you can drift back to the same face and climb a single wall, which is
-      // what lets a level put a nine-tile step in your way.
-      body.vy = -TUNING.wallJumpY;
-      body.vx = -player.wallDir * TUNING.wallJumpX;
+      // Off the wall and up. Off a single face the push is deliberately small:
+      // with air control you can drift back to the same wall and climb it,
+      // which is what lets a level put a nine-tile step in your way. Alternate
+      // faces and it is a chimney, and a chimney pays better.
+      const chimney = player.wallDir !== player.lastWallKicked;
+      body.vy = -(chimney ? TUNING.chimneyY : TUNING.wallJumpY);
+      body.vx = -player.wallDir * (chimney ? TUNING.chimneyX : TUNING.wallJumpX);
+      player.lastWallKicked = player.wallDir;
       player.buffer = 0;
       player.wallCoyote = 0;
       player.lockout = TUNING.wallStick;
@@ -288,6 +312,9 @@ const Player = (() => {
     // A skim ends where it lands. Whether you stay down after it is decided
     // next step, by the key and by the roof.
     if (player.skimming && body.onGround) player.skimming = false;
+    // Standing on the ground forgets which wall you came off, so the next climb
+    // starts fresh and its first kick counts as an alternating one.
+    if (body.onGround) player.lastWallKicked = 0;
 
     // -------------------------------------------------------------- contacts
     // Lava costs a recovery: it puts you back on your feet somewhere safe and
