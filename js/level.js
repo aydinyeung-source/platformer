@@ -77,6 +77,8 @@ const Level = (() => {
   const SHAFT_W = 3;
   const LOOP_CHANCE = 0.18; // links added beyond the spanning tree
   const CRUST = 2; // rows of rock that must sit under a pool of lava
+  const CRAWL = 2; // a crawlway: room to walk, none to jump
+  const CRAWL_CHANCE = 0.2;
 
   // Carving costs a fraction of a millisecond and the audit little more, so an
   // unlucky layout is recarved from the next stream rather than special-cased.
@@ -105,6 +107,7 @@ const Level = (() => {
     const places = [];
     const ladders = []; // rungs, laid last so nothing can dig them away
     const shafts = []; // columns a hazard must keep out of
+    const crawls = []; // low stretches, checked afterwards for anything unjumpable
 
     const inside = (x, y) => x >= 0 && x < width && y >= 0 && y < height;
     const put = (x, y, tile) => {
@@ -208,17 +211,33 @@ const Level = (() => {
     // rather than a line. Where it crosses something already dug, the floor it
     // needs is laid as a one-way platform instead of rock, so the passage
     // underneath stays open and the crossing becomes a junction.
-    function tunnel(fromX, fromY, toX, toY, wander) {
+    // Some stretches come out as crawlways: CRAWL rows instead of HEADROOM,
+    // which is room to walk and none at all to jump. That has a consequence
+    // worth spelling out, because it is easy to build a wall by accident —
+    // inside one, a single tile step up is impassable. Everywhere else a step
+    // that size is a hop nobody thinks about. So a crawlway runs dead flat, and
+    // crawl repair afterwards opens out any that did not stay that way.
+    function tunnel(fromX, fromY, toX, toY, wander, head = HEADROOM) {
       const step = fromX <= toX ? 1 : -1;
       const span = Math.abs(toX - fromX) + 1;
+      const low = head < HEADROOM; // a crawlway: flat the whole way, by force
       let y = fromY;
       let want = fromY;
       let segX = fromX;
       let segY = fromY;
+      let segHead = head;
 
-      const closeSegment = (x, floorY) => {
+      const closeSegment = (x) => {
         if (Math.abs(x - segX) >= 6) {
-          places.push({ type: "corridor", x0: Math.min(segX, x), x1: Math.max(segX, x), floorY });
+          const seg = {
+            type: "corridor",
+            x0: Math.min(segX, x),
+            x1: Math.max(segX, x),
+            floorY: segY,
+            head: segHead,
+          };
+          places.push(seg);
+          if (segHead < HEADROOM) crawls.push(seg);
         }
         segX = x;
       };
@@ -226,27 +245,31 @@ const Level = (() => {
       for (let i = 0; i < span; i++) {
         const x = fromX + i * step;
         const left = span - i;
-        // Hold the line home: once only just enough columns remain to close the
-        // gap a row at a time, stop wandering and converge.
-        if (left <= Math.abs(y - toY) + 2) {
-          want = toY;
-        } else if (i % 5 === 0) {
-          const base = fromY + Math.round((toY - fromY) * (i / Math.max(1, span - 1)));
-          want = clamp(base + rng.int(-wander, wander), CEIL_LIMIT, FLOOR_LIMIT);
+
+        if (!low) {
+          // Hold the line home: once only just enough columns remain to close
+          // the gap a row at a time, stop wandering and converge.
+          if (left <= Math.abs(y - toY) + 2) {
+            want = toY;
+          } else if (i % 5 === 0) {
+            const base = fromY + Math.round((toY - fromY) * (i / Math.max(1, span - 1)));
+            want = clamp(base + rng.int(-wander, wander), CEIL_LIMIT, FLOOR_LIMIT);
+          }
+
+          if (y < want) y++;
+          else if (y > want) y--;
         }
 
-        if (y < want) y++;
-        else if (y > want) y--;
         if (y !== segY) {
-          closeSegment(x, segY);
+          closeSegment(x);
           segY = y;
         }
 
-        for (let cy = y - HEADROOM; cy < y; cy++) dig(x, cy);
+        for (let cy = y - head; cy < y; cy++) dig(x, cy);
         if (peek(x, y) !== TILE.GROUND) put(x, y, TILE.PLATFORM);
       }
 
-      closeSegment(toX, y);
+      closeSegment(toX);
       return y;
     }
 
@@ -289,6 +312,15 @@ const Level = (() => {
     // pour into the middle of it and cut it in two.
     function lavaPool(x, w, floorY) {
       const depth = detail.int(2, 3);
+      // Never shoulder to shoulder with another pool. Two two-tile pools with a
+      // shared edge are a four-tile pool, and nothing crosses that down here.
+      if (peek(x - 1, floorY) === TILE.LAVA || peek(x + w, floorY) === TILE.LAVA) return false;
+      // And never into rock. A place remembers where its floor was, not whether
+      // anything is still standing on it; poured under a roof that closed up
+      // since, the pool is lava sealed inside stone.
+      for (let cx = x; cx < x + w; cx++) {
+        if (peek(cx, floorY - 1) !== TILE.EMPTY) return false;
+      }
       // The pool itself, plus CRUST rows of rock to hold it: a passage may run
       // under a pool, but never close enough that the floor between them is one
       // tile of stone with lava sitting on it.
@@ -365,7 +397,12 @@ const Level = (() => {
       if (a.r === b.r) {
         const left = a.c < b.c ? a : b;
         const right = a.c < b.c ? b : a;
-        tunnel(left.x1, left.floorY, right.x0, right.floorY, rng.int(2, 5));
+        // A crawlway needs both ends at the same height, because it cannot rise
+        // a single tile without becoming a wall. Where the two rooms happen to
+        // line up, the way between them is sometimes a duck rather than a walk.
+        const low = left.floorY === right.floorY && rng.chance(CRAWL_CHANCE);
+        tunnel(left.x1, left.floorY, right.x0, right.floorY,
+          low ? 0 : rng.int(2, 5), low ? CRAWL : HEADROOM);
       } else {
         const above = a.r < b.r ? a : b;
         const below = a.r < b.r ? b : a;
@@ -393,7 +430,11 @@ const Level = (() => {
         const fromX = dir < 0 ? room.x0 : room.x1;
         const target = clamp(fromX + dir * rng.int(9, 24), 3, width - 4);
         if (Math.abs(target - fromX) < 8) continue;
-        tunnel(fromX, room.floorY, target, room.floorY, rng.int(2, 4));
+        // A stub is flat and it is long: the one place a crawlway has room to
+        // be a stretch of travel rather than a doorway.
+        const low = rng.chance(CRAWL_CHANCE * 1.5);
+        tunnel(fromX, room.floorY, target, room.floorY,
+          low ? 0 : rng.int(2, 4), low ? CRAWL : HEADROOM);
         stubs++;
       } else {
         // A pocket underneath, rungs and all: a drop worth looking down before
@@ -459,18 +500,70 @@ const Level = (() => {
 
       const roll = detail.int(0, 99);
 
+      // Read the roof off the tiles rather than off the label. Places overlap —
+      // a chamber's span can cover a crawlway's columns — so the only honest
+      // answer to "is there room to jump here" is the rock itself.
+      const lowRoof = (x, w) => {
+        for (let cx = x - 1; cx <= x + w; cx++) {
+          if (peek(cx, place.floorY - CRAWL - 1) === TILE.GROUND) return true;
+        }
+        return false;
+      };
+
       if (roll < 20) {
-        // A puddle set into the ground: a gap to clear rather than a wall.
-        const w = detail.int(2, 4);
+        // A puddle set into the ground: a gap to clear rather than a wall. Under
+        // a low roof it is narrower, because a skim crosses two tiles and there
+        // is nothing else down there that crosses any.
+        let w = detail.int(2, 4);
         const at0 = spotIn(place, w);
         if (at0 < 0) continue;
+        if (lowRoof(at0, w)) w = Math.min(w, 2);
         if (lavaPool(at0, w, place.floorY)) shallow++;
       } else if (roll < 34) {
+        // Never a deep one under a low roof: a hole you cannot jump, in a
+        // passage you cannot jump in, is a wall.
         const w = detail.int(2, 3);
         const at0 = spotIn(place, w);
-        if (at0 < 0) continue;
+        if (at0 < 0 || lowRoof(at0, w)) continue;
         if (lavaHole(at0, w, place.floorY)) pools++;
       }
+    }
+
+    // --------------------------------------------------------- crawl repair
+    // A crawlway is only travelable while it stays flat and its floor stays
+    // whole. Neither is guaranteed when it is dug: a shaft sunk later can take
+    // three tiles of its floor away, and a passage crossing it can leave a step.
+    // Both are nothing in a tunnel you can jump in and a dead stop in one you
+    // cannot, so a crawlway that did not stay flat and whole stops being one —
+    // the roof is opened out and it becomes an ordinary passage.
+    for (const seg of crawls) {
+      let travelable = true;
+      let low = true;
+      for (let x = seg.x0; x <= seg.x1; x++) {
+        const floor = peek(x, seg.floorY);
+        const walkable = floor === TILE.GROUND || floor === TILE.PLATFORM;
+        // Lava is allowed to interrupt the floor — that is the pool a skim is
+        // for — but nothing else is.
+        if (!walkable && floor !== TILE.LAVA) travelable = false;
+        for (let cy = seg.floorY - CRAWL; cy < seg.floorY; cy++) {
+          if (peek(x, cy) !== TILE.EMPTY) travelable = false;
+        }
+        // A roof only counts where it is actually still there. Rooms carved
+        // above one open it out, and an opened crawlway is just a passage. The
+        // mouths are exempt: both ends stand inside the rooms they join, where
+        // the ceiling was never low to begin with.
+        const mouth = x < seg.x0 + 2 || x > seg.x1 - 2;
+        if (!mouth && peek(x, seg.floorY - CRAWL - 1) !== TILE.GROUND) low = false;
+      }
+
+      if (!travelable) {
+        for (let x = seg.x0; x <= seg.x1; x++) {
+          for (let cy = seg.floorY - HEADROOM; cy < seg.floorY; cy++) {
+            if (peek(x, cy) !== TILE.LAVA) dig(x, cy);
+          }
+        }
+      }
+      if (!travelable || !low) seg.head = HEADROOM;
     }
 
     // ------------------------------------------------------------- draining
@@ -524,6 +617,7 @@ const Level = (() => {
       links: Array.from(linked, (k) => k.split("|").map(Number)),
       rules: RULES,
       tally: {
+        crawlways: crawls.filter((s) => s.head < HEADROOM).length,
         shallow,
         pools,
         stubs,
@@ -594,8 +688,13 @@ const Level = (() => {
   function movesFrom(level, x, y, visit) {
     const reach = level.rules.reach;
 
+    // Level ground either side, and the tile-high step that everywhere else in
+    // this game treats as walking. It is not walking: it is a hop small enough
+    // that nobody thinks about it, and a hop needs room over your head. In a
+    // two-row passage there is none, so there a step that size is a wall.
     for (const dx of [-1, 1]) {
-      for (const dy of [0, -1]) if (standable(level, x + dx, y + dy)) visit(x + dx, y + dy);
+      if (standable(level, x + dx, y)) visit(x + dx, y);
+      if (open(level, x, y - 2) && standable(level, x + dx, y - 1)) visit(x + dx, y - 1);
     }
 
     for (let rise = 0; rise <= RULES.maxStepUp; rise++) {

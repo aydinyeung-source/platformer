@@ -4,19 +4,18 @@ const Input = (() => {
   // Simulation inputs are the only ones a replay records. Camera keys are
   // deliberately excluded: where someone pointed the view can never change the
   // outcome of a run, so a recorded run stays valid however it is watched.
-  const SIM = { LEFT: 1, RIGHT: 2, JUMP: 4 };
+  const SIM = { LEFT: 1, RIGHT: 2, JUMP: 4, SLIDE: 8 };
 
   const BINDINGS = {
     KeyA: SIM.LEFT,
     KeyD: SIM.RIGHT,
     KeyW: SIM.JUMP,
     Space: SIM.JUMP,
+    KeyS: SIM.SLIDE,
   };
 
-  // KeyS is unbound on purpose. It is the last free key in the scheme and is
-  // held for a verb that has not been designed yet — do not spend it on
-  // something incidental.
-  const RESERVED = ["KeyS"];
+  // KeyS was held back for a verb worth spending it on. This is that verb.
+  const RESERVED = [];
 
   // Held for a faster sweep of the map. Watched but never swallowed — shift on
   // its own has no default worth preventing.
@@ -33,9 +32,9 @@ const Input = (() => {
     { action: "Move", keys: "A / D" },
     { action: "Jump", keys: "W or Space" },
     { action: "Wall jump", keys: "W or Space on a wall" },
+    { action: "Slide", keys: "S while running" },
     { action: "Camera", keys: "Arrow keys" },
     { action: "Sweep", keys: "Shift + arrows" },
-    { action: "Reserved", keys: "S" },
   ];
 
   const down = new Set();

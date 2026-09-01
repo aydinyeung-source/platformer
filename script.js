@@ -471,6 +471,7 @@
       right: (frame.mask & Input.SIM.RIGHT) !== 0,
       jumpHeld: (frame.mask & Input.SIM.JUMP) !== 0,
       jumpPressed: (frame.pressed & Input.SIM.JUMP) !== 0,
+      slideHeld: (frame.mask & Input.SIM.SLIDE) !== 0,
       mask: frame.mask,
     };
   }
