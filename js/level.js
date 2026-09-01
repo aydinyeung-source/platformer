@@ -5,7 +5,6 @@ const Level = (() => {
     EMPTY: 0,
     GROUND: 1,
     PLATFORM: 2,
-    SPIKE: 3,
     DOOR: 4,
     LAVA: 5,
   };
@@ -77,6 +76,7 @@ const Level = (() => {
   const ROOM_INSET = 3; // rock kept between a room and its cell edge
   const SHAFT_W = 3;
   const LOOP_CHANCE = 0.18; // links added beyond the spanning tree
+  const CRUST = 2; // rows of rock that must sit under a pool of lava
 
   // Carving costs a fraction of a millisecond and the audit little more, so an
   // unlucky layout is recarved from the next stream rather than special-cased.
@@ -289,8 +289,11 @@ const Level = (() => {
     // pour into the middle of it and cut it in two.
     function lavaPool(x, w, floorY) {
       const depth = detail.int(2, 3);
+      // The pool itself, plus CRUST rows of rock to hold it: a passage may run
+      // under a pool, but never close enough that the floor between them is one
+      // tile of stone with lava sitting on it.
       for (let cx = x; cx < x + w; cx++) {
-        for (let y = floorY; y <= floorY + depth + 1; y++) {
+        for (let y = floorY; y <= floorY + depth + CRUST; y++) {
           if (peek(cx, y) !== TILE.GROUND) return false;
         }
       }
@@ -305,15 +308,27 @@ const Level = (() => {
     // untouched rock — punched into a passage below, the pool would sit in the
     // middle of that passage and cut it in two — so it takes whatever depth the
     // rock allows and gives up if that is not deep enough to read as a hole.
+    //
+    // It stops short of whatever is underneath by CRUST rows. A passage may run
+    // below a pool; it may not run directly under its basin, where a single
+    // tile of stone is all that separates a corridor ceiling from the lava
+    // standing on it.
     function lavaHole(x, w, floorY) {
       const want = Math.min(FLOOR_LIMIT, floorY + detail.int(6, 14));
       const solidRow = (y) => {
         for (let cx = x; cx < x + w; cx++) if (peek(cx, y) !== TILE.GROUND) return false;
         return true;
       };
+      const bedded = (y) => {
+        for (let i = 1; i <= CRUST; i++) if (!solidRow(y + i)) return false;
+        return true;
+      };
 
       let bottom = floorY;
       while (bottom < want && solidRow(bottom + 1)) bottom++;
+      // Back off the basin until it is bedded in rock rather than resting on a
+      // ceiling. Sooner give up the hole than leave one paper thin.
+      while (bottom > floorY && !bedded(bottom)) bottom--;
       if (!solidRow(floorY) || bottom - floorY < 5) return false;
 
       for (let cx = x; cx < x + w; cx++) {
@@ -418,7 +433,9 @@ const Level = (() => {
     const goal = { x: doorX, y: exit.floorY - 1 };
 
     // --------------------------------------------------------------- hazards
-    let spikes = 0;
+    // Lava, and nothing else. It is the one hazard that reads at a glance from
+    // across a dark room, and the only one that costs you a trip back rather
+    // than a death.
     let shallow = 0;
     let pools = 0;
     // Somewhere along this floor with clear ground either side and no ladder
@@ -453,31 +470,17 @@ const Level = (() => {
         const at0 = spotIn(place, w);
         if (at0 < 0) continue;
         if (lavaHole(at0, w, place.floorY)) pools++;
-      } else if (roll < 45) {
-        // A spike needs room to be jumped. Cut an extra row of ceiling over it
-        // and its run-up, so the arc is not clipped short and dropped onto the
-        // points — a spike you cannot clear is a wall the audit would not see.
-        const run = detail.int(1, 2);
-        const at0 = spotIn(place, run);
-        if (at0 < 0) continue;
-        for (let cx = at0 - 4; cx <= at0 + run + 4; cx++) {
-          dig(cx, place.floorY - HEADROOM - 1);
-          dig(cx, place.floorY - HEADROOM - 2);
-        }
-        for (let i = 0; i < run; i++) {
-          if (peek(at0 + i, place.floorY) !== TILE.GROUND) continue;
-          put(at0 + i, place.floorY - 1, TILE.SPIKE);
-          spikes++;
-        }
       }
     }
 
     // ------------------------------------------------------------- draining
-    // A pool is dug into rock, but the rock under it belongs to the world too:
-    // a passage cut along the level below, or the ceiling pocket over a spike,
-    // can take the floor out from under one after it was poured. Lava with
-    // nothing holding it up is not lava, it is a mistake hanging in the air, so
-    // it drains. Bottom upwards, so emptying one tile empties what sat on it.
+    // A pool is dug into rock, but the rock under it belongs to the world too,
+    // and a passage cut along the level below can take the floor out from under
+    // one after it was poured. Pools keep a crust of rock beneath them for
+    // exactly that reason, but a crust is a rule about carving, not a promise,
+    // so this is the backstop: lava with nothing holding it up is not lava, it
+    // is a mistake hanging in the air, and it drains. Bottom upwards, so
+    // emptying one tile empties whatever was resting on it.
     for (let cy = height - 2; cy >= 0; cy--) {
       for (let cx = 0; cx < width; cx++) {
         if (peek(cx, cy) === TILE.LAVA && peek(cx, cy + 1) === TILE.EMPTY) dig(cx, cy);
@@ -521,7 +524,6 @@ const Level = (() => {
       links: Array.from(linked, (k) => k.split("|").map(Number)),
       rules: RULES,
       tally: {
-        spikes,
         shallow,
         pools,
         stubs,
@@ -580,10 +582,7 @@ const Level = (() => {
   }
 
   // Can the player stand here: something solid underfoot, room for the body.
-  // Not on a spike — a patch of them has to be jumped, which is what makes the
-  // audit check that jumping it is possible rather than walking through.
   function standable(level, x, y) {
-    if (at(level, x, y) === TILE.SPIKE) return false;
     const under = at(level, x, y + 1);
     if (under !== TILE.GROUND && under !== TILE.PLATFORM) return false;
     return open(level, x, y) && open(level, x, y - 1);
@@ -792,14 +791,6 @@ const Level = (() => {
           ctx.fillRect(px, py, tilePx + 0.5, lip);
           ctx.fillStyle = colours.ink;
           ctx.fillRect(px, py, tilePx + 0.5, Math.max(2, lip * 0.4));
-        } else if (tile === TILE.SPIKE) {
-          ctx.fillStyle = colours.ink;
-          ctx.beginPath();
-          ctx.moveTo(px + 1, py + tilePx);
-          ctx.lineTo(px + tilePx / 2, py + tilePx * 0.15);
-          ctx.lineTo(px + tilePx - 1, py + tilePx);
-          ctx.closePath();
-          ctx.fill();
         } else if (tile === TILE.LAVA) {
           ctx.fillStyle = colours.lava;
           ctx.fillRect(px, py, tilePx + 0.5, tilePx + 0.5);
@@ -817,7 +808,7 @@ const Level = (() => {
     ctx.restore();
   }
 
-  const GLYPHS = { 0: ".", 1: "#", 2: "=", 3: "^", 4: "D", 5: "L" };
+  const GLYPHS = { 0: ".", 1: "#", 2: "=", 4: "D", 5: "L" };
 
   function toText(level) {
     const rows = [];

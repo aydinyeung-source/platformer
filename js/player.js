@@ -153,13 +153,10 @@ const Player = (() => {
     Physics.move(level, body, dt);
 
     // -------------------------------------------------------------- contacts
-    // Lava costs a recovery, like every other hazard here: it puts you back on
-    // your feet somewhere safe and takes the time off you.
-    // A spike only bites the bottom half of its tile, so half a tile of lift
-    // clears one. Lava fills its tile properly.
-    const burned = Physics.touching(level, body, Level.TILE.LAVA, 0.08, 0.12);
-    const spiked = Physics.touching(level, body, Level.TILE.SPIKE, 0.25, 0.6);
-    if (player.recovering === 0 && (burned || spiked)) {
+    // Lava costs a recovery: it puts you back on your feet somewhere safe and
+    // takes the time off you. It lies in the floor and fills its tile, so it is
+    // caught on a hair of overlap rather than half a tile of one.
+    if (player.recovering === 0 && Physics.touching(level, body, Level.TILE.LAVA, 0.08, 0.12)) {
       recover(player, level);
       return player;
     }
@@ -172,11 +169,8 @@ const Player = (() => {
 
     // Standing still on solid ground is what makes a spot worth returning to.
     if (body.onGround && player.recovering === 0) {
-      const under = Level.floorAt(level, Math.round(body.x + body.w / 2));
-      if (under !== null && Level.at(level, Math.round(body.x + body.w / 2), under - 1) !== Level.TILE.SPIKE) {
-        player.safe.x = body.x;
-        player.safe.y = body.y;
-      }
+      player.safe.x = body.x;
+      player.safe.y = body.y;
     }
 
     // Finished by being in the doorway, not by crossing a line on the floor.

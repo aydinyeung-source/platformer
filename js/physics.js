@@ -91,10 +91,9 @@ const Physics = (() => {
     return { left, right };
   }
 
-  // Hazards are drawn as small shapes sitting on the floor and their reach ought
-  // to match. A full-tile hitbox makes a spike unjumpable under a low ceiling,
-  // because clearing it means lifting your feet a whole tile — which is exactly
-  // the height a four-row tunnel will not give you.
+  // A hazard's reach ought to match what is drawn. The padding is what keeps
+  // brushing the lip of a pool from counting as falling in it, so a jump that
+  // just clears the far edge is a jump that cleared it.
   function touching(level, body, want, padX, padY) {
     const left = Math.floor(body.x + EPS);
     const right = Math.floor(body.x + body.w - EPS);
