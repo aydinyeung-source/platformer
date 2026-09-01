@@ -842,6 +842,13 @@ const Level = (() => {
 
     // 7B — a chimney: three wide, rock down both sides, twelve rows of it. Too
     // tall for one wall. Alternating kicks are the only way up.
+    //
+    // With a door in it. A shaft carved straight up out of solid rock has walls
+    // all the way round, which is a fine chimney and an impossible one: there
+    // is no way to be standing at the bottom of it. The entrance is cut low —
+    // three rows at floor level — so the walls the climb needs are still there
+    // for every row above the one you walk in on.
+    hall(173, 176, SHELF, 3);
     for (let x = 174; x <= 176; x++) {
       for (let y = HIGH; y <= SHELF - 1; y++) put(x, y, TILE.EMPTY);
     }
