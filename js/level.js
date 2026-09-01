@@ -280,21 +280,25 @@ const Level = (() => {
       places.push({ type: "shaft", x0: x, x1: x + w - 1, fromY, toY, rungs });
     }
 
-    // A column of lava standing in a passage. Narrow enough to jump, tall
-    // enough that walking into it is a decision you made. Clearing it means
-    // lifting your feet above it while your head stays under the ceiling, so
-    // two tiles is the most the headroom leaves, and the pocket cut above makes
-    // sure the arc is not clipped short into it.
-    function lavaColumn(x, w, floorY) {
-      const tall = detail.int(1, 2);
-      for (let cx = x - 4; cx <= x + w + 4; cx++) {
-        dig(cx, floorY - HEADROOM - 1);
-        dig(cx, floorY - HEADROOM - 2);
+    // A pool of lava lying in a dip in the floor, its surface flush with the
+    // ground either side of it. Lava sits in the world the way a liquid would:
+    // sunk into rock, never stacked on top of it, because a block of it
+    // standing in the open air reads as a mistake however it got there.
+    //
+    // Cut through solid rock only. Sunk into a passage below, the pool would
+    // pour into the middle of it and cut it in two.
+    function lavaPool(x, w, floorY) {
+      const depth = detail.int(2, 3);
+      for (let cx = x; cx < x + w; cx++) {
+        for (let y = floorY; y <= floorY + depth + 1; y++) {
+          if (peek(cx, y) !== TILE.GROUND) return false;
+        }
       }
       for (let cx = x; cx < x + w; cx++) {
-        for (let y = floorY - tall; y <= floorY; y++) put(cx, y, TILE.LAVA);
+        for (let y = floorY; y <= floorY + depth; y++) put(cx, y, TILE.LAVA);
       }
-      places.push({ type: "column", x0: x, x1: x + w - 1, floorY });
+      places.push({ type: "pool", x0: x, x1: x + w - 1, floorY, depth });
+      return true;
     }
 
     // A hole in the floor with lava at the bottom. Only ever sunk through
@@ -415,7 +419,7 @@ const Level = (() => {
 
     // --------------------------------------------------------------- hazards
     let spikes = 0;
-    let columns = 0;
+    let shallow = 0;
     let pools = 0;
     // Somewhere along this floor with clear ground either side and no ladder
     // underneath it. Lava is not a place you can stand, so a pool poured over a
@@ -438,18 +442,18 @@ const Level = (() => {
 
       const roll = detail.int(0, 99);
 
-      if (roll < 15) {
-        const w = detail.int(1, 2);
+      if (roll < 20) {
+        // A puddle set into the ground: a gap to clear rather than a wall.
+        const w = detail.int(2, 4);
         const at0 = spotIn(place, w);
         if (at0 < 0) continue;
-        lavaColumn(at0, w, place.floorY);
-        columns++;
-      } else if (roll < 30) {
+        if (lavaPool(at0, w, place.floorY)) shallow++;
+      } else if (roll < 34) {
         const w = detail.int(2, 3);
         const at0 = spotIn(place, w);
         if (at0 < 0) continue;
         if (lavaHole(at0, w, place.floorY)) pools++;
-      } else if (roll < 41) {
+      } else if (roll < 45) {
         // A spike needs room to be jumped. Cut an extra row of ceiling over it
         // and its run-up, so the arc is not clipped short and dropped onto the
         // points — a spike you cannot clear is a wall the audit would not see.
@@ -465,6 +469,18 @@ const Level = (() => {
           put(at0 + i, place.floorY - 1, TILE.SPIKE);
           spikes++;
         }
+      }
+    }
+
+    // ------------------------------------------------------------- draining
+    // A pool is dug into rock, but the rock under it belongs to the world too:
+    // a passage cut along the level below, or the ceiling pocket over a spike,
+    // can take the floor out from under one after it was poured. Lava with
+    // nothing holding it up is not lava, it is a mistake hanging in the air, so
+    // it drains. Bottom upwards, so emptying one tile empties what sat on it.
+    for (let cy = height - 2; cy >= 0; cy--) {
+      for (let cx = 0; cx < width; cx++) {
+        if (peek(cx, cy) === TILE.LAVA && peek(cx, cy + 1) === TILE.EMPTY) dig(cx, cy);
       }
     }
 
@@ -506,7 +522,7 @@ const Level = (() => {
       rules: RULES,
       tally: {
         spikes,
-        columns,
+        shallow,
         pools,
         stubs,
         loops,
