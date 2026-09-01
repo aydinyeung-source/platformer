@@ -654,10 +654,12 @@
     lesson.hidden = false;
   }
 
+  // The card comes down whatever the state behind it says. Guarding the hide
+  // behind "is there a lesson" is how a card with nothing behind it becomes a
+  // button that dismisses nothing.
   function resumeLesson() {
-    if (!session || !session.lesson) return;
-    Game.resume(session);
     lesson.hidden = true;
+    if (session && session.lesson) Game.resume(session);
   }
 
   document.querySelector('[data-action="resume"]').addEventListener("click", resumeLesson);

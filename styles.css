@@ -775,6 +775,14 @@ button {
   z-index: 5;
 }
 
+/* Setting display here at all overrides the browser's own [hidden] rule, so the
+   card has to be told to disappear explicitly — without this it sits over the
+   game from the moment the run starts, empty, with a button that dismisses
+   nothing because there is no lesson behind it yet. */
+.lesson[hidden] {
+  display: none;
+}
+
 .lesson__card {
   width: min(440px, calc(100vw - 48px));
   padding: 22px 24px 20px;
