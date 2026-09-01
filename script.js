@@ -517,6 +517,53 @@
     ctx.globalAlpha = 1;
   }
 
+  // ------------------------------------------------------------- the readout
+  //
+  // F4. Drawn on the canvas rather than added to the page, because it wants to
+  // sit over the world and every overlay added to the page so far has been one
+  // more thing that can be visible when it should not be.
+  //
+  // What it shows is what the last several bugs were about: where the body
+  // actually is, which tile that is, and what the physics thinks it is doing.
+  let showCoords = false;
+
+  function drawCoords(ctx, player) {
+    const b = player.body;
+    const lines = [
+      "x " + b.x.toFixed(2) + "   y " + b.y.toFixed(2),
+      "tile " + Math.floor(b.x + b.w / 2) + ", " + Math.floor(b.y + b.h - 0.01),
+      "vx " + b.vx.toFixed(1) + "   vy " + b.vy.toFixed(1),
+      "h " + b.h.toFixed(2) +
+        (b.onGround ? "  ground" : "  air") +
+        (player.onWall ? "  wall" + (player.wallDir < 0 ? "<" : ">") : "") +
+        (player.sliding ? (player.skimming ? "  skim" : "  slide") : ""),
+      "cam " + (gameCamera.x / gameTile).toFixed(1) + ", " + (gameCamera.y / gameTile).toFixed(1),
+      "falls " + player.falls + "   " + clock(player.time),
+    ];
+
+    const pad = 10;
+    const lead = 16;
+    const w = 190;
+    const h = lines.length * lead + pad * 2;
+    const x = 16;
+    const y = 84;
+
+    ctx.save();
+    ctx.globalAlpha = 0.82;
+    ctx.fillStyle = colours.paper;
+    ctx.fillRect(x, y, w, h);
+    ctx.globalAlpha = 1;
+    ctx.strokeStyle = colours.rule;
+    ctx.lineWidth = 1;
+    ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
+
+    ctx.fillStyle = colours.ink;
+    ctx.font = "12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace";
+    ctx.textBaseline = "top";
+    lines.forEach((text, i) => ctx.fillText(text, x + pad, y + pad + i * lead));
+    ctx.restore();
+  }
+
   function clock(seconds) {
     const total = Math.floor(seconds);
     return String(Math.floor(total / 60)).padStart(2, "0") + ":" + String(total % 60).padStart(2, "0");
@@ -560,6 +607,7 @@
     });
 
     const player = session.player;
+    if (showCoords) drawCoords(ctx, player);
 
     // Submit once, the moment the door is reached.
     if (player.finished && !session.submitted) {
@@ -740,6 +788,15 @@
 
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && phase !== "menu") quitGame();
+
+    // F4 is not bound to anything the game does, so it is free for the thing
+    // that tells you where the game thinks you are.
+    if (event.code === "F4") {
+      event.preventDefault();
+      showCoords = !showCoords;
+      return;
+    }
+
     if (event.code !== "Space" || phase !== "game") return;
 
     // Space is jump, so it is only borrowed while something is actually asking
