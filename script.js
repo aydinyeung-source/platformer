@@ -362,12 +362,22 @@
   function poseOf(player) {
     const body = player.body;
     if (player.recovering > 0) return FRAME.hurt;
-    if (player.onWall) return FRAME.wall;
-    if (!body.onGround) return FRAME.air;
-    if (player.sliding) {
+
+    // Low first, and before anything airborne. A skim is airborne. So is a
+    // slide taken off an edge, and so is a crouch that walked off one — and in
+    // every case the body is half height and under a roof that only fits it
+    // because it is. Reaching the standing frames from here draws a full height
+    // pose on a half height body and puts its head through the ceiling.
+    //
+    // Above the wall check too, for the same reason: clinging is a tall pose,
+    // and a skim that touches a wall in a two row passage is still half height.
+    if (player.sliding || player.skimming) {
       const fast = Math.abs(body.vx) > Player.TUNING.runSpeed * Player.TUNING.crawlSpeed + 0.5;
       return fast ? FRAME.slide : FRAME.crouch;
     }
+
+    if (player.onWall) return FRAME.wall;
+    if (!body.onGround) return FRAME.air;
     if (Math.abs(body.vx) > 0.4) {
       // Walked, not ticked: the cycle advances with the ground covered, so it
       // never moonwalks and never scampers on the spot. A stride of four frames
