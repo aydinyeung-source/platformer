@@ -7,15 +7,10 @@ const Game = (() => {
   const STEP = 1 / 60;
   const MAX_CATCHUP = 5;
 
-  // Time to read the map before the clock starts. The camera is free the whole
-  // time, which is the point: the route is worth looking at before you run it.
-  const SCOUT_SECONDS = 10;
-
   function create(level) {
     return {
       level,
       player: Player.create(level),
-      scout: SCOUT_SECONDS,
       // Every button press, at a fixed 60 Hz. A seed plus this tape reproduces
       // the run exactly, which is what lets a claimed time be checked rather
       // than taken on trust.
@@ -58,17 +53,6 @@ const Game = (() => {
       return session;
     }
 
-    // Scouting: the view moves, the runner does not, and the clock has not
-    // started. Jump cuts it short for anyone who already knows the seed.
-    if (session.scout > 0) {
-      // The ten seconds are the point, so they are not skippable: the map is
-      // meant to be read before it is run, and a skip button turns that into a
-      // thing you press to get past.
-      session.scout = Math.max(0, session.scout - dt);
-      poll(); // consumed so a held jump does not buffer into the start
-      return session;
-    }
-
     session.accumulator += Math.min(dt, 0.25);
 
     let taken = 0;
@@ -98,5 +82,5 @@ const Game = (() => {
     return session;
   }
 
-  return { STEP, MAX_CATCHUP, SCOUT_SECONDS, create, advance, resume, tape };
+  return { STEP, MAX_CATCHUP, create, advance, resume, tape };
 })();

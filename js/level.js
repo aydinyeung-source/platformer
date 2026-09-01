@@ -788,41 +788,59 @@ const Level = (() => {
     };
 
     const TOP = 40; // where the run starts
-    const DEEP = 54; // below the first drop
-    const LEDGE = 46; // the shelf between the two climbs
-    const HIGH = 34; // the door
+    const CATCH = 54; // the shelf you have to steer onto, halfway down the drop
+    const DEEP = 66; // the long floor: pool, slot, low ceiling
+    const SHELF = 58; // between the two climbs
+    const HIGH = 46; // the door
 
     // 1 and 2 — open ground, then two gaps: one a tap, one a held jump.
-    hall(3, 63, TOP, 7);
+    hall(3, 79, TOP, 7);
     gap(44, 45, TOP);
     gap(55, 58, TOP);
 
-    // 3 — the floor runs out and the only way on is straight down, out of
-    // shot. The drop is deliberately further than the view reaches.
-    hall(64, 78, TOP, 7);
-    hall(79, 84, DEEP, DEEP - TOP + 7);
+    // 3 — the floor runs out. What is under it is a shaft with lava in the
+    // bottom and one way out: a shelf on the near wall, tucked back under the
+    // way you came, too far down to see from the edge. Walk off and you land in
+    // the lava; hold back into the left wall on the way down and you land on
+    // the shelf. It is the one place in the game where not looking costs you
+    // the run, which is the whole reason the camera is yours.
+    for (let x = 80; x <= 92; x++) {
+      for (let y = TOP - 7; y <= CATCH + 3; y++) put(x, y, TILE.EMPTY);
+    }
+    hall(70, 82, CATCH, 6); // the shelf, and the way back off it
+    for (let x = 70; x <= 82; x++) put(x, CATCH, TILE.GROUND); // its floor, into the shaft
+    pool(83, 92, CATCH + 1, 2); // and what is waiting for everyone else
+
+    // From the shelf the way on runs back the way you came and drops again.
+    for (let x = 70; x <= 72; x++) {
+      for (let y = CATCH; y <= DEEP - 1; y++) put(x, y, TILE.EMPTY);
+    }
 
     // 4 — a pool set in the floor, with solid ground either side of it to jump
     // from and land on, and to be put back onto after falling in.
-    hall(85, 110, DEEP, 7);
+    hall(70, 110, DEEP, 4);
     pool(96, 98, DEEP, 2);
 
     // 5 — one row. Standing does not fit; nothing but a slide gets through.
-    hall(111, 111, DEEP, 7);
+    hall(111, 111, DEEP, 4);
     for (let x = 112; x <= 124; x++) put(x, DEEP - 1, TILE.EMPTY);
 
     // 6 — two rows: enough to walk, not enough to jump.
-    hall(125, 126, DEEP, 5);
+    hall(125, 126, DEEP, 4);
     hall(127, 148, DEEP, 2);
 
     // 7A — a single face, eight rows of it, climbed by drifting back into the
-    // wall between kicks.
-    hall(149, 159, DEEP, 8);
-    hall(160, 172, LEDGE, 7);
+    // wall between kicks. The hall is cut well above the shelf it leads to:
+    // a climb needs somewhere to be at the top of itself, and a ceiling level
+    // with the shelf leaves the only open air on the far side of the wall.
+    hall(149, 159, DEEP, 12);
+    hall(160, 172, SHELF, 7);
 
     // 7B — a chimney: three wide, rock down both sides, twelve rows of it. Too
     // tall for one wall. Alternating kicks are the only way up.
-    hall(174, 176, LEDGE, LEDGE - HIGH);
+    for (let x = 174; x <= 176; x++) {
+      for (let y = HIGH; y <= SHELF - 1; y++) put(x, y, TILE.EMPTY);
+    }
 
     // 8 — the door.
     hall(174, 196, HIGH, 7);
@@ -859,11 +877,11 @@ const Level = (() => {
         {
           x: 68,
           title: "Looking",
-          body: "The floor stops ahead and the drop is deeper than the screen. {camera} moves the view, shift sweeps it. Look before you step off.",
-          hint: "Scout the drop, then take it",
+          body: "The floor stops ahead, and what is under it is further down than the screen goes. {camera} moves the view — look before you step off. There is one shelf down there and lava everywhere else, and the shelf is tucked back under this floor: hold left on the way down.",
+          hint: "Scout the drop, then ride the left wall onto the shelf",
         },
         {
-          x: 88,
+          x: 95,
           title: "Lava",
           body: "Lava costs you time, not the run. You are put back on the last safe ground you stood on and the fall is counted.",
           hint: "Jump it — or do not, and see",

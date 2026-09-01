@@ -349,6 +349,7 @@
   // weather: dust and heat, spawned by the renderer and simulated nowhere,
   // because nothing a particle does may change what a seed produces.
   const SHEET = { cols: 12, fw: 24, fh: 32 };
+  const STRIDE = 1.75; // frames per tile: a four frame cycle every 2.3 tiles
   const FRAME = {
     idle: 0,
     run: 1, // 1..4
@@ -386,8 +387,13 @@
     }
     if (Math.abs(body.vx) > 0.4) {
       // Walked, not ticked: the cycle advances with the ground covered, so it
-      // never moonwalks and never scampers on the spot.
-      return FRAME.run + (Math.floor(body.x * 4) % 4);
+      // never moonwalks and never scampers on the spot. A stride of four frames
+      // over about two and a quarter tiles — at four steps per tile it was nine
+      // full cycles a second, which is a blur rather than a run. The modulo is
+      // written to survive a negative operand, so running left counts down the
+      // cycle instead of jittering across the wrap.
+      const step = Math.floor(body.x * STRIDE);
+      return FRAME.run + (((step % 4) + 4) % 4);
     }
     return FRAME.idle;
   }
@@ -475,8 +481,16 @@
     const px = body.x * gameTile - gameCamera.x;
     const py = body.y * gameTile - gameCamera.y;
 
-    // Two tiles of art over a 1.6 tile body, standing on the same ground.
-    const scale = (gameTile * 2) / SHEET.fh;
+    // The art is exactly as tall as the body it belongs to. Drawing it two
+    // tiles tall over a 1.6 tile box put four tenths of a tile of head above
+    // the collision box, which is head through the ceiling everywhere the
+    // ceiling is low — and low ceilings are half the game now.
+    //
+    // Height is fixed rather than taken from the body, because the body halves
+    // for a slide and the art must not squash with it: the slide and crouch
+    // frames are already drawn low inside their own cell, and the cell is
+    // anchored by the feet, so they sit down without being scaled down.
+    const scale = (gameTile * Player.TUNING.height) / SHEET.fh;
     const flashing = player.recovering > 0 && Math.floor(player.recovering * 20) % 2 === 0;
     const alpha = player.finished ? player.entering : flashing ? 0.45 : 1;
 
@@ -563,9 +577,7 @@
       });
     }
 
-    const line = session.scout > 0
-      ? "Scan the map · " + Math.ceil(session.scout) + "s · arrows to look, shift to sweep"
-      : player.finished
+    const line = player.finished
       ? "Through the door · " + clock(player.time)
       : Player.metres(player).toLocaleString("en-US") + " / " + level.meters.toLocaleString("en-US") +
         " m · " + clock(player.time) +
