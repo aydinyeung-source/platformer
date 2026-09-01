@@ -31,6 +31,7 @@ const Player = (() => {
     wallStick: 0.09, // input is ignored briefly so the push actually lands
     wallCoyote: 0.09,
     buffer: 0.12, // jump pressed just before landing still counts
+    doorFade: 0.6, // seconds the runner takes to step into the doorway
 
     // The slide. Half height, so it fits where standing does not; a burst of
     // speed that decays to a crawl, so holding it down is not a way to travel
@@ -109,6 +110,7 @@ const Player = (() => {
       falls: 0,
       time: 0,
       finished: false,
+      entering: 0, // 1 at the doorway, 0 once through it
       // Where to put the player back when the ground gives out. There is no
       // death in this game, so every mistake has to resolve into a position.
       safe: { x: body.x, y: body.y },
@@ -149,7 +151,17 @@ const Player = (() => {
   function update(player, level, input, dt) {
     const body = player.body;
 
-    if (!player.finished) player.time += dt;
+    // Once through the door there is nothing left to simulate. The runner stands
+    // in the doorway and fades into it; gravity, input and the clock are all
+    // done with, and none of them get a say in how the run ended.
+    if (player.finished) {
+      player.entering = Math.max(0, player.entering - dt / TUNING.doorFade);
+      body.vx = 0;
+      body.vy = 0;
+      return player;
+    }
+
+    player.time += dt;
     if (player.recovering > 0) player.recovering = Math.max(0, player.recovering - dt);
 
     // ------------------------------------------------------------------ walls
@@ -340,8 +352,13 @@ const Player = (() => {
     }
 
     // Finished by being in the doorway, not by crossing a line on the floor.
+    // Through it rather than past it: the run stops dead where the door is,
+    // instead of carrying its momentum out the far side of the frame.
     if (!player.finished && Physics.overlaps(level, body, Level.TILE.DOOR).length) {
       player.finished = true;
+      player.entering = 1;
+      body.vx = 0;
+      body.vy = 0;
     }
 
     return player;

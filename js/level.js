@@ -88,6 +88,9 @@ const Level = (() => {
   // The attempt number is part of the stream name, so a seed still produces the
   // same map every time — it just may not be the first one that was tried.
   function generate(seedText, options = {}) {
+    // One seed is not a seed. TUTORIAL is a level someone wrote.
+    if (String(seedText).trim().toUpperCase() === "TUTORIAL") return createTutorial();
+
     const seed = Rng.keyFor(seedText);
     const mode = resolveMode(options.mode);
     const width = Math.max(120, options.width || Math.round(mode.meters / METERS_PER_TILE));
@@ -749,6 +752,159 @@ const Level = (() => {
     level.checksum = checksum(tiles);
     return level;
   }
+  // ------------------------------------------------------------- the tutorial
+  //
+  // Handcrafted, because teaching is the one thing the generator cannot do. A
+  // seed makes a cave that is fair; it cannot make one that introduces an idea,
+  // gives you somewhere safe to get it wrong, and only then asks you to use it.
+  //
+  // Every chamber here is one idea. The order is the argument: you cannot be
+  // told to scout a drop before you have jumped, or to crawl before you have
+  // learned that the ceiling is real. Nothing in it is generated and nothing in
+  // it is random, so the eighth chamber can rely on the seventh.
+  function createTutorial() {
+    const width = 200;
+    const height = HEIGHT;
+    const tiles = new Uint8Array(width * height).fill(TILE.GROUND);
+
+    const put = (x, y, tile) => {
+      if (x >= 0 && x < width && y >= 0 && y < height) tiles[y * width + x] = tile;
+    };
+    // A stretch of floor with clear air over it.
+    const hall = (x0, x1, floorY, tall) => {
+      for (let x = x0; x <= x1; x++) {
+        for (let y = floorY - tall; y < floorY; y++) put(x, y, TILE.EMPTY);
+      }
+    };
+    // A break in a floor. Shallow, so falling in it is a lesson and not a trip
+    // back to the start.
+    const gap = (x0, x1, floorY) => {
+      for (let x = x0; x <= x1; x++) put(x, floorY, TILE.EMPTY);
+    };
+    const pool = (x0, x1, floorY, deep) => {
+      for (let x = x0; x <= x1; x++) {
+        for (let y = floorY; y <= floorY + deep; y++) put(x, y, TILE.LAVA);
+      }
+    };
+
+    const TOP = 40; // where the run starts
+    const DEEP = 54; // below the first drop
+    const LEDGE = 46; // the shelf between the two climbs
+    const HIGH = 34; // the door
+
+    // 1 and 2 — open ground, then two gaps: one a tap, one a held jump.
+    hall(3, 63, TOP, 7);
+    gap(44, 45, TOP);
+    gap(55, 58, TOP);
+
+    // 3 — the floor runs out and the only way on is straight down, out of
+    // shot. The drop is deliberately further than the view reaches.
+    hall(64, 78, TOP, 7);
+    hall(79, 84, DEEP, DEEP - TOP + 7);
+
+    // 4 — a pool set in the floor, with solid ground either side of it to jump
+    // from and land on, and to be put back onto after falling in.
+    hall(85, 110, DEEP, 7);
+    pool(96, 98, DEEP, 2);
+
+    // 5 — one row. Standing does not fit; nothing but a slide gets through.
+    hall(111, 111, DEEP, 7);
+    for (let x = 112; x <= 124; x++) put(x, DEEP - 1, TILE.EMPTY);
+
+    // 6 — two rows: enough to walk, not enough to jump.
+    hall(125, 126, DEEP, 5);
+    hall(127, 148, DEEP, 2);
+
+    // 7A — a single face, eight rows of it, climbed by drifting back into the
+    // wall between kicks.
+    hall(149, 159, DEEP, 8);
+    hall(160, 172, LEDGE, 7);
+
+    // 7B — a chimney: three wide, rock down both sides, twelve rows of it. Too
+    // tall for one wall. Alternating kicks are the only way up.
+    hall(174, 176, LEDGE, LEDGE - HIGH);
+
+    // 8 — the door.
+    hall(174, 196, HIGH, 7);
+    put(192, HIGH - 1, TILE.DOOR);
+    put(192, HIGH - 2, TILE.DOOR);
+
+    const level = {
+      seed: "TUTORIAL",
+      mode: "1k",
+      meters: width * METERS_PER_TILE,
+      width,
+      height,
+      tiles,
+      spawn: { x: 6, y: TOP - 1 },
+      goal: { x: 192, y: HIGH - 1 },
+      places: [],
+      rules: RULES,
+      tutorial: true,
+      // Where the game stops to say something, and what it says. The x is the
+      // point the runner has to reach; the lesson waits there until it is read.
+      teach: [
+        {
+          x: 8,
+          title: "Moving",
+          body: "{move} runs. The camera does not follow you — it never will.",
+          hint: "Run right",
+        },
+        {
+          x: 40,
+          title: "Jumping",
+          body: "{jump} jumps, and how long you hold it is how high you go. The first gap is a tap. The second needs all of it.",
+          hint: "Clear both gaps",
+        },
+        {
+          x: 68,
+          title: "Looking",
+          body: "The floor stops ahead and the drop is deeper than the screen. {camera} moves the view, shift sweeps it. Look before you step off.",
+          hint: "Scout the drop, then take it",
+        },
+        {
+          x: 88,
+          title: "Lava",
+          body: "Lava costs you time, not the run. You are put back on the last safe ground you stood on and the fall is counted.",
+          hint: "Jump it — or do not, and see",
+        },
+        {
+          x: 108,
+          title: "Crawling",
+          body: "One row ahead. You cannot walk it. Hold {down} at a run to slide, and keep it held to crawl.",
+          hint: "Slide through the slot",
+        },
+        {
+          x: 128,
+          title: "Low ceilings",
+          body: "Two rows: room to walk, none to jump. The ceiling is solid and you will bounce off it.",
+          hint: "Walk it out",
+        },
+        {
+          x: 152,
+          title: "Climbing a wall",
+          body: "{jump} against a wall kicks off it. Drift back into the same wall and kick again to climb it.",
+          hint: "Get up to the shelf",
+        },
+        {
+          x: 172,
+          title: "The chimney",
+          body: "Too tall for one wall. Kick off one side, cross, kick off the other — alternating kicks throw you higher than repeating one.",
+          hint: "Bounce to the top",
+        },
+        {
+          x: 186,
+          title: "The door",
+          body: "Through it finishes the run. Your seed, distance, time and falls are kept in Recent runs on the menu.",
+          hint: "Go through",
+        },
+      ],
+      tally: { crawlways: 1, ducts: 1, shallow: 1, pools: 0, stubs: 0, loops: 0, rooms: 8, links: 8, places: 0 },
+    };
+    level.checksum = checksum(tiles);
+    return level;
+  }
+
   function at(level, x, y) {
     if (x < 0 || x >= level.width || y < 0 || y >= level.height) return TILE.EMPTY;
     return level.tiles[y * level.width + x];
@@ -1046,6 +1202,7 @@ const Level = (() => {
     METERS_PER_TILE,
     resolveMode,
     generate,
+    createTutorial,
     at,
     surfaceAt,
     floorAt,

@@ -39,7 +39,7 @@
 
   <div class="app" hidden>
   <div class="corner">
-    <span class="corner__version">v1.22.0</span>
+    <span class="corner__version">v1.23.0</span>
     <span class="corner__player" data-player></span>
     <div class="corner__actions">
       <button class="button button--secondary is-on" type="button" data-toggle="sound" aria-pressed="true">Sound</button>
@@ -83,7 +83,10 @@
         </div>
       </article>
 
-      <button class="button button--primary" type="button" data-action="play">Play</button>
+      <div class="actions">
+        <button class="button button--primary" type="button" data-action="play">Play</button>
+        <button class="button button--secondary" type="button" data-action="tutorial">Tutorial</button>
+      </div>
 
       <p class="label controls__label">Controls</p>
       <div class="chips" role="group" aria-label="Control scheme">
@@ -116,6 +119,26 @@
       <p class="game__distance" data-hud-distance></p>
     </div>
     <button class="button button--secondary game__quit" type="button" data-action="quit">Quit</button>
+
+    <div class="lesson lesson--victory" data-victory hidden>
+      <div class="lesson__card">
+        <p class="label">Run complete</p>
+        <h2 class="lesson__title" data-victory-title>Through the door</h2>
+        <dl class="victory" data-victory-stats></dl>
+        <p class="lesson__hint">Saved to your Runs history.</p>
+        <button class="button button--primary" type="button" data-action="continue">Continue — Space</button>
+      </div>
+    </div>
+
+    <div class="lesson" data-lesson hidden>
+      <div class="lesson__card">
+        <p class="label" data-lesson-step></p>
+        <h2 class="lesson__title" data-lesson-title></h2>
+        <p class="lesson__body" data-lesson-body></p>
+        <p class="lesson__hint" data-lesson-hint></p>
+        <button class="button button--primary" type="button" data-action="resume">Got it — Space</button>
+      </div>
+    </div>
   </div>
   </div>
 

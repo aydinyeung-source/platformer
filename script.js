@@ -47,6 +47,7 @@
 
   let level = null;
   let phase = "menu"; // menu -> loading -> game
+  let runSeedText = ""; // what the player asked for, which the tutorial overrides
 
   function token(name) {
     return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
@@ -217,14 +218,16 @@
   let loadMeta = "";
   let shownPercent = -1;
 
-  function startLoading() {
+  function startLoading(seedOverride) {
     phase = "loading";
     // The honest part: the run is generated here, the moment Play is pressed.
-    level = Level.generate(seedInput.value, { mode: activeValue(modeButtons, "mode") });
+    const wanted = seedOverride || seedInput.value;
+    level = Level.generate(wanted, { mode: activeValue(modeButtons, "mode") });
+    runSeedText = wanted;
     loader.hidden = false;
 
     loadMeta =
-      "Seed " + seedInput.value.toUpperCase() + " · " + level.meters.toLocaleString("en-US") + " m";
+      "Seed " + runSeedText.toUpperCase() + " · " + level.meters.toLocaleString("en-US") + " m";
     loadStart = performance.now();
     shownPercent = -1;
     stageLabel.textContent = STAGES[0].label;
@@ -347,8 +350,10 @@
     const px = body.x * gameTile - gameCamera.x;
     const py = body.y * gameTile - gameCamera.y;
 
-    // Recovering flashes, so a setback is visible without a message.
-    ctx.globalAlpha = player.recovering > 0 && Math.floor(player.recovering * 20) % 2 === 0 ? 0.35 : 1;
+      // Recovering flashes; finishing fades into the doorway rather than standing
+    // in front of it.
+    const flashing = player.recovering > 0 && Math.floor(player.recovering * 20) % 2 === 0;
+    ctx.globalAlpha = player.finished ? player.entering : flashing ? 0.35 : 1;
     ctx.fillStyle = colours.alert;
     if (ctx.roundRect) {
       ctx.beginPath();
@@ -451,7 +456,9 @@
     const body = session.player.body;
     Camera.centerOn(gameCamera, body.x * gameTile, body.y * gameTile);
     startLoop();
-    hudSeed.textContent = seedInput.value.toUpperCase() + " · " + Level.resolveMode(level.mode).label;
+    hudSeed.textContent = level.tutorial
+      ? "Tutorial"
+      : runSeedText.toUpperCase() + " · " + Level.resolveMode(level.mode).label;
     renderGame();
   }
 
@@ -460,6 +467,9 @@
     session = null;
     gameView.hidden = true;
     loader.hidden = true;
+    lesson.hidden = true;
+    victory.hidden = true;
+    leaving = 0;
   }
 
   // One poll per simulation step, so a jump press is consumed by exactly one
@@ -476,11 +486,117 @@
     };
   }
 
-  playButton.addEventListener("click", startLoading);
+  // ------------------------------------------------------------- the lessons
+  //
+  // The tutorial stops the world and says one thing. Which keys it names
+  // depends on how the player is holding the game, so the text carries tokens
+  // rather than key names and they are filled in when it is shown — otherwise a
+  // player on the retro scheme is told to press keys that do nothing.
+  const TUTORIAL_KEY = "platformer.tutorial_done";
+  const KEYCAPS = {
+    modern: { move: "A and D", jump: "W or Space", down: "S", camera: "The arrow keys" },
+    retro: { move: "Left and Right", jump: "Z or Space", down: "Down", camera: "W A S D" },
+  };
+
+  const lesson = document.querySelector("[data-lesson]");
+  const lessonStep = document.querySelector("[data-lesson-step]");
+  const lessonTitle = document.querySelector("[data-lesson-title]");
+  const lessonBody = document.querySelector("[data-lesson-body]");
+  const lessonHint = document.querySelector("[data-lesson-hint]");
+
+  function keycaps(text) {
+    const caps = KEYCAPS[Input.schemeId()] || KEYCAPS.modern;
+    return text.replace(/\{(\w+)\}/g, (whole, name) => caps[name] || whole);
+  }
+
+  function showLesson(card) {
+    const total = level && level.teach ? level.teach.length : 0;
+    lessonStep.textContent = "Step " + session.taught + " of " + total;
+    lessonTitle.textContent = card.title;
+    lessonBody.textContent = keycaps(card.body);
+    lessonHint.textContent = card.hint;
+    lesson.hidden = false;
+  }
+
+  function resumeLesson() {
+    if (!session || !session.lesson) return;
+    Game.resume(session);
+    lesson.hidden = true;
+  }
+
+  document.querySelector('[data-action="resume"]').addEventListener("click", resumeLesson);
+
+  function startTutorial() {
+    // Whatever the menu says, this run is the tutorial.
+    startLoading("TUTORIAL");
+  }
+
+  // ------------------------------------------------------------- the doorway
+  const victory = document.querySelector("[data-victory]");
+  const victoryStats = document.querySelector("[data-victory-stats]");
+  let leaving = 0; // seconds left before the run bows out on its own
+
+  function stat(label, value) {
+    const term = document.createElement("dt");
+    term.textContent = label;
+    const detail = document.createElement("dd");
+    detail.textContent = value;
+    victoryStats.append(term, detail);
+  }
+
+  function showVictory(player) {
+    victoryStats.textContent = "";
+    stat("Seed", level.tutorial ? "Tutorial" : runSeedText.toUpperCase());
+    stat("Mode", level.tutorial ? "200 m" : Level.resolveMode(level.mode).label);
+    stat("Time", clock(player.time));
+    stat("Falls", String(player.falls));
+    victory.hidden = false;
+    leaving = 2.5;
+
+    // Finishing it once is what counts as having done it.
+    if (level.tutorial) {
+      try {
+        localStorage.setItem(TUTORIAL_KEY, "yes");
+      } catch (err) {
+        // Private window: they will be offered it again, which is no disaster.
+      }
+    }
+  }
+
+  // Out through the canvas rather than cut away from it, and into the tab the
+  // run just wrote a row to.
+  function returnToLobby() {
+    if (phase !== "game") return;
+    leaving = 0;
+    victory.hidden = true;
+    gameView.classList.add("is-leaving");
+    window.setTimeout(() => {
+      gameView.classList.remove("is-leaving");
+      quitGame();
+      showPanel("runs");
+    }, 320);
+  }
+
+  document.querySelector('[data-action="continue"]').addEventListener("click", returnToLobby);
+
+  playButton.addEventListener("click", () => startLoading());
+  document.querySelector('[data-action="tutorial"]').addEventListener("click", startTutorial);
   document.querySelector('[data-action="quit"]').addEventListener("click", quitGame);
 
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && phase !== "menu") quitGame();
+    if (event.code !== "Space" || phase !== "game") return;
+
+    // Space is jump, so it is only borrowed while something is actually asking
+    // to be dismissed — and then it is taken, so the same press does not also
+    // launch the runner out of the doorway it is standing in.
+    if (!victory.hidden) {
+      event.preventDefault();
+      returnToLobby();
+    } else if (session && session.lesson) {
+      event.preventDefault();
+      resumeLesson();
+    }
   });
 
   // --------------------------------------------------------------------- boot
@@ -541,6 +657,16 @@
       updateLoading(now);
     } else if (phase === "game") {
       Game.advance(session, dt, readInput);
+
+      // A lesson waiting to be read, and a run waiting to bow out. Both are
+      // about the frame loop noticing something the simulation decided.
+      if (session.lesson && lesson.hidden) showLesson(session.lesson);
+      if (session.player.finished && victory.hidden && leaving === 0) showVictory(session.player);
+      if (leaving > 0) {
+        leaving = Math.max(0, leaving - dt);
+        if (leaving === 0) returnToLobby();
+      }
+
       // A step and a half faster than the runner for placing the view, two and a
       // half with shift for sweeping the map — both flat, neither ramps.
       const sweep = Input.fastView() ? 2.5 : 1.5;
@@ -562,6 +688,17 @@
     seedInput.value = Rng.randomSeed();
     setSource("random");
     refresh();
+
+    // Nobody's first run should be a 1000 metre cave they have not been told
+    // the rules of. Offered once, remembered once finished, and always there on
+    // the menu afterwards for anyone who wants it again.
+    let taught = false;
+    try {
+      taught = localStorage.getItem(TUTORIAL_KEY) === "yes";
+    } catch (err) {
+      taught = false; // storage blocked: offer it, which is the safer mistake
+    }
+    if (!taught) startTutorial();
   }
 
   // The menu waits for the gate. Booting behind the login card would roll a seed

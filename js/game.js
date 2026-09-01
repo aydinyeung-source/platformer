@@ -22,7 +22,20 @@ const Game = (() => {
       tape: [],
       accumulator: 0,
       steps: 0,
+      // Teaching. A handcrafted level carries a list of points it wants to say
+      // something at; everything else carries none and never pauses.
+      taught: 0,
+      lesson: null,
     };
+  }
+
+  // Reading is not playing, so the clock is not running while you read. The
+  // timer only advances inside Player.update, and a paused session does not
+  // call it — there is no separate clock to remember to stop.
+  function resume(session) {
+    session.lesson = null;
+    session.accumulator = 0;
+    return session;
   }
 
   // Run-length encoded, because a run is mostly the same buttons held down: a
@@ -38,6 +51,13 @@ const Game = (() => {
   }
 
   function advance(session, dt, poll) {
+    // Mid-lesson: the world holds still and the camera does not, so you can
+    // look at the thing being explained while it is being explained.
+    if (session.lesson) {
+      poll();
+      return session;
+    }
+
     // Scouting: the view moves, the runner does not, and the clock has not
     // started. Jump cuts it short for anyone who already knows the seed.
     if (session.scout > 0) {
@@ -59,6 +79,17 @@ const Game = (() => {
       session.accumulator -= STEP;
       session.steps++;
       taken++;
+
+      // Reached the next thing worth saying. Stop here rather than at the end
+      // of the frame, so the runner is standing where the lesson is about.
+      const marks = session.level.teach;
+      if (marks && session.taught < marks.length &&
+          session.player.body.x >= marks[session.taught].x) {
+        session.lesson = marks[session.taught];
+        session.taught++;
+        session.accumulator = 0;
+        break;
+      }
     }
 
     // After a long stall, drop the backlog rather than fast-forwarding through
@@ -67,5 +98,5 @@ const Game = (() => {
     return session;
   }
 
-  return { STEP, MAX_CATCHUP, SCOUT_SECONDS, create, advance, tape };
+  return { STEP, MAX_CATCHUP, SCOUT_SECONDS, create, advance, resume, tape };
 })();
