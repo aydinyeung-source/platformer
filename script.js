@@ -343,6 +343,131 @@
     }
   }
 
+  // --------------------------------------------------------------- the sprite
+  //
+  // Twelve frames of 24x32 in one strip. Ten of them are the runner and two are
+  // weather: dust and heat, spawned by the renderer and simulated nowhere,
+  // because nothing a particle does may change what a seed produces.
+  const SHEET = { cols: 12, fw: 24, fh: 32 };
+  const FRAME = {
+    idle: 0,
+    run: 1, // 1..4
+    air: 5,
+    wall: 6,
+    slide: 7,
+    crouch: 8,
+    hurt: 9,
+    dust: 10,
+    heat: 11,
+  };
+
+  const sheet = new Image();
+  let sheetReady = false;
+  sheet.addEventListener("load", () => {
+    sheetReady = true;
+  });
+  // A missing or unreadable sheet is not a broken game: the runner falls back to
+  // the shape it was before there was any art, and everything still plays.
+  sheet.addEventListener("error", () => {
+    sheetReady = false;
+  });
+  sheet.src = "assets/sprites/player.png";
+
+  // Which of the ten runner frames this moment is. Order is precedence: being
+  // hurt outranks being on a wall, which outranks being in the air.
+  function poseOf(player) {
+    const body = player.body;
+    if (player.recovering > 0) return FRAME.hurt;
+    if (player.onWall) return FRAME.wall;
+    if (!body.onGround) return FRAME.air;
+    if (player.sliding) {
+      const fast = Math.abs(body.vx) > Player.TUNING.runSpeed * Player.TUNING.crawlSpeed + 0.5;
+      return fast ? FRAME.slide : FRAME.crouch;
+    }
+    if (Math.abs(body.vx) > 0.4) {
+      // Walked, not ticked: the cycle advances with the ground covered, so it
+      // never moonwalks and never scampers on the spot.
+      return FRAME.run + (Math.floor(body.x * 4) % 4);
+    }
+    return FRAME.idle;
+  }
+
+  // Anchored by the feet and centred on the body, because the art is bigger than
+  // the box it collides with — and it has to stay put when the box halves in
+  // height for a slide.
+  function drawFrame(ctx, frame, centreX, feetY, scale, flip, alpha) {
+    if (!sheetReady) return false;
+    const h = SHEET.fh * scale;
+    const w = SHEET.fw * scale;
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.imageSmoothingEnabled = false;
+    ctx.translate(centreX, feetY - h);
+    if (flip) ctx.scale(-1, 1);
+    ctx.drawImage(sheet, frame * SHEET.fw, 0, SHEET.fw, SHEET.fh, -w / 2, 0, w, h);
+    ctx.restore();
+    return true;
+  }
+
+  // ------------------------------------------------------------- the weather
+  const motes = [];
+  let dustSeen = 0;
+  let fallsSeen = 0;
+
+  function mote(x, y, vx, vy, frame, life) {
+    if (motes.length > 90) return; // cosmetic, and never worth a frame drop
+    motes.push({ x, y, vx, vy, frame, life, max: life });
+  }
+
+  function puff(x, y, count, spread) {
+    for (let i = 0; i < count; i++) {
+      mote(x, y, (Math.random() - 0.5) * spread, -Math.random() * 1.2 - 0.2, FRAME.dust, 0.25);
+    }
+  }
+
+  function stepMotes(dt) {
+    for (let i = motes.length - 1; i >= 0; i--) {
+      const m = motes[i];
+      m.life -= dt;
+      if (m.life <= 0) {
+        motes.splice(i, 1);
+        continue;
+      }
+      m.x += m.vx * dt;
+      m.y += m.vy * dt;
+    }
+  }
+
+  // Heat off the top of any pool the camera can actually see. Cheap, because it
+  // only ever looks at the columns on screen.
+  function breatheLava(dt) {
+    if (!level) return;
+    const view = Camera.visibleTiles(gameCamera, gameTile, level.width, level.height);
+    const tries = Math.min(6, Math.ceil(dt * 90));
+    for (let i = 0; i < tries; i++) {
+      const x = view.x0 + Math.floor(Math.random() * Math.max(1, view.x1 - view.x0));
+      const y = view.y0 + Math.floor(Math.random() * Math.max(1, view.y1 - view.y0));
+      if (Level.at(level, x, y) !== Level.TILE.LAVA) continue;
+      if (Level.at(level, x, y - 1) === Level.TILE.LAVA) continue; // not the surface
+      mote(x + Math.random(), y, 0, -0.7 - Math.random() * 0.5, FRAME.heat, 0.7);
+    }
+  }
+
+  function drawMotes(ctx) {
+    for (const m of motes) {
+      const fade = m.life / m.max;
+      drawFrame(
+        ctx,
+        m.frame,
+        m.x * gameTile - gameCamera.x,
+        m.y * gameTile - gameCamera.y,
+        (gameTile / SHEET.fh) * 0.5,
+        false,
+        fade * 0.75
+      );
+    }
+  }
+
   function drawRunner(ctx, player) {
     const body = player.body;
     const w = body.w * gameTile;
@@ -350,10 +475,17 @@
     const px = body.x * gameTile - gameCamera.x;
     const py = body.y * gameTile - gameCamera.y;
 
-      // Recovering flashes; finishing fades into the doorway rather than standing
-    // in front of it.
+    // Two tiles of art over a 1.6 tile body, standing on the same ground.
+    const scale = (gameTile * 2) / SHEET.fh;
     const flashing = player.recovering > 0 && Math.floor(player.recovering * 20) % 2 === 0;
-    ctx.globalAlpha = player.finished ? player.entering : flashing ? 0.35 : 1;
+    const alpha = player.finished ? player.entering : flashing ? 0.45 : 1;
+
+    if (drawFrame(ctx, poseOf(player), px + w / 2, py + h, scale, player.facing < 0, alpha)) return;
+
+    // No sheet: the shape the runner was before there was any art. Recovering
+    // flashes; finishing fades into the doorway rather than standing in front
+    // of it.
+    ctx.globalAlpha = alpha;
     ctx.fillStyle = colours.alert;
     if (ctx.roundRect) {
       ctx.beginPath();
@@ -390,6 +522,7 @@
     ctx.save();
     ctx.translate(0, gameOffsetY);
     Level.render(ctx, level, gameCamera, gameTile, colours);
+    drawMotes(ctx);
     drawRunner(ctx, session.player);
     ctx.restore();
 
@@ -451,6 +584,9 @@
 
     session = Game.create(level);
     hudShown = "";
+    motes.length = 0;
+    dustSeen = 0;
+    fallsSeen = 0;
 
     fitGame();
     const body = session.player.body;
@@ -657,6 +793,26 @@
       updateLoading(now);
     } else if (phase === "game") {
       Game.advance(session, dt, readInput);
+
+      // Weather. Watched off the simulation rather than driven by it, so a
+      // dropped frame costs a puff of dust and never a jump.
+      const runner = session.player;
+      const feet = runner.body.y + runner.body.h;
+      const middle = runner.body.x + runner.body.w / 2;
+      if (runner.dust > dustSeen) {
+        puff(middle, feet, 3, 3);
+        dustSeen = runner.dust;
+      }
+      if (runner.falls > fallsSeen) {
+        // Out of the lava it just cost you: smoke where the runner went in.
+        puff(middle, feet, 5, 4);
+        fallsSeen = runner.falls;
+      }
+      if (runner.sliding && runner.body.onGround && Math.abs(runner.body.vx) > 7) {
+        puff(middle - Math.sign(runner.body.vx) * 0.4, feet, 1, 1.5);
+      }
+      breatheLava(dt);
+      stepMotes(dt);
 
       // A lesson waiting to be read, and a run waiting to bow out. Both are
       // about the frame loop noticing something the simulation decided.

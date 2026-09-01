@@ -111,6 +111,10 @@ const Player = (() => {
       time: 0,
       finished: false,
       entering: 0, // 1 at the doorway, 0 once through it
+      // Counts up whenever something happened that should kick up dust. The
+      // renderer watches the number rather than the events, so a puff cannot be
+      // missed by a frame that happened to straddle two simulation steps.
+      dust: 0,
       // Where to put the player back when the ground gives out. There is no
       // death in this game, so every mistake has to resolve into a position.
       safe: { x: body.x, y: body.y },
@@ -189,6 +193,7 @@ const Player = (() => {
       const running = Math.abs(body.vx) >= TUNING.runSpeed * TUNING.slideEntry;
       player.sliding = true;
       player.slideTime = running ? 0 : TUNING.slideDecay;
+      if (running) player.dust++;
       player.slideDir = running ? (body.vx < 0 ? -1 : 1) : player.facing;
       setHeight(body, TUNING.slideHeight);
       if (running) body.vx = player.slideDir * TUNING.runSpeed * TUNING.slideBoost;
@@ -274,12 +279,14 @@ const Player = (() => {
         body.vx = player.slideDir * TUNING.skimVx;
         player.skimming = true;
         player.holding = false;
+        player.dust++;
       } else {
         // The uncoil. Jump in the three frames after standing out of a slide
         // and the spring goes into the jump: a tile higher than a jump can
         // otherwise reach, with the slide's speed still under you.
         const uncoiled = player.uncoil > 0 && body.onGround;
         body.vy = -(uncoiled ? TUNING.uncoilJump : TUNING.jumpSpeed);
+        if (uncoiled) player.dust++;
         player.uncoil = 0;
         player.holding = true;
       }
@@ -296,6 +303,7 @@ const Player = (() => {
       body.vy = -(chimney ? TUNING.chimneyY : TUNING.wallJumpY);
       body.vx = -player.wallDir * (chimney ? TUNING.chimneyX : TUNING.wallJumpX);
       player.lastWallKicked = player.wallDir;
+      player.dust++;
       player.buffer = 0;
       player.wallCoyote = 0;
       player.lockout = TUNING.wallStick;
