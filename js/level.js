@@ -143,7 +143,7 @@ const Level = (() => {
       const cellX = 6 + c * CELL_W;
       const cellY = BAND_TOP + r * CELL_H;
       const floorY = clamp(cellY + CELL_H - 3 + rng.int(-1, 1), CEIL_LIMIT + 2, FLOOR_LIMIT);
-      const tall = rng.int(5, 8);
+      const tall = rng.int(3, 5); // tight pockets: the cave is meant to feel close
       rooms.push({
         index: i,
         c,
@@ -289,10 +289,10 @@ const Level = (() => {
         } else {
           if (stone === 0 && gap === 0 && bridge === 0) {
             // How far does the hole go? A shaft is three wide and a corridor
-            // four: those get planked, because three tiles of one-way platform
-            // is a step over something, and because sealing a shaft with rock
-            // would take the way up out of it. Anything wider is a chamber, and
-            // a chamber gets stones.
+            // four, and those are left open: a gap that size is a jump, and
+            // flooring one with rock would seal the shaft under it and take
+            // away the only way up out of it. Anything wider is a chamber, and
+            // a chamber gets stones to cross on.
             let across = 0;
             while (across < 48 && peek(x + across * step, y) !== TILE.GROUND) across++;
             if (across <= 4) bridge = across;
@@ -300,8 +300,7 @@ const Level = (() => {
           }
 
           if (bridge > 0) {
-            put(x, y, TILE.PLATFORM);
-            bridge--;
+            bridge--; // open air, and a jump across it
           } else if (stone > 0) {
             put(x, y, TILE.GROUND);
             stone--;
@@ -666,7 +665,22 @@ const Level = (() => {
     // emptying one tile empties whatever was resting on it.
     for (let cy = height - 2; cy >= 0; cy--) {
       for (let cx = 0; cx < width; cx++) {
-        if (peek(cx, cy) === TILE.LAVA && peek(cx, cy + 1) === TILE.EMPTY) dig(cx, cy);
+        if (peek(cx, cy) !== TILE.LAVA) continue;
+
+        const below = peek(cx, cy + 1);
+        if (below === TILE.EMPTY) {
+          dig(cx, cy);
+          continue;
+        }
+        if (below !== TILE.GROUND) continue; // lava on lava: the basin decides
+
+        // The basin, and how much stone is actually holding it. A pool left
+        // standing on a single tile over a passage is the thing the crust rule
+        // exists to prevent — and a pool poured where the crust was thick
+        // enough can still end up over a passage that was cut afterwards.
+        let rock = 0;
+        while (rock < CRUST && peek(cx, cy + 1 + rock) === TILE.GROUND) rock++;
+        if (rock < CRUST) dig(cx, cy);
       }
     }
 
@@ -690,6 +704,21 @@ const Level = (() => {
       const { x, w, top, bottom } = shaft;
       if (bottom - top <= LEDGE_RISE) continue;
 
+      // These stay one-way platforms, and the reason is measured rather than
+      // preferred. Solid rock nubs were tried in their place: one tile wide,
+      // jutting from the wall, alternating sides. They drop 10 km from ten
+      // levels beatable out of ten to six.
+      //
+      // The cause is that a climb reads a plank as air and a nub as an
+      // obstacle. Both are true. You pass up through a platform, so nothing
+      // above you on your own column is in the way; a nub is something to crack
+      // your head on, so the jump from the nub below it is refused — and with
+      // the ladder broken there is no way back up the shaft. Widening the shaft
+      // and cycling the nubs over three positions were both tried; neither
+      // recovers it.
+      //
+      // Everywhere else the platforms are gone. This is the one place the
+      // level's connectedness rests on them.
       const anchored = (lx, y) =>
         peek(lx - 1, y) === TILE.GROUND || peek(lx + 2, y) === TILE.GROUND;
       const chimney = w <= 3 &&
