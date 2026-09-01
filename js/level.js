@@ -56,11 +56,12 @@ const Level = (() => {
   // only way to learn what is around a corner or at the bottom of a drop is to
   // pan the camera and look. That is the whole point of the free camera.
   //
-  // The shape is a graph, not a line. Cells of a coarse grid become rooms; a
-  // randomised depth-first spanning tree links them, which is what guarantees
-  // every room connects to every other; extra links are then laid on top of the
-  // tree to close loops back into rooms already visited, and short stubs are dug
-  // into the rock as true dead ends. The tree's own leaves are dead ends too.
+  // The shape is a graph, not a line. Cells of a coarse grid become junctions —
+  // pockets a few tiles across where passages meet, not halls; a randomised
+  // depth-first spanning tree links them, which is what guarantees every one
+  // connects to every other; extra links are laid on top of the tree to close
+  // loops back into junctions already visited; and any junction still left with
+  // a single link is given a second, so the network forks rather than ends.
   //
   // None of that can strand you. A branch you can walk into is one you can walk
   // back out of: horizontal passages never step more than a tile at a time and
@@ -68,18 +69,17 @@ const Level = (() => {
   // then proves it independently rather than taking my word for it.
 
   const ROOF = 5; // never carve higher than this
-  const HEADROOM = 4; // clear rows above a walking floor — enough to jump, no more
+  const HEADROOM = 3; // clear rows above a walking floor: room to move, not to stand tall in
   const LEDGE_RISE = 3; // rung spacing — one plain jump
   const CHIMNEY_RISE = 8; // resting points in a chimney, inside one wall climb
   const CELL_W = 26;
   const CELL_H = 14;
   const BAND_TOP = 7; // first row the grid may use
-  const ROOM_INSET = 3; // rock kept between a room and its cell edge
   const SHAFT_W = 3;
-  const LOOP_CHANCE = 0.18; // links added beyond the spanning tree
+  const LOOP_CHANCE = 0.38; // links added beyond the spanning tree
   const CRUST = 2; // rows of rock that must sit under a pool of lava
   const CRAWL = 2; // a crawlway: room to walk, none to jump
-  const CRAWL_CHANCE = 0.2;
+  const CRAWL_CHANCE = 0.4;
   const DUCT = 1; // a slit through the rock: no room to be anything but sliding
   const DUCT_CHANCE = 0.3;
 
@@ -134,24 +134,20 @@ const Level = (() => {
     const colOf = (i) => i % cols;
     const rowOf = (i) => (i / cols) | 0;
 
-    // One room per cell, sitting near the bottom of it with rock left over its
-    // roof, so the rooms of one grid row never merge into the row below.
+    // A junction per cell rather than a room: one column and one floor height.
+    // The column is fixed so the shafts between rows run true; the height is
+    // its own so the tunnels between columns have somewhere to wander to.
     const rooms = [];
     for (let i = 0; i < count; i++) {
       const c = colOf(i);
       const r = rowOf(i);
-      const cellX = 6 + c * CELL_W;
       const cellY = BAND_TOP + r * CELL_H;
-      const floorY = clamp(cellY + CELL_H - 3 + rng.int(-1, 1), CEIL_LIMIT + 2, FLOOR_LIMIT);
-      const tall = rng.int(3, 5); // tight pockets: the cave is meant to feel close
       rooms.push({
         index: i,
         c,
         r,
-        x0: c === 0 ? 4 : cellX + ROOM_INSET,
-        x1: c === cols - 1 ? width - 5 : cellX + CELL_W - ROOM_INSET - 1,
-        floorY,
-        top: Math.max(ROOF, floorY - tall),
+        x: c === 0 ? 8 : c === cols - 1 ? width - 8 : 6 + c * CELL_W + (CELL_W >> 1),
+        floorY: clamp(cellY + CELL_H - 3 + rng.int(-1, 1), CEIL_LIMIT + 2, FLOOR_LIMIT),
       });
     }
 
@@ -191,7 +187,7 @@ const Level = (() => {
     }
 
     // The loops. A tree alone is a maze with exactly one way between any two
-    // rooms; these are the links that let a passage come back around into
+    // junctions; these are the links that let a passage come back around into
     // somewhere already seen instead of only ever pushing further in.
     let loops = 0;
     for (let i = 0; i < count; i++) {
@@ -203,12 +199,58 @@ const Level = (() => {
       }
     }
 
+    // And then no dead ends at all. Loops alone do not manage it: a spanning
+    // tree has leaves, and a leaf that no loop happened to pick up is a junction
+    // with one way in and the same way out. Every junction left with a single
+    // link gets a second, so the whole network forks rather than terminates.
+    // The run starts and finishes standing on a floor, so both ends need a
+    // passage that runs along one. A junction joined only by shafts is a hole
+    // in the ground with no ledge beside it to be standing on.
+    if (cols > 1) {
+      linked.add(key(startCell, startCell + 1));
+      linked.add(key(endCell, endCell - 1));
+    }
+
+    const degree = new Uint16Array(count);
+    for (const k of linked) {
+      const parts = k.split("|");
+      degree[Number(parts[0])]++;
+      degree[Number(parts[1])]++;
+    }
+    for (let i = 0; i < count; i++) {
+      if (degree[i] > 1) continue;
+      const spare = neighbours(i).filter((n) => !linked.has(key(i, n)));
+      if (!spare.length) continue;
+      const n = spare[rng.int(0, spare.length - 1)];
+      linked.add(key(i, n));
+      degree[i]++;
+      degree[n]++;
+      loops++;
+    }
+
     // --------------------------------------------------------- the carving
-    function carveRoom(room) {
-      for (let x = room.x0; x <= room.x1; x++) {
-        for (let y = room.top; y < room.floorY; y++) dig(x, y);
+    //
+    // A junction is a pocket, not a hall: seven columns and three or four rows,
+    // which is a widening in a passage rather than a room you stand in the
+    // middle of. The vaults are gone — twenty columns of open floor is a place
+    // you can see all of at once, which is the opposite of a cave.
+    //
+    // It cannot go to nothing, though, and that is measured rather than
+    // assumed. Carving no pocket at all — junctions as bare points where
+    // passages meet — reads well and does not survive: 5 km falls to four
+    // levels beatable in twelve and 10 km to one in ten. The pocket is what
+    // absorbs the mismatch between a shaft dropping in and a tunnel leaving at
+    // a slightly different height. Without somewhere for those to meet, every
+    // junction is a joint that has to line up exactly, and at ten thousand
+    // tiles enough of them do not.
+    function carveJunction(node) {
+      const tall = rng.int(3, 4);
+      const x0 = node.x - 3;
+      const x1 = node.x + 3;
+      for (let x = x0; x <= x1; x++) {
+        for (let y = node.floorY - tall; y < node.floorY; y++) dig(x, y);
       }
-      places.push({ type: "chamber", x0: room.x0, x1: room.x1, floorY: room.floorY, top: room.top });
+      places.push({ type: "chamber", x0, x1, floorY: node.floorY, top: node.floorY - tall });
     }
 
     // A winding passage. It never rises or drops more than one row per column,
@@ -407,24 +449,15 @@ const Level = (() => {
       return true;
     }
 
-    for (const room of rooms) carveRoom(room);
+    for (const node of rooms) carveJunction(node);
 
-    // The spawn pocket and the door are cut last, but their columns are spoken
-    // for now, so no shaft is ever sunk through the floor the run starts on or
-    // the one it ends on.
     const home = rooms[startCell];
     const exit = rooms[endCell];
-    const spawnX = home.x0 + 2;
-    const doorX = Math.min(width - 4, exit.x1 - 2);
 
-    const shaftRange = (room) => {
-      let lo = room.x0 + 1;
-      let hi = room.x1 - SHAFT_W - 1;
-      if (room === home) lo = Math.max(lo, spawnX + 6);
-      if (room === exit) hi = Math.min(hi, doorX - 6);
-      return { lo, hi };
-    };
-
+    // Every link is a passage, junction to junction. Along a row that is a
+    // tunnel the width of a whole cell, which is what gives the wander room to
+    // be a wander; between rows it is a chimney, dropped straight down the
+    // column both junctions share.
     for (const k of linked) {
       const parts = k.split("|");
       const a = rooms[Number(parts[0])];
@@ -434,83 +467,18 @@ const Level = (() => {
         const left = a.c < b.c ? a : b;
         const right = a.c < b.c ? b : a;
         // A crawlway needs both ends at the same height, because it cannot rise
-        // a single tile without becoming a wall. Where the two rooms happen to
+        // a single tile without becoming a wall. Where two junctions happen to
         // line up, the way between them is sometimes a duck rather than a walk.
         const low = left.floorY === right.floorY && rng.chance(CRAWL_CHANCE);
-        tunnel(left.x1, left.floorY, right.x0, right.floorY,
+        tunnel(left.x, left.floorY, right.x, right.floorY,
           low ? 0 : rng.int(2, 5), low ? CRAWL : HEADROOM);
       } else {
         const above = a.r < b.r ? a : b;
         const below = a.r < b.r ? b : a;
-        const up = shaftRange(above);
-        const down = shaftRange(below);
-        const lo = Math.max(up.lo, down.lo);
-        const hi = Math.min(up.hi, down.hi);
-        if (hi < lo) continue;
-        shaft(rng.int(lo, hi), SHAFT_W, below.floorY, above.floorY);
+        shaft(above.x - 1, SHAFT_W, below.floorY, above.floorY);
       }
     }
 
-    // ------------------------------------------------------------ dead ends
-    // Passages that go nowhere, so that finding the way through is a matter of
-    // scouting rather than following the only corridor there is.
-    let stubs = 0;
-    const wanted = Math.max(3, Math.round(count * 0.35));
-    for (let i = 0; i < wanted; i++) {
-      const room = rooms[rng.int(0, rooms.length - 1)];
-
-      if (rng.chance(0.55)) {
-        // Sideways into the rock. If it happens to break into something else it
-        // is a shortcut instead, which is no loss.
-        const dir = rng.chance(0.5) ? -1 : 1;
-        const fromX = dir < 0 ? room.x0 : room.x1;
-        const target = clamp(fromX + dir * rng.int(9, 24), 3, width - 4);
-        if (Math.abs(target - fromX) < 8) continue;
-        // A stub is flat and it is long: the one place a crawlway has room to
-        // be a stretch of travel rather than a doorway.
-        const low = rng.chance(CRAWL_CHANCE * 1.5);
-        tunnel(fromX, room.floorY, target, room.floorY,
-          low ? 0 : rng.int(2, 4), low ? CRAWL : HEADROOM);
-        stubs++;
-      } else {
-        // A pocket underneath, rungs and all: a drop worth looking down before
-        // taking, never one that keeps you.
-        const range = shaftRange(room);
-        if (range.hi < range.lo) continue;
-        const sx = rng.int(range.lo, range.hi);
-        const bottom = clamp(room.floorY + rng.int(7, 15), room.floorY + 7, FLOOR_LIMIT);
-        if (bottom <= room.floorY + 6) continue;
-        shaft(sx, SHAFT_W, bottom, room.floorY);
-        const x0 = sx - rng.int(3, 8);
-        const x1 = sx + SHAFT_W + rng.int(3, 8);
-        for (let x = x0; x <= x1; x++) {
-          for (let y = bottom - HEADROOM; y < bottom; y++) dig(x, y);
-          // No floor is laid. Where the pocket bottoms out in rock it has one
-          // already; where it breaks into something already open it becomes a
-          // way into that instead, which is a better answer than either a plank
-          // strung across it or a slab dropped through its ceiling.
-        }
-        places.push({ type: "corridor", x0, x1, floorY: bottom });
-        stubs++;
-      }
-    }
-
-    // -------------------------------------------------------- spawn and door
-    // Cut clear, so the run can never begin inside rock or end at a door
-    // standing in mid-air.
-    for (let x = spawnX - 2; x <= spawnX + 4; x++) {
-      for (let y = home.floorY - HEADROOM; y < home.floorY; y++) dig(x, y);
-      if (peek(x, home.floorY) !== TILE.GROUND) put(x, home.floorY, TILE.GROUND);
-    }
-    const spawn = { x: spawnX, y: home.floorY - 1 };
-
-    for (let x = doorX - 3; x <= doorX + 2; x++) {
-      for (let y = exit.floorY - HEADROOM; y < exit.floorY; y++) dig(x, y);
-      if (peek(x, exit.floorY) !== TILE.GROUND) put(x, exit.floorY, TILE.GROUND);
-    }
-    put(doorX, exit.floorY - 1, TILE.DOOR);
-    put(doorX, exit.floorY - 2, TILE.DOOR);
-    const goal = { x: doorX, y: exit.floorY - 1 };
 
     // ---------------------------------------------------------------- ducts
     // A slit through the rock, one tile tall. Nothing can stand up in one, so
@@ -533,20 +501,28 @@ const Level = (() => {
       // It can neither climb nor step: one row leaves no room to do either.
       if (a.floorY !== b.floorY || !rng.chance(DUCT_CHANCE)) continue;
 
-      // Only through rock. Threaded across something already open it would be a
-      // slit with no roof, which is to say not a slit.
+      // Only through rock — threaded across something already open it would be
+      // a slit with no roof, which is to say not a slit. The rock it has to
+      // find is the rock between the two junction pockets, not between their
+      // centres: a junction is carved, so asking whether its own columns are
+      // solid is asking whether it exists.
+      const from = a.x + 4;
+      const to = b.x - 4;
+      if (to - from < 4) continue;
+
       let solid = true;
-      for (let x = a.x1 + 1; x < b.x0 && solid; x++) {
+      for (let x = from; x <= to && solid; x++) {
         for (let cy = a.floorY - DUCT - 1; cy <= a.floorY; cy++) {
           if (peek(x, cy) !== TILE.GROUND) solid = false;
         }
       }
       if (!solid) continue;
 
-      for (let x = a.x1; x <= b.x0; x++) {
+      // Cut from pocket edge to pocket edge, so it opens into both.
+      for (let x = a.x + 3; x <= b.x - 3; x++) {
         for (let cy = a.floorY - DUCT; cy < a.floorY; cy++) dig(x, cy);
       }
-      places.push({ type: "duct", x0: a.x1, x1: b.x0, floorY: a.floorY, head: DUCT });
+      places.push({ type: "duct", x0: a.x + 3, x1: b.x - 3, floorY: a.floorY, head: DUCT });
       ducts++;
     }
 
@@ -560,8 +536,8 @@ const Level = (() => {
     // underneath it. Lava is not a place you can stand, so a pool poured over a
     // rung breaks the climb it belongs to.
     const spotIn = (place, w) => {
-      const lo = place.x0 + 4;
-      const hi = place.x1 - 4 - w;
+      const lo = place.x0 + 3;
+      const hi = place.x1 - 3 - w;
       if (hi < lo) return -1;
       for (let tries = 0; tries < 8; tries++) {
         const at0 = detail.int(lo, hi);
@@ -576,7 +552,7 @@ const Level = (() => {
     // holding up the loop, and the loop should hold itself up.
     for (const place of places.slice()) {
       if (place.type !== "corridor" && place.type !== "chamber") continue;
-      if (place.x1 - place.x0 < 13) continue;
+      if (place.x1 - place.x0 < 10) continue;
       if (place.floorY <= CEIL_LIMIT + 1) continue;
 
       const roll = detail.int(0, 99);
@@ -641,7 +617,7 @@ const Level = (() => {
         // above one open it out, and an opened crawlway is just a passage. The
         // mouths are exempt: both ends stand inside the rooms they join, where
         // the ceiling was never low to begin with.
-        const mouth = x < seg.x0 + 2 || x > seg.x1 - 2;
+        const mouth = x < seg.x0 + 4 || x > seg.x1 - 4;
         if (!mouth && peek(x, seg.floorY - CRAWL - 1) !== TILE.GROUND) low = false;
       }
 
@@ -746,6 +722,42 @@ const Level = (() => {
       }
     }
 
+    // -------------------------------------------------------- spawn and door
+    //
+    // Found rather than cut, and found last of all. Laying a floor to stand on
+    // is how the start of a run seals the top of the shaft that was the only
+    // way out of it — rock put back under the runner's feet goes back over
+    // whatever the links opened. And choosing the spot early is how the run
+    // starts in a pool: hazards, ducts and repairs all come after, and any of
+    // them can take the ground out from under a place that was standable when
+    // it was picked.
+    //
+    // So: walk out from the junction until the rock as it finally stands has
+    // somewhere to be, and only then put the door in it.
+    // The floor near a junction is not necessarily at the junction's height: a
+    // tunnel leaves it wandering, so the row is searched for as well as the
+    // column. Two open rows over solid ground is the whole test, which is the
+    // same test the audit applies.
+    const standingSpot = (node, dir) => {
+      for (let d = 0; d <= 14; d++) {
+        const x = node.x + d * dir;
+        for (let dy = -3; dy <= 3; dy++) {
+          const fy = node.floorY + dy;
+          if (peek(x, fy) !== TILE.GROUND) continue;
+          if (peek(x, fy - 1) !== TILE.EMPTY) continue;
+          if (peek(x, fy - 2) !== TILE.EMPTY) continue;
+          return { x, y: fy - 1 };
+        }
+      }
+      return { x: node.x, y: node.floorY - 1 };
+    };
+
+    const spawn = standingSpot(home, 1);
+    const goal = standingSpot(exit, -1);
+
+    put(goal.x, goal.y, TILE.DOOR);
+    put(goal.x, goal.y - 1, TILE.DOOR);
+
     // A hard lid on the world. Rock is the boundary, so there is no lip to get
     // over and no empty air above it to end up standing in.
     for (let cx = 0; cx < width; cx++) put(cx, 0, TILE.GROUND);
@@ -775,7 +787,6 @@ const Level = (() => {
         crawlways: crawls.filter((s) => s.head < HEADROOM).length,
         shallow,
         pools,
-        stubs,
         loops,
         rooms: count,
         links: linked.size,
