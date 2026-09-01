@@ -1,34 +1,12 @@
 // script.js — main menu: seed choice, run length, and handing off to a run
 
 (() => {
-  const SOUND_KEY = "platformer.sound";
-
-  const soundButton = document.querySelector('[data-toggle="sound"]');
+  // There is no sound, and until there is there is no switch for it. A control
+  // that turns off something the game never does is a promise the game does not
+  // keep — and the first thing it costs is the player's trust in every other
+  // control on the screen.
   const fullscreenButton = document.querySelector('[data-action="fullscreen"]');
   const playButton = document.querySelector('[data-action="play"]');
-
-  function setSound(on) {
-    soundButton.classList.toggle("is-on", on);
-    soundButton.setAttribute("aria-pressed", String(on));
-    try {
-      localStorage.setItem(SOUND_KEY, on ? "on" : "off");
-    } catch (e) {
-      /* private mode — the preference just does not persist */
-    }
-  }
-
-  let soundOn = true;
-  try {
-    soundOn = localStorage.getItem(SOUND_KEY) !== "off";
-  } catch (e) {
-    /* storage unavailable */
-  }
-  setSound(soundOn);
-
-  soundButton.addEventListener("click", () => {
-    soundOn = !soundOn;
-    setSound(soundOn);
-  });
 
   fullscreenButton.addEventListener("click", () => {
     if (document.fullscreenElement) {
@@ -348,7 +326,12 @@
   // Twelve frames of 24x32 in one strip. Ten of them are the runner and two are
   // weather: dust and heat, spawned by the renderer and simulated nowhere,
   // because nothing a particle does may change what a seed produces.
-  const SHEET = { cols: 12, fw: 24, fh: 32 };
+  // The art does not fill the cell. Every one of the ten character frames ends
+  // at pixel row 29, leaving two transparent rows at the bottom of the 32 — so
+  // a frame anchored by its cell hangs the runner two pixels above the floor.
+  // activeH is what the body's height is measured against; padBottom is what
+  // the anchor has to give back.
+  const SHEET = { cols: 12, fw: 24, fh: 32, activeH: 30, padBottom: 2 };
   const STRIDE = 1.75; // frames per tile: a four frame cycle every 2.3 tiles
   const FRAME = {
     idle: 0,
@@ -405,10 +388,13 @@
     if (!sheetReady) return false;
     const h = SHEET.fh * scale;
     const w = SHEET.fw * scale;
+    // Hung from the last row of art rather than the last row of the cell, so
+    // the soles sit on the floor and the two transparent rows fall below it.
+    const topY = feetY - (SHEET.fh - SHEET.padBottom) * scale;
     ctx.save();
     ctx.globalAlpha = alpha;
     ctx.imageSmoothingEnabled = false;
-    ctx.translate(centreX, feetY - h);
+    ctx.translate(centreX, topY);
     if (flip) ctx.scale(-1, 1);
     ctx.drawImage(sheet, frame * SHEET.fw, 0, SHEET.fw, SHEET.fh, -w / 2, 0, w, h);
     ctx.restore();
@@ -490,7 +476,7 @@
     // for a slide and the art must not squash with it: the slide and crouch
     // frames are already drawn low inside their own cell, and the cell is
     // anchored by the feet, so they sit down without being scaled down.
-    const scale = (gameTile * Player.TUNING.height) / SHEET.fh;
+    const scale = (gameTile * Player.TUNING.height) / SHEET.activeH;
     const flashing = player.recovering > 0 && Math.floor(player.recovering * 20) % 2 === 0;
     const alpha = player.finished ? player.entering : flashing ? 0.45 : 1;
 
