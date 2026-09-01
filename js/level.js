@@ -37,9 +37,6 @@ const Level = (() => {
     { id: "10k", label: "10 km", meters: 10000 },
   ];
 
-  const SPAWN_PAD = 8;
-  const OUTRO_PAD = 12;
-
   function checksum(tiles) {
     let h = 0x811c9dc5;
     for (let i = 0; i < tiles.length; i++) {
@@ -55,17 +52,31 @@ const Level = (() => {
 
   // ---------------------------------------------------------------- carving
   //
-  // The world starts as one solid block and the route is dug out of it. That is
-  // the opposite of the old heightmap: nothing is "the surface" until something
-  // is carved open to the sky, so a passage can run over, under or through
-  // anything else without the generator needing a special case for it.
+  // The world starts as one solid block and the maze is dug out of it. Nothing
+  // is "the surface": every passage has rock above it as well as below, so the
+  // only way to learn what is around a corner or at the bottom of a drop is to
+  // pan the camera and look. That is the whole point of the free camera.
+  //
+  // The shape is a graph, not a line. Cells of a coarse grid become rooms; a
+  // randomised depth-first spanning tree links them, which is what guarantees
+  // every room connects to every other; extra links are then laid on top of the
+  // tree to close loops back into rooms already visited, and short stubs are dug
+  // into the rock as true dead ends. The tree's own leaves are dead ends too.
+  //
+  // None of that can strand you. A branch you can walk into is one you can walk
+  // back out of: horizontal passages never step more than a tile at a time and
+  // every vertical link carries rungs, so down is never a one-way trip. verify()
+  // then proves it independently rather than taking my word for it.
 
-  const SKY = 26; // carve above this and daylight gets in
-  const ROOF = 6; // never carve higher than this
-  const DEEP = HEIGHT - 8;
+  const ROOF = 5; // never carve higher than this
   const HEADROOM = 4; // clear rows above a walking floor — enough to jump, no more
-  const SQUEEZE = 3; // a passage you cannot jump properly inside
   const LEDGE_RISE = 3; // rung spacing — one plain jump
+  const CELL_W = 26;
+  const CELL_H = 14;
+  const BAND_TOP = 7; // first row the grid may use
+  const ROOM_INSET = 3; // rock kept between a room and its cell edge
+  const SHAFT_W = 3;
+  const LOOP_CHANCE = 0.18; // links added beyond the spanning tree
 
   // Carving costs a fraction of a millisecond and the audit little more, so an
   // unlucky layout is recarved from the next stream rather than special-cased.
@@ -87,12 +98,13 @@ const Level = (() => {
 
   function carveLevel(seed, mode, width, attempt) {
     const height = HEIGHT;
-    const rng = Rng.forSeed(seed, "carve/" + attempt);
+    const rng = Rng.forSeed(seed, "maze/" + attempt);
     const detail = Rng.forSeed(seed, "detail/" + attempt);
 
     const tiles = new Uint8Array(width * height).fill(TILE.GROUND);
-    const protectedCells = new Uint8Array(width * height); // tube shells, kept solid
     const places = [];
+    const ladders = []; // rungs, laid last so nothing can dig them away
+    const shafts = []; // columns a hazard must keep out of
 
     const inside = (x, y) => x >= 0 && x < width && y >= 0 && y < height;
     const put = (x, y, tile) => {
@@ -102,79 +114,150 @@ const Level = (() => {
     const dig = (x, y) => {
       if (inside(x, y)) tiles[y * width + x] = TILE.EMPTY;
     };
-    const shield = (x, y) => {
-      if (inside(x, y)) protectedCells[y * width + x] = 1;
+    const clamp = (v, lo, hi) => (v < lo ? lo : v > hi ? hi : v);
+
+    const CEIL_LIMIT = ROOF + HEADROOM + 1;
+    const FLOOR_LIMIT = height - 8;
+
+    // ------------------------------------------------------------- the grid
+    const cols = Math.max(4, Math.floor((width - 12) / CELL_W));
+    const rows = Math.max(3, Math.floor((height - BAND_TOP - 8) / CELL_H));
+    const count = cols * rows;
+    const colOf = (i) => i % cols;
+    const rowOf = (i) => (i / cols) | 0;
+
+    // One room per cell, sitting near the bottom of it with rock left over its
+    // roof, so the rooms of one grid row never merge into the row below.
+    const rooms = [];
+    for (let i = 0; i < count; i++) {
+      const c = colOf(i);
+      const r = rowOf(i);
+      const cellX = 6 + c * CELL_W;
+      const cellY = BAND_TOP + r * CELL_H;
+      const floorY = clamp(cellY + CELL_H - 3 + rng.int(-1, 1), CEIL_LIMIT + 2, FLOOR_LIMIT);
+      const tall = rng.int(5, 8);
+      rooms.push({
+        index: i,
+        c,
+        r,
+        x0: c === 0 ? 4 : cellX + ROOM_INSET,
+        x1: c === cols - 1 ? width - 5 : cellX + CELL_W - ROOM_INSET - 1,
+        floorY,
+        top: Math.max(ROOF, floorY - tall),
+      });
+    }
+
+    // ------------------------------------------------------------- the maze
+    // Randomised depth-first search: every cell ends up on the tree, so every
+    // room is reachable from every other before a single extra link is added.
+    const linked = new Set();
+    const key = (a, b) => (a < b ? a + "|" + b : b + "|" + a);
+    const neighbours = (i) => {
+      const c = colOf(i);
+      const r = rowOf(i);
+      const list = [];
+      if (c > 0) list.push(i - 1);
+      if (c < cols - 1) list.push(i + 1);
+      if (r > 0) list.push(i - cols);
+      if (r < rows - 1) list.push(i + cols);
+      return list;
     };
 
-    // A walkable run: floor stays solid, the space above it does not.
-    function corridor(x0, x1, floorY, tag, head) {
-      const clear = head || HEADROOM;
-      for (let x = Math.min(x0, x1); x <= Math.max(x0, x1); x++) {
-        for (let y = floorY - clear; y < floorY; y++) dig(x, y);
+    const startCell = rng.int(0, rows - 1) * cols;
+    const endCell = rng.int(0, rows - 1) * cols + (cols - 1);
+
+    const visited = new Uint8Array(count);
+    const stack = [startCell];
+    visited[startCell] = 1;
+    while (stack.length) {
+      const here = stack[stack.length - 1];
+      const open = neighbours(here).filter((n) => !visited[n]);
+      if (!open.length) {
+        stack.pop();
+        continue;
       }
-      places.push({ type: tag || "corridor", x0: Math.min(x0, x1), x1: Math.max(x0, x1), floorY });
+      const next = open[rng.int(0, open.length - 1)];
+      linked.add(key(here, next));
+      visited[next] = 1;
+      stack.push(next);
     }
 
-    // A pipe with rock above as well as below. Where the ground around it is
-    // later opened to the sky, this is what is left standing: a tube in the air.
-    function tube(x0, x1, floorY) {
-      for (let x = x0; x <= x1; x++) {
-        // Only the roof and the underside are held solid. Shielding the ends too
-        // would wall the pipe shut against whatever is dug next to it.
-        for (let y = floorY - HEADROOM - 2; y < floorY - HEADROOM; y++) shield(x, y);
-        shield(x, floorY);
-        shield(x, floorY + 1);
-        for (let y = floorY - HEADROOM; y < floorY; y++) put(x, y, TILE.EMPTY);
+    // The loops. A tree alone is a maze with exactly one way between any two
+    // rooms; these are the links that let a passage come back around into
+    // somewhere already seen instead of only ever pushing further in.
+    let loops = 0;
+    for (let i = 0; i < count; i++) {
+      for (const n of neighbours(i)) {
+        if (n < i || linked.has(key(i, n))) continue;
+        if (!rng.chance(LOOP_CHANCE)) continue;
+        linked.add(key(i, n));
+        loops++;
       }
-      places.push({ type: "tube", x0, x1, floorY });
     }
 
-    // A room. Ledges inside it are what make the far side reachable when the way
-    // out is higher than the way in.
-    function chamber(x0, x1, floorY, tall, rise) {
-      const top = Math.max(ROOF, floorY - tall);
-      for (let x = x0; x <= x1; x++) for (let y = top; y < floorY; y++) dig(x, y);
+    // --------------------------------------------------------- the carving
+    function carveRoom(room) {
+      for (let x = room.x0; x <= room.x1; x++) {
+        for (let y = room.top; y < room.floorY; y++) dig(x, y);
+      }
+      places.push({ type: "chamber", x0: room.x0, x1: room.x1, floorY: room.floorY, top: room.top });
+    }
 
-      // Only build what the way out needs. Filling a room with ledges every
-      // three rows turns every chamber into the same lattice of flying islands.
-      // A pool across part of the floor: something to clear on the way through.
-      if (x1 - x0 > 16 && rng.chance(0.4)) {
-        const wide = rng.int(2, 3);
-        const at0 = rng.int(x0 + 5, x1 - wide - 5);
-        for (let cx = at0; cx < at0 + wide; cx++) {
-          for (let y = floorY - 2; y <= floorY; y++) put(cx, y, TILE.LAVA);
+    // A winding passage. It never rises or drops more than one row per column,
+    // so every step of it is a plain walk; the wander is what makes it an S
+    // rather than a line. Where it crosses something already dug, the floor it
+    // needs is laid as a one-way platform instead of rock, so the passage
+    // underneath stays open and the crossing becomes a junction.
+    function tunnel(fromX, fromY, toX, toY, wander) {
+      const step = fromX <= toX ? 1 : -1;
+      const span = Math.abs(toX - fromX) + 1;
+      let y = fromY;
+      let want = fromY;
+      let segX = fromX;
+      let segY = fromY;
+
+      const closeSegment = (x, floorY) => {
+        if (Math.abs(x - segX) >= 6) {
+          places.push({ type: "corridor", x0: Math.min(segX, x), x1: Math.max(segX, x), floorY });
         }
+        segX = x;
+      };
+
+      for (let i = 0; i < span; i++) {
+        const x = fromX + i * step;
+        const left = span - i;
+        // Hold the line home: once only just enough columns remain to close the
+        // gap a row at a time, stop wandering and converge.
+        if (left <= Math.abs(y - toY) + 2) {
+          want = toY;
+        } else if (i % 5 === 0) {
+          const base = fromY + Math.round((toY - fromY) * (i / Math.max(1, span - 1)));
+          want = clamp(base + rng.int(-wander, wander), CEIL_LIMIT, FLOOR_LIMIT);
+        }
+
+        if (y < want) y++;
+        else if (y > want) y--;
+        if (y !== segY) {
+          closeSegment(x, segY);
+          segY = y;
+        }
+
+        for (let cy = y - HEADROOM; cy < y; cy++) dig(x, cy);
+        if (peek(x, y) !== TILE.GROUND) put(x, y, TILE.PLATFORM);
       }
 
-      const stairTop = rise > 0 ? floorY - rise : floorY - LEDGE_RISE;
-      let side = 0;
-      for (let ledgeY = floorY - LEDGE_RISE; ledgeY >= stairTop && ledgeY > top + 1; ledgeY -= LEDGE_RISE) {
-        const span = rng.int(3, 6);
-        // Once the stair is within reach of the way out it hugs the exit wall:
-        // alternating all the way up can strand the last ledge across the room
-        // from the door out of it.
-        const nearExit = rise > 0 && ledgeY <= floorY - rise + LEDGE_RISE;
-        const lx = nearExit || !side ? x1 - span : x0 + 1;
-        for (let i = 0; i < span; i++) put(lx + i, ledgeY, TILE.PLATFORM);
-        side = side ? 0 : 1;
-      }
-
-      // Something to look at and not reach. Four rows above anything you can
-      // stand on and clear of both walls, so no jump and no wall climb gets
-      // near it — it is scenery, and it says the room is bigger than the route.
-      if (tall >= 8 && rng.chance(0.6)) {
-        const span = rng.int(3, 5);
-        const lx = rng.int(x0 + 3, Math.max(x0 + 3, x1 - span - 3));
-        const islandY = top + 2;
-        for (let i = 0; i < span; i++) put(lx + i, islandY, TILE.PLATFORM);
-
-      }
-
-      places.push({ type: "chamber", x0, x1, floorY, top });
+      closeSegment(toX, y);
+      return y;
     }
 
     // Vertical link. Going down needs nothing; going up needs rungs, spaced so
-    // every step of the climb is a plain jump.
+    // every step of the climb is a plain jump. They are two tiles wide inside a
+    // three wide shaft, so there is always a gap left to drop back through.
+    //
+    // The rungs are worked out here but laid at the very end. Anything dug
+    // afterwards — a passage crossing the shaft, a pocket sunk beside it —
+    // would otherwise erase the bottom of the ladder and leave a drop with no
+    // way back up, which is the one thing this generator must never build.
     function shaft(x, w, fromY, toY) {
       const top = Math.min(fromY, toY);
       const bottom = Math.max(fromY, toY);
@@ -183,35 +266,27 @@ const Level = (() => {
       }
 
       const rungs = [];
-      if (toY < fromY) {
-        let side = 0;
-        for (let y = toY + LEDGE_RISE; y <= fromY - LEDGE_RISE; y += LEDGE_RISE) {
-          const lx = side ? x : x + w - 2;
-          put(lx, y, TILE.PLATFORM);
-          put(lx + 1, y, TILE.PLATFORM);
-          rungs.push({ x: lx, y });
-          side = side ? 0 : 1;
-        }
-        const lowest = rungs.length ? rungs[rungs.length - 1].y : toY;
-        if (fromY - lowest > LEDGE_RISE) {
-          put(x, fromY - LEDGE_RISE, TILE.PLATFORM);
-          put(x + 1, fromY - LEDGE_RISE, TILE.PLATFORM);
-          rungs.push({ x, y: fromY - LEDGE_RISE });
-        }
+      let side = 0;
+      for (let y = top + LEDGE_RISE; y <= bottom - LEDGE_RISE; y += LEDGE_RISE) {
+        rungs.push({ x: side ? x : x + w - 2, y });
+        side = side ? 0 : 1;
       }
+      // The last step onto the floor has to be a jump like all the others.
+      const lowest = rungs.length ? rungs[rungs.length - 1].y : top;
+      if (bottom - lowest > LEDGE_RISE) rungs.push({ x, y: bottom - LEDGE_RISE });
 
-      places.push({ type: toY < fromY ? "climb" : "drop", x0: x, x1: x + w - 1, fromY, toY, rungs });
+      for (const rung of rungs) ladders.push(rung);
+      shafts.push({ x0: x, x1: x + w - 1 });
+      places.push({ type: "shaft", x0: x, x1: x + w - 1, fromY, toY, rungs });
     }
 
-    // A column of lava standing in a corridor. Narrow enough to jump, tall
-    // enough that walking into it is a decision you made. Where it came from is
-    // not the point; that it is in your way is.
+    // A column of lava standing in a passage. Narrow enough to jump, tall
+    // enough that walking into it is a decision you made. Clearing it means
+    // lifting your feet above it while your head stays under the ceiling, so
+    // two tiles is the most the headroom leaves, and the pocket cut above makes
+    // sure the arc is not clipped short into it.
     function lavaColumn(x, w, floorY) {
-      // Clearing a column means lifting your feet above it while your head stays
-      // under the ceiling: body plus column has to fit in the headroom. Two tiles
-      // is the most that leaves, and the pocket cut above makes sure the arc is
-      // not clipped short into the lava.
-      const tall = rng.int(1, 2);
+      const tall = detail.int(1, 2);
       for (let cx = x - 4; cx <= x + w + 4; cx++) {
         dig(cx, floorY - HEADROOM - 1);
         dig(cx, floorY - HEADROOM - 2);
@@ -222,209 +297,191 @@ const Level = (() => {
       places.push({ type: "column", x0: x, x1: x + w - 1, floorY });
     }
 
-    // A hole in the floor with lava at the bottom of it. Narrow enough to jump,
-    // deep enough to see down, and the basin holds nothing you could stand on —
-    // falling in costs a recovery rather than stranding you somewhere.
+    // A hole in the floor with lava at the bottom. Only ever sunk through
+    // untouched rock — punched into a passage below, the pool would sit in the
+    // middle of that passage and cut it in two — so it takes whatever depth the
+    // rock allows and gives up if that is not deep enough to read as a hole.
     function lavaHole(x, w, floorY) {
-      const bottom = Math.min(HEIGHT - 4, floorY + rng.int(9, 16));
+      const want = Math.min(FLOOR_LIMIT, floorY + detail.int(6, 14));
+      const solidRow = (y) => {
+        for (let cx = x; cx < x + w; cx++) if (peek(cx, y) !== TILE.GROUND) return false;
+        return true;
+      };
 
-      // Only sink one through untouched rock. Punched into a gallery below, the
-      // pool would sit in the middle of that passage and cut it in two.
-      for (let cx = x; cx < x + w; cx++) {
-        for (let y = floorY; y <= bottom; y++) {
-          if (peek(cx, y) !== TILE.GROUND) return;
-        }
-      }
+      let bottom = floorY;
+      while (bottom < want && solidRow(bottom + 1)) bottom++;
+      if (!solidRow(floorY) || bottom - floorY < 5) return false;
 
       for (let cx = x; cx < x + w; cx++) {
         for (let y = floorY; y < bottom; y++) dig(cx, y);
         for (let y = bottom - 3; y < bottom; y++) put(cx, y, TILE.LAVA);
       }
       places.push({ type: "lava", x0: x, x1: x + w - 1, floorY, bottom });
+      return true;
     }
 
-    // A hole in a corridor floor. Shallow enough to climb out of, narrow enough
-    // to jump, so it is a decision rather than a punishment.
-    function pit(x, w, floorY) {
-      for (let cx = x; cx < x + w; cx++) {
-        for (let y = floorY; y < floorY + rng.int(2, 3); y++) dig(cx, y);
-      }
-    }
+    for (const room of rooms) carveRoom(room);
 
-    // ------------------------------------------------------------ the route
-    //
-    // One continuous walk from the spawn to the door. Every link is inside the
-    // movement envelope, so the way through exists by construction; verify()
-    // then proves it independently rather than taking my word for it.
+    // The spawn pocket and the door are cut last, but their columns are spoken
+    // for now, so no shaft is ever sunk through the floor the run starts on or
+    // the one it ends on.
+    const home = rooms[startCell];
+    const exit = rooms[endCell];
+    const spawnX = home.x0 + 2;
+    const doorX = Math.min(width - 4, exit.x1 - 2);
 
-    let x = 0;
-    let y = 16;
-    const outdoor = [];
-
-    const runOut = (len, tag) => {
-      const to = Math.min(width - 1, x + len);
-      corridor(x, to, y, tag);
-      if (y <= SKY) outdoor.push({ x0: x, x1: to, floorY: y });
-      x = to;
+    const shaftRange = (room) => {
+      let lo = room.x0 + 1;
+      let hi = room.x1 - SHAFT_W - 1;
+      if (room === home) lo = Math.max(lo, spawnX + 6);
+      if (room === exit) hi = Math.min(hi, doorX - 6);
+      return { lo, hi };
     };
 
-    runOut(SPAWN_PAD + 6, "spawn");
-    const spawn = { x: 3, y: y - 1 };
+    for (const k of linked) {
+      const parts = k.split("|");
+      const a = rooms[Number(parts[0])];
+      const b = rooms[Number(parts[1])];
 
-    while (x < width - OUTRO_PAD - 12) {
-      const room = width - OUTRO_PAD - x;
-      let kind = rng.weighted([
-        { value: "run", weight: 22 },
-        { value: "pit", weight: 12 },
-        { value: "lava", weight: 18 },
-        { value: "column", weight: 20 },
-        { value: "chamber", weight: 7 },
-        { value: "squeeze", weight: 20 },
-        { value: "under", weight: 22 },
-        { value: "climb", weight: 11 },
-        { value: "tube", weight: 12 },
-        { value: "switchback", weight: 24 },
-      ]);
-
-      if (room < 40) kind = "run";
-
-      if (kind === "run") {
-        const step = rng.int(-2, RULES.maxStepUp);
-        y = Math.max(ROOF + HEADROOM, Math.min(DEEP, y - step));
-        runOut(rng.int(6, 14));
-      } else if (kind === "squeeze") {
-        // Three rows of headroom: you can walk it and clear a small gap, but
-        // there is no room to jump properly. Tight on purpose.
-        const to = Math.min(width - 1, x + rng.int(10, 22));
-        corridor(x, to, y, "squeeze", SQUEEZE);
-        if (y <= SKY) outdoor.push({ x0: x, x1: to, floorY: y });
-        x = to;
-      } else if (kind === "lava") {
-        // Sunk in the middle of a flat run with clear ground either side, so the
-        // jump over it always has a run-up and a landing.
-        const from = x;
-        runOut(rng.int(12, 18));
-        const wide = rng.int(2, 3);
-        const spot = rng.int(from + 3, Math.max(from + 3, x - 4 - wide));
-        lavaHole(spot, wide, y);
-        runOut(rng.int(8, 14));
-      } else if (kind === "column") {
-        const from = x;
-        runOut(rng.int(10, 16));
-        const wide = rng.int(1, 2);
-        const spot = rng.int(from + 3, Math.max(from + 3, x - 4 - wide));
-        lavaColumn(spot, wide, y);
-        runOut(rng.int(6, 12));
-      } else if (kind === "pit") {
-        runOut(rng.int(4, 8));
-        pit(x - rng.int(3, 6), rng.int(2, 4), y);
-        runOut(rng.int(6, 12));
-      } else if (kind === "chamber") {
-        // A room you cross, sometimes leaving higher than you came in.
-        const wide = rng.int(10, 18);
-        const tall = rng.int(6, 9);
-        // Decided before carving, so the stair inside can be built to reach it.
-        const rise = rng.chance(0.45) ? rng.int(3, tall - 4) : 0;
-        chamber(x, x + wide, y, tall, rise);
-        if (y <= SKY) outdoor.push({ x0: x, x1: x + wide, floorY: y });
-        x += wide;
-        y = Math.max(ROOF + HEADROOM, y - rise);
-        runOut(rng.int(6, 14));
-      } else if (kind === "under") {
-        // Down a shaft, then back the way you came but underneath it, and up
-        // again further on. The passage runs beneath ground you have walked.
-        const depth = rng.int(8, 18);
-        const below = Math.min(DEEP, y + depth);
-        const back = rng.int(10, 26);
-        const forward = rng.int(24, 48);
-
-        shaft(x, 3, y, below);
-        corridor(Math.max(4, x - back), x + 3, below, "under");
-        corridor(Math.max(4, x - back), Math.min(width - 1, x + forward), below, "under");
-        x = Math.min(width - 1, x + forward);
-        shaft(x, 3, below, y);
-        runOut(rng.int(8, 18));
-      } else if (kind === "climb") {
-        const rise = rng.int(6, 14);
-        const above = Math.max(ROOF + HEADROOM, y - rise);
-        shaft(x, 3, y, above);
-        y = above;
-        x += 3;
-        runOut(rng.int(10, 24));
-      } else if (kind === "tube") {
-        // An enclosed pipe with open ground either side of it, so it reads as
-        // something you are inside rather than something you are on.
-        const len = rng.int(16, 34);
-        const to = Math.min(width - 1, x + len);
-        tube(x, to, y);
-        x = to;
-        runOut(rng.int(6, 14));
+      if (a.r === b.r) {
+        const left = a.c < b.c ? a : b;
+        const right = a.c < b.c ? b : a;
+        tunnel(left.x1, left.floorY, right.x0, right.floorY, rng.int(2, 5));
       } else {
-        // A switchback: the path turns back on itself and keeps going — right,
-        // down, left, down, right again. The direction reverses but the ground
-        // is always new, so it is a U-turn rather than retracing your steps.
-        const midY = Math.min(DEEP, y + rng.int(6, 12));
-        const lowY = Math.min(DEEP, midY + rng.int(6, 12));
-        const leftEnd = Math.max(6, x - rng.int(16, 34));
-        const onward = rng.int(30, 60);
-
-        shaft(x, 3, y, midY);
-        corridor(leftEnd, x + 3, midY, "switchback");
-        shaft(leftEnd, 3, midY, lowY);
-        corridor(leftEnd, Math.min(width - 1, x + onward), lowY, "switchback");
-
-        x = Math.min(width - 1, x + onward);
-        y = lowY;
-        runOut(rng.int(6, 16));
+        const above = a.r < b.r ? a : b;
+        const below = a.r < b.r ? b : a;
+        const up = shaftRange(above);
+        const down = shaftRange(below);
+        const lo = Math.max(up.lo, down.lo);
+        const hi = Math.min(up.hi, down.hi);
+        if (hi < lo) continue;
+        shaft(rng.int(lo, hi), SHAFT_W, below.floorY, above.floorY);
       }
     }
 
-    // Outro and the door.
-    runOut(width - 1 - x, "outro");
-    const doorX = width - 6;
-    put(doorX, y - 1, TILE.DOOR);
-    put(doorX, y - 2, TILE.DOOR);
-    const goal = { x: doorX, y: y - 1 };
+    // ------------------------------------------------------------ dead ends
+    // Passages that go nowhere, so that finding the way through is a matter of
+    // scouting rather than following the only corridor there is.
+    let stubs = 0;
+    const wanted = Math.max(3, Math.round(count * 0.35));
+    for (let i = 0; i < wanted; i++) {
+      const room = rooms[rng.int(0, rooms.length - 1)];
 
-    // ------------------------------------------------------------- daylight
-    // Anything running near the top gets its sky opened. Tube shells are
-    // protected, so a tube left standing in the open is exactly that.
-    // Protection applies here and only here: a shield stops daylight removing a
-    // tube, but must never stop the route being dug through it.
-    for (const run of outdoor) {
-      for (let cx = run.x0; cx <= run.x1; cx++) {
-        for (let cy = run.floorY - HEADROOM - 1; cy >= 0; cy--) {
-          if (!protectedCells[cy * width + cx]) dig(cx, cy);
+      if (rng.chance(0.55)) {
+        // Sideways into the rock. If it happens to break into something else it
+        // is a shortcut instead, which is no loss.
+        const dir = rng.chance(0.5) ? -1 : 1;
+        const fromX = dir < 0 ? room.x0 : room.x1;
+        const target = clamp(fromX + dir * rng.int(9, 24), 3, width - 4);
+        if (Math.abs(target - fromX) < 8) continue;
+        tunnel(fromX, room.floorY, target, room.floorY, rng.int(2, 4));
+        stubs++;
+      } else {
+        // A pocket underneath, rungs and all: a drop worth looking down before
+        // taking, never one that keeps you.
+        const range = shaftRange(room);
+        if (range.hi < range.lo) continue;
+        const sx = rng.int(range.lo, range.hi);
+        const bottom = clamp(room.floorY + rng.int(7, 15), room.floorY + 7, FLOOR_LIMIT);
+        if (bottom <= room.floorY + 6) continue;
+        shaft(sx, SHAFT_W, bottom, room.floorY);
+        const x0 = sx - rng.int(3, 8);
+        const x1 = sx + SHAFT_W + rng.int(3, 8);
+        for (let x = x0; x <= x1; x++) {
+          for (let y = bottom - HEADROOM; y < bottom; y++) dig(x, y);
+          if (peek(x, bottom) !== TILE.GROUND) put(x, bottom, TILE.PLATFORM);
+        }
+        places.push({ type: "corridor", x0, x1, floorY: bottom });
+        stubs++;
+      }
+    }
+
+    // -------------------------------------------------------- spawn and door
+    // Cut clear, so the run can never begin inside rock or end at a door
+    // standing in mid-air.
+    for (let x = spawnX - 2; x <= spawnX + 4; x++) {
+      for (let y = home.floorY - HEADROOM; y < home.floorY; y++) dig(x, y);
+      if (peek(x, home.floorY) !== TILE.GROUND) put(x, home.floorY, TILE.GROUND);
+    }
+    const spawn = { x: spawnX, y: home.floorY - 1 };
+
+    for (let x = doorX - 3; x <= doorX + 2; x++) {
+      for (let y = exit.floorY - HEADROOM; y < exit.floorY; y++) dig(x, y);
+      if (peek(x, exit.floorY) !== TILE.GROUND) put(x, exit.floorY, TILE.GROUND);
+    }
+    put(doorX, exit.floorY - 1, TILE.DOOR);
+    put(doorX, exit.floorY - 2, TILE.DOOR);
+    const goal = { x: doorX, y: exit.floorY - 1 };
+
+    // --------------------------------------------------------------- hazards
+    let spikes = 0;
+    let columns = 0;
+    let pools = 0;
+    // Somewhere along this floor with clear ground either side and no ladder
+    // underneath it. Lava is not a place you can stand, so a pool poured over a
+    // rung breaks the climb it belongs to.
+    const spotIn = (place, w) => {
+      const lo = place.x0 + 4;
+      const hi = place.x1 - 4 - w;
+      if (hi < lo) return -1;
+      for (let tries = 0; tries < 8; tries++) {
+        const at0 = detail.int(lo, hi);
+        if (!shafts.some((s) => at0 + w + 2 >= s.x0 && at0 - 2 <= s.x1)) return at0;
+      }
+      return -1;
+    };
+
+    for (const place of places) {
+      if (place.type !== "corridor" && place.type !== "chamber") continue;
+      if (place.x1 - place.x0 < 13) continue;
+      if (place.floorY <= CEIL_LIMIT + 1) continue;
+
+      const roll = detail.int(0, 99);
+
+      if (roll < 15) {
+        const w = detail.int(1, 2);
+        const at0 = spotIn(place, w);
+        if (at0 < 0) continue;
+        lavaColumn(at0, w, place.floorY);
+        columns++;
+      } else if (roll < 30) {
+        const w = detail.int(2, 3);
+        const at0 = spotIn(place, w);
+        if (at0 < 0) continue;
+        if (lavaHole(at0, w, place.floorY)) pools++;
+      } else if (roll < 41) {
+        // A spike needs room to be jumped. Cut an extra row of ceiling over it
+        // and its run-up, so the arc is not clipped short and dropped onto the
+        // points — a spike you cannot clear is a wall the audit would not see.
+        const run = detail.int(1, 2);
+        const at0 = spotIn(place, run);
+        if (at0 < 0) continue;
+        for (let cx = at0 - 4; cx <= at0 + run + 4; cx++) {
+          dig(cx, place.floorY - HEADROOM - 1);
+          dig(cx, place.floorY - HEADROOM - 2);
+        }
+        for (let i = 0; i < run; i++) {
+          if (peek(at0 + i, place.floorY) !== TILE.GROUND) continue;
+          put(at0 + i, place.floorY - 1, TILE.SPIKE);
+          spikes++;
         }
       }
     }
 
-    // -------------------------------------------------------------- hazards
-    let spikes = 0;
-    for (const place of places) {
-      // Never in a squeeze. Three rows of headroom is not enough to hop a spike
-      // without cracking your head on the ceiling, and a spike you cannot clear
-      // is a wall the audit would not notice.
-      if (place.type !== "corridor" && place.type !== "under") continue;
-      if (place.x1 - place.x0 < 12 || !detail.chance(0.45)) continue;
-      const at0 = detail.int(place.x0 + 4, place.x1 - 4);
-      const run = detail.int(1, 2);
-      // A spike needs room to be jumped. Cut an extra row of ceiling over it and
-      // its run-up, so the arc is not clipped short and dropped onto the points.
-      for (let cx = at0 - 4; cx <= at0 + run + 4; cx++) {
-        dig(cx, place.floorY - HEADROOM - 1);
-        dig(cx, place.floorY - HEADROOM - 2);
-      }
-
-      for (let i = 0; i < run; i++) {
-        if (peek(at0 + i, place.floorY) !== TILE.GROUND) continue;
-        put(at0 + i, place.floorY - 1, TILE.SPIKE);
-        spikes++;
-      }
+    // ---------------------------------------------------------- the ladders
+    // Laid last and over the top of everything, because a shaft without its
+    // rungs is a one-way drop.
+    // Nothing is cleared above them: the space inside a shaft is already open,
+    // hazards are kept off these columns, and a passage crossing a shaft leaves
+    // only one-way platforms, which are something to stand on rather than
+    // something in the way. Clearing anyway would rub out the rung above.
+    for (const rung of ladders) {
+      put(rung.x, rung.y, TILE.PLATFORM);
+      put(rung.x + 1, rung.y, TILE.PLATFORM);
     }
 
     // A hard lid on the world. Rock is the boundary, so there is no lip to get
-    // over and no empty air above the sky to end up standing in.
+    // over and no empty air above it to end up standing in.
     for (let cx = 0; cx < width; cx++) put(cx, 0, TILE.GROUND);
 
     // Lava reaches the bottom of anything dug that deep.
@@ -444,13 +501,23 @@ const Level = (() => {
       spawn,
       goal,
       places,
+      rooms,
+      links: Array.from(linked, (k) => k.split("|").map(Number)),
       rules: RULES,
-      tally: { spikes, rooms: places.filter((p) => p.type === "chamber").length, places: places.length },
+      tally: {
+        spikes,
+        columns,
+        pools,
+        stubs,
+        loops,
+        rooms: count,
+        links: linked.size,
+        places: places.length,
+      },
     };
     level.checksum = checksum(tiles);
     return level;
   }
-
   function at(level, x, y) {
     if (x < 0 || x >= level.width || y < 0 || y >= level.height) return TILE.EMPTY;
     return level.tiles[y * level.width + x];
@@ -759,6 +826,7 @@ const Level = (() => {
     floorAt,
     verify,
     standable,
+    movesFrom,
     render,
     toText,
     checksum,

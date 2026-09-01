@@ -268,9 +268,11 @@
   const hudSeed = document.querySelector("[data-hud-seed]");
   const hudDistance = document.querySelector("[data-hud-distance]");
 
-  // World row where daylight stops. Above it is sky and parallax; below it is
-  // rock, and the backdrop must not show through it.
-  const SKY_BOTTOM = 26;
+  // World row where daylight stops. The maze is carved out of solid rock and
+  // has a lid on it, so there is no daylight anywhere and no behind for hills
+  // to stand in: left switched on, they showed through every carved room as a
+  // stepped silhouette that read as blocks floating in the stone.
+  const SKY_BOTTOM = 0;
 
   const gameCamera = Camera.create({ viewW: 800, viewH: 400 });
   let session = null;
