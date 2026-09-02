@@ -77,12 +77,6 @@
     // The one thing on the menu that is neither paper nor stone.
     gold: token("--gold"),
     goldLight: token("--gold-light"),
-    // The marble of the two pillars, turned round the face of a column.
-    pillarLit: token("--pillar-lit"),
-    pillarFace: token("--pillar-face"),
-    pillarEdge: token("--pillar-edge"),
-    pillarFlute: token("--pillar-flute"),
-    pillarLine: token("--pillar-line"),
   };
 
   // The menu is paper and the cave is not, so anything painted on the canvas
@@ -1111,10 +1105,6 @@
   const playCanvas = document.querySelector("[data-playground]");
   const playCtx = playCanvas.getContext("2d");
   const doorButton = document.querySelector("[data-door]");
-  // However many steps the staircase turns out to need: on a short window the
-  // cards nearly reach the floor and one will do, on a tall one they float and
-  // it takes six.
-  const ledgeEls = [];
 
   let playLevel = null;
   let playRunner = null;
@@ -1183,26 +1173,6 @@
     playCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
     playLevel = Mainscreen.fromPage(document, w, h, { sky: playSky });
-
-    // The staircase is laid out in tiles and the page is told where it went,
-    // rather than drawn in CSS and measured back. A step you can see and a
-    // step you can stand on have to be the same step.
-    const T = Mainscreen.TILE;
-    while (ledgeEls.length < playLevel.ledges.length) {
-      const el = document.createElement("div");
-      el.className = "ledge";
-      el.setAttribute("data-ledge", "");
-      playLayer.insertBefore(el, playCanvas);
-      ledgeEls.push(el);
-    }
-    ledgeEls.forEach((el, i) => {
-      const spot = playLevel.ledges[i];
-      el.hidden = !spot;
-      if (!spot) return;
-      el.style.left = spot.x * T + "px";
-      el.style.top = spot.y * T + "px";
-      el.style.width = spot.w * T + "px";
-    });
 
     // Measured in the same pass as the collision, so the art lands exactly
     // where the tiles that finish the run are.
@@ -1324,105 +1294,9 @@
     }
   }
 
-  // ------------------------------------------------------------- the pillars
-  //
-  // The two walls the menu is bounded by, painted as what they are: a pair of
-  // polished stone columns holding the screen up. They are the surfaces you
-  // kick off to climb, so the marble is exactly one tile wide and the face you
-  // see is the face the physics has — the only paint outside it is the sliver
-  // of window left over past the last whole tile, which nothing can stand in
-  // anyway.
-  //
-  // Drawn light against the light menu rather than dark: this is the sanctuary
-  // above, and the cave below is where the stone goes black.
-  const PILLAR = {
-    capital: 26, // the flared block at the top of the shaft
-    base: 20, // and the one it stands on
-    trim: 3, // the fine line under a capital and over a base
-    flutes: 3,
-  };
-
-  function pillarShade(ctx, x, w, top, bottom) {
-    // Across the shaft rather than down it: a column is a cylinder, and the
-    // light on it changes with how far round the face has turned, not with
-    // how far up it you look.
-    const across = ctx.createLinearGradient(x, 0, x + w, 0);
-    across.addColorStop(0, colours.pillarEdge);
-    across.addColorStop(0.34, colours.pillarFace);
-    across.addColorStop(0.62, colours.pillarLit);
-    across.addColorStop(1, colours.pillarEdge);
-    ctx.fillStyle = across;
-    ctx.fillRect(x, top, w, bottom - top);
-  }
-
-  function drawPillar(ctx, x, w, floorY, bottomY, outward) {
-    const capTop = 0;
-    const capBottom = PILLAR.capital;
-    const baseTop = floorY - PILLAR.base;
-
-    // The shaft, full height, so the fluting runs unbroken behind the trims.
-    pillarShade(ctx, x, w, capTop, floorY);
-
-    // Fluting: hairlines down the face, evenly spaced and never on the edges,
-    // where they would read as the edge of the stone rather than as a groove.
-    ctx.fillStyle = colours.pillarFlute;
-    for (let i = 1; i <= PILLAR.flutes; i++) {
-      const at = Math.round(x + (w * i) / (PILLAR.flutes + 1));
-      ctx.fillRect(at, capBottom + PILLAR.trim, 1, baseTop - capBottom - PILLAR.trim * 2);
-    }
-
-    // Capital and base: the same block, one at each end, each a touch wider
-    // than the shaft so the shaft reads as set back inside them.
-    // The flare goes outwards only, into the strip of window past the last
-    // whole tile where nobody can stand. Two pixels of moulding overhanging
-    // the face you kick off would be two pixels of stone that is not there.
-    const flare = 2;
-    const bx = outward < 0 ? x - flare : x;
-    const bw = w + flare;
-    ctx.fillStyle = colours.pillarLit;
-    ctx.fillRect(bx, capTop, bw, PILLAR.capital);
-    ctx.fillRect(bx, baseTop, bw, PILLAR.base);
-
-    // A graphite line under the capital and over the base, and a lit one just
-    // inside each — two lines is all it takes to read as moulding.
-    ctx.fillStyle = colours.pillarEdge;
-    ctx.fillRect(bx, capBottom - PILLAR.trim, bw, PILLAR.trim);
-    ctx.fillRect(bx, baseTop, bw, PILLAR.trim);
-    ctx.fillStyle = colours.pillarFace;
-    ctx.fillRect(bx, capBottom, bw, 1);
-    ctx.fillRect(bx, baseTop + PILLAR.trim, bw, 1);
-
-    // The plinth: what the base stands on, down to the bottom of the window.
-    ctx.fillStyle = colours.pillarEdge;
-    ctx.fillRect(bx, floorY, bw, bottomY - floorY);
-
-    // The arris: a dark hairline down each edge of the shaft, which is what
-    // turns two gradients into a column. The inner one marks the face you kick
-    // off, so it is drawn inside the stone rather than beside it.
-    ctx.fillStyle = colours.pillarLine;
-    ctx.fillRect(x, capTop, 1, bottomY);
-    ctx.fillRect(x + w - 1, capTop, 1, bottomY);
-  }
-
-  function drawPillars(ctx) {
-    const T = Mainscreen.TILE;
-    const edge = Mainscreen.EDGE * T;
-    const viewW = document.documentElement.clientWidth;
-    const viewH = document.documentElement.clientHeight;
-    const floorY = (playLevel.height - Mainscreen.EDGE) * T;
-    const wallX = (playLevel.width - Mainscreen.EDGE) * T;
-
-    drawPillar(ctx, 0, edge, floorY, viewH, -1);
-    // Painted out to the edge of the window rather than stopping at the last
-    // whole tile: the leftover strip is not part of the level and nobody can
-    // be in it, so a seam there would be a line with nothing on either side.
-    drawPillar(ctx, wallX, Math.max(edge, viewW - wallX), floorY, viewH, 1);
-  }
-
   function renderPlayground() {
     playCtx.clearRect(0, 0, document.documentElement.clientWidth,
       document.documentElement.clientHeight);
-    drawPillars(playCtx);
     drawDoor(playCtx);
     drawSky(playCtx);
     drawDust(playCtx);

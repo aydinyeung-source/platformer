@@ -60,14 +60,6 @@
   --gold: #b8912f;
   --gold-light: #f0d97a;
 
-  /* The two pillars the menu stands between: pale polished stone, warm rather
-     than blue, with graphite in the grooves and along the turned edges. */
-  --pillar-lit: #fdfefd;
-  --pillar-face: #dde3df;
-  --pillar-edge: #7f8b86;
-  --pillar-flute: #6b7772;
-  --pillar-line: #4f5a56;
-
   --rounded: "Nunito", "Segoe UI", system-ui, sans-serif;
   --mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
   --ease-soft: cubic-bezier(0.22, 0.85, 0.24, 1);
@@ -941,9 +933,9 @@ button {
 /* ------------------------------------------------------------ the playground
 
    The menu is a level. These are the parts of it that exist so it can be one:
-   shelves that give loose text a top to stand on, three stepping ledges across
-   the empty right-hand side, the door that starts a run, and the canvas the
-   runner is drawn on over the top of everything.                             */
+   shelves that give loose text a top to stand on, the door that starts a run
+   and the shelf it stands on, and the canvas the runner is drawn on over the
+   top of everything.                                                         */
 
 /* A card for text that had none. The title and the controls block were bare
    paragraphs before: readable, but nothing a body can land on, and a surface
@@ -1003,22 +995,6 @@ button {
   height: 100%;
 }
 
-/* Stepping stones across the empty right-hand side of the screen, up from the
-   floor towards the top of the cards. Offsets are in pixels rather than in
-   percentages on purpose: a jump clears three and a bit tiles whatever size the
-   window is, so a staircase measured in vh becomes unclimbable on a tall one. */
-.ledge {
-  position: absolute;
-  height: 8px;
-  background: var(--ink-soft);
-  border-radius: 3px;
-  opacity: 0.45;
-}
-
-.ledge[hidden] {
-  display: none;
-}
-
 /* The way in. The art is painted on the canvas above it, so the button itself
    is only a box to aim at and a target for the mouse — but it keeps a focus
    ring, because a control you can reach with the keyboard has to show it. */
@@ -1056,3 +1032,37 @@ button {
 
 /* The staircase looks after itself: a step with no clear room for it is not
    laid at all, so it never appears without something to stand on. */
+
+/* ------------------------------------------------------------------ the way in
+
+   The door moved up beside the title: it is the first thing on the screen and
+   it should be the first thing you can walk into. It stands on a shelf of its
+   own, which is a real one-way platform — the last step of the climb up the
+   cards, and the only thing holding the door up.                             */
+
+.portal {
+  display: flex;
+  align-items: flex-end;
+  gap: clamp(24px, 5vw, 64px);
+  margin-top: 8px;
+}
+
+.portal .shelf--title {
+  margin-top: 0;
+}
+
+.portal__way {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-bottom: 6px;
+}
+
+.portal__shelf {
+  width: 104px;
+  height: 9px;
+  margin-top: 2px;
+  border-radius: 4px;
+  background: var(--ink-soft);
+  opacity: 0.42;
+}

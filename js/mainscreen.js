@@ -19,21 +19,6 @@ const Mainscreen = (() => {
   // makes, and the one it has to keep at every window size.
   const CORRIDOR = 3;
 
-  // The stepping stones between the cards and the door, in tiles rather than in
-  // pixels. Laid out here and then handed to the page to position, instead of
-  // placed in CSS and measured back: a staircase written in pixels only lines
-  // up with the tile grid at some window heights, and at the others one of its
-  // steps quietly becomes a tile taller than a jump can reach.
-  //
-  // Three up and five across, which is inside the envelope the whole game is
-  // built to (RULES.maxStepUp is 3, RULES.maxGap is 4) with a tile to spare.
-  // It climbs all the way to the top of the lowest card rather than stopping at
-  // the bottom of it. Stopping short left the last of the climb to a fifteen
-  // row scrape up a single face â possible, and possible is not the same as
-  // reliable when the only thing at the top of it is the button that starts the
-  // game. Stairs to the door; the face is still there for anyone who prefers it.
-  const STEP = { rise: 3, width: 5, near: 6, far: 2, most: 14 };
-
   // Which tile a page coordinate falls on. Rounded rather than floored, so a
   // card whose edge sits two pixels into a tile does not get a whole tile of
   // solid rock the player can see it does not fill.
@@ -45,9 +30,9 @@ const Mainscreen = (() => {
   // zero and is skipped, which is what keeps the runs tab from being solid
   // while it is not on screen.
   //
-  // data-solid="platform" is one-way: thin bars — chip rows, the button row,
-  // the stepping ledges — can be jumped up through and landed on. A card is
-  // solid all the way through, because a card is big enough to be a building.
+  // data-solid="platform" is one-way: thin bars — chip rows, the shelf the
+  // door stands on — can be jumped up through and landed on. A card is solid
+  // all the way through, because a card is big enough to be a building.
   function boxesFrom(root) {
     const boxes = [];
     Array.prototype.forEach.call(root.querySelectorAll("[data-solid]"), (el) => {
@@ -225,9 +210,8 @@ const Mainscreen = (() => {
 
   function build(viewW, viewH, boxes, doorRect, options) {
     // Whole tiles only. Rounded up, the right-hand wall and the floor ran off
-    // the edge of the window and most of the pillar drawn on that wall was
-    // never on screen; rounded down, both sit inside it with a sliver of
-    // unplayable margin outside, which the pillars are painted over.
+    // the edge of the window; rounded down, both sit inside it with a sliver of
+    // unplayable margin outside that nothing can reach.
     const width = Math.max(12, Math.floor(viewW / TILE));
     const height = Math.max(10, Math.floor(viewH / TILE));
     const tiles = new Uint8Array(width * height);
@@ -272,86 +256,15 @@ const Mainscreen = (() => {
 
     // Standing room at the left end of the floor, so a card that reaches the
     // bottom of the window cannot bury the runner in itself on the first frame.
-    // The bottom right corner, three tiles in from the right-hand wall, which
-    // is where the staircase starts. spawn.y is the row the body's feet finish
-    // in, so the floor is the row below it and the two rows the body actually
-    // occupies are this one and the one above.
+    // The bottom left corner. spawn.y is the row the body's feet finish in, so
+    // the floor is the row below it and the two rows the body actually occupies
+    // are this one and the one above.
     const spawn = {
-      x: Math.min(width - EDGE - 2, Math.max(EDGE + 1, tileOf(viewW - 60))),
+      x: Math.min(width - EDGE - 2, Math.max(EDGE + 1, tileOf(30))),
       y: height - EDGE - 1,
     };
     for (let y = spawn.y - 1; y <= spawn.y; y++) {
       for (let x = spawn.x; x <= spawn.x + 1; x++) put(x, y, T.EMPTY);
-    }
-
-    // The staircase. It starts on the floor beside the cards and stops when its
-    // top step is level with the bottom of the lowest one, which is where the
-    // face you climb to the door begins. A step with anything already in it
-    // slides sideways to find clear air â half a ledge inside a card is a step
-    // you can see and cannot stand on â and if there is nowhere clear for it
-    // the staircase stops there rather than leaving a gap in itself.
-    const ledges = [];
-    // The lowest card is the one the door stands on, and its top is where the
-    // stairs are going.
-    let cardsRight = EDGE + 1;
-    let lowest = 0;
-    let landing = 1;
-    (boxes || []).forEach((box) => {
-      const bx = Math.max(EDGE + 1, tileOf(box.rect.right));
-      const by = Math.min(floorLine, Math.max(1, tileOf(box.rect.bottom)));
-      if (bx > cardsRight) cardsRight = bx;
-      if (by > lowest) {
-        lowest = by;
-        landing = Math.max(1, tileOf(box.rect.top));
-      }
-    });
-
-    // cardsRight is the column past the last one a card fills, so an odd step
-    // laid at exactly that column has the card's face directly beside it. One
-    // column further out and there is a tile of air in the gap, the wall probe
-    // finds nothing, and the top step becomes a place you stand and cannot
-    // climb from.
-    const anchor = cardsRight + STEP.near;
-    let below = null;
-
-    for (let n = 1; n <= STEP.most; n++) {
-      const y = height - EDGE - STEP.rise * n;
-      if (y < 1) break;
-
-      // Odd steps hug the cards, so the top one always has the face beside it;
-      // even ones sit further out to make a stair rather than a ladder. Where
-      // there is no room out there â a narrow window, where the cards nearly
-      // reach the wall â it falls back to stacking straight up, which the
-      // one-way steps allow you to jump through anyway.
-      // The last step is always the near one, whatever its number: it has to
-      // arrive beside the card rather than five columns out in the air.
-      const atTop = y <= landing;
-      const wanted = atTop || n % 2 === 1 ? STEP.near : STEP.far;
-      const tries = [wanted];
-      for (let f = STEP.near; f >= 1; f--) if (f !== wanted) tries.push(f);
-
-      let placed = null;
-      for (const from of tries) {
-        if (placed) break;
-        const x0 = anchor - from;
-        const x1 = x0 + STEP.width;
-        if (x0 < EDGE + 1 || x1 > width - EDGE) continue;
-        // Reachable from the step under it, not just clear of everything.
-        const gap = below ? Math.max(below.x - x1, x0 - (below.x + below.w)) : 0;
-        if (gap > Level.RULES.maxGap) continue;
-        let clear = true;
-        for (let x = x0; x < x1; x++) if (get(x, y) !== T.EMPTY) clear = false;
-        if (clear) placed = { x: x0, y, w: STEP.width };
-      }
-
-      if (!placed) break;
-      for (let x = placed.x; x < placed.x + placed.w; x++) put(x, y, T.PLATFORM);
-      ledges.push(placed);
-      below = placed;
-
-      // Level with the top of the card the door stands on, and beside it: from
-      // here it is a walk.
-      if (atTop) break;
     }
 
     // The sky goes in over the top of the cards it clears â it is a second
@@ -386,7 +299,6 @@ const Mainscreen = (() => {
       tiles,
       spawn,
       door,
-      ledges,
       sky,
       // Player.update reads these off the level it is given. A menu has no
       // seed, no length and no career: it is a place, not a run.
@@ -413,5 +325,5 @@ const Mainscreen = (() => {
     return skyFits(Math.ceil(viewW / TILE), Math.ceil(viewH / TILE), cardsRight);
   }
 
-  return { TILE, EDGE, CORRIDOR, STEP, SKY, skyRoom, tileOf, boxesFrom, doorFrom, build, fromPage };
+  return { TILE, EDGE, CORRIDOR, SKY, skyRoom, tileOf, boxesFrom, doorFrom, build, fromPage };
 })();

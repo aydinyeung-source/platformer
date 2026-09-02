@@ -39,7 +39,7 @@
 
   <div class="app" hidden>
   <div class="corner">
-    <span class="corner__version">v1.44.0</span>
+    <span class="corner__version">v1.45.0</span>
     <span class="corner__player" data-player></span>
     <span class="corner__total" data-total-meters hidden></span>
     <div class="corner__actions">
@@ -49,9 +49,19 @@
 
   <main class="stage">
     <section class="screen screen--wide is-active" data-screen="play">
-      <div class="shelf shelf--title" data-solid>
-        <p class="label">Main menu</p>
-        <h1 class="title">Platformer</h1>
+      <div class="portal">
+        <div class="shelf shelf--title" data-solid>
+          <p class="label">Main menu</p>
+          <h1 class="title">Platformer</h1>
+        </div>
+
+        <div class="portal__way">
+          <button class="door" type="button" data-action="play" data-door
+                  aria-label="Start the run">
+            <span class="door__label">Play</span>
+          </button>
+          <div class="portal__shelf" data-solid="platform"></div>
+        </div>
       </div>
 
       <div class="chips tabs" role="group" aria-label="Sections" data-solid="platform">
@@ -86,10 +96,6 @@
       </article>
 
       <div class="actions">
-        <button class="door" type="button" data-action="play" data-door
-                aria-label="Start the run">
-          <span class="door__label">Play</span>
-        </button>
         <button class="button button--secondary" type="button" data-action="tutorial">Tutorial</button>
         <p class="actions__hint">Run into the door to start</p>
       </div>
