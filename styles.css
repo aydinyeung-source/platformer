@@ -143,6 +143,15 @@ button {
 
 /* ------------------------------------------------------------------- screens */
 
+/* The height has to be handed down the whole chain or the stage cannot ask for
+   it: a percentage height against a parent of no particular height resolves to
+   nothing, and the centring below would quietly do nothing with it. Measured
+   this way rather than in vh because on a phone 100vh is the window with the
+   address bar counted in, which is taller than the part you can see. */
+.app {
+  height: 100%;
+}
+
 /* Nothing scrolls now, so the margins are the first thing a short window gets
    to spend. The top and bottom are measured against the window's height rather
    than its width — a wide, short laptop screen was being given a wide screen's
@@ -153,8 +162,25 @@ button {
    corridor to the door runs the width of the window at any size, and three rows
    under the lid, so there is room to stand on the topmost card instead of being
    wedged against the ceiling. Cards are cut off at both lines — so a margin
-   shorter than those sixty pixels draws a card into ground it does not own. */
+   shorter than those sixty pixels draws a card into ground it does not own.
+
+   Between those two floors the menu is centred. It is about 640 pixels of card
+   and a 1080p window has 940 to give it, which stacked from the top left three
+   hundred pixels of nothing under the panel and put the whole menu in the top
+   half of the screen. Centring is also the kinder layout to play on: it brings
+   the cards down towards the floor the runner starts on, so the climb up to
+   them is shorter and the door is nearer. */
 .stage {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  /* Centred, but never at the cost of the top. On a window too short for the
+     menu, ordinary centring pushes the title and the door off the top edge —
+     and with the page locked, off the top edge is gone rather than scrolled to.
+     `safe` turns the centring back into a top alignment exactly when that would
+     happen. Where it is not understood the whole declaration is dropped and the
+     menu is top-aligned, which is the same answer by a different route. */
+  justify-content: safe center;
   padding: clamp(48px, 4vh, 76px) clamp(22px, 7vw, 96px) clamp(64px, 8vh, 110px);
 }
 

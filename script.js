@@ -1591,6 +1591,26 @@
     if (control && event.detail > 0) control.blur();
   });
 
+  // The layout also moves when nobody touches it. Recent runs paints twice —
+  // once from this machine, which is instant, and again when the cloud answers,
+  // which is whenever it answers — and that second paint changes the card's
+  // height with no click, no key and no resize behind it to ask for a rebuild.
+  //
+  // That was survivable while the menu stacked from the top, because only the
+  // card itself moved. Centred, a card that grows pushes everything above it up
+  // by half of what it gained: the tabs, the title, and the door. A collision
+  // map from before that is a picture of where the menu used to be, and the
+  // door is the one thing on the screen that has to be where it looks.
+  //
+  // So the boxes are watched rather than guessed at. Anything that changes size
+  // asks for the same rebuild a click does, and asking is free — it sets a flag
+  // the next frame reads.
+  if (window.ResizeObserver) {
+    const watcher = new ResizeObserver(queuePlayground);
+    document.querySelectorAll(".stage, .screen, [data-solid], [data-door]")
+      .forEach((box) => watcher.observe(box));
+  }
+
   drawControls();
 
   Input.attach();
