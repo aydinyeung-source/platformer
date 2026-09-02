@@ -1213,6 +1213,10 @@
 
     playLevel = Mainscreen.fromPage(document, w, h, { sky: playSky });
 
+    // The walls, repainted with them. This is the only place the level changes,
+    // so it is the only place the picture of it can go stale.
+    paintRoom(dpr);
+
     // Measured in the same pass as the collision, so the art lands exactly
     // where the tiles that finish the run are.
     doorRect = doorButton ? doorButton.getBoundingClientRect() : null;
@@ -1339,9 +1343,152 @@
     }
   }
 
+  // ---------------------------------------------------------------- the room
+  //
+  // The menu has always had walls. A solid column down each side and a lid
+  // across the top are what stop a wall kick carrying the runner out of the
+  // window, and until now every one of them was invisible — a wall you could
+  // only find by walking into it, which is the one thing a wall must never be.
+  // These are exactly those tiles, painted at last.
+  //
+  // Slate rather than the menu's paper, because they are not another card. They
+  // are the room the cards are standing in.
+  const PILLAR = {
+    highlight: "#3b4556",
+    slate: "#252c38",
+    shadow: "#161a22",
+    groove: "#11141a",
+  };
+
+  // Eight bands across the width of a shaft: the lit edge, stone, a cut groove,
+  // stone, a second groove, stone, the turn into shadow, and the dark side.
+  // Fluting is the whole difference between a column and a bar — one of these
+  // has a round side and a shaded one, and the other is a rectangle.
+  const FLUTING = [
+    PILLAR.highlight, PILLAR.slate, PILLAR.groove, PILLAR.slate,
+    PILLAR.groove, PILLAR.slate, PILLAR.shadow, PILLAR.groove,
+  ];
+
+  // Whole pixels, and never less than one. A moulding worked out as a fraction
+  // of a small tile rounds away to nothing, and a column with no capital is a
+  // post.
+  function band(ctx, x, y, w, h, ink) {
+    ctx.fillStyle = ink;
+    ctx.fillRect(x, y, w, Math.max(1, Math.round(h)));
+  }
+
+  // The eight bands, with their edges rounded to whole pixels and worked out
+  // from the tile rather than from each other, so they always add up to exactly
+  // one tile and the grooves stay hard lines instead of smearing over two.
+  function flutedShaft(ctx, x, y, T, h) {
+    for (let i = 0; i < FLUTING.length; i++) {
+      const x0 = Math.round((i * T) / FLUTING.length);
+      const x1 = Math.round(((i + 1) * T) / FLUTING.length);
+      if (x1 <= x0) continue;
+      ctx.fillStyle = FLUTING[i];
+      ctx.fillRect(x + x0, y, x1 - x0, h);
+    }
+  }
+
+  // The slab a column carries the ceiling on: flutes running up into a collar,
+  // lit along its top edge where the cornice rests on it and cut away beneath.
+  function pillarCapital(ctx, x, y, T) {
+    const slab = Math.max(2, Math.round(T * 0.42));
+    flutedShaft(ctx, x, y + slab, T, T - slab);
+    band(ctx, x, y, T, slab, PILLAR.slate);
+    band(ctx, x, y, T, 1, PILLAR.highlight);
+    band(ctx, x, y + slab - 1, T, 1, PILLAR.groove);
+  }
+
+  // And the one it stands on: flutes running down into a plinth, with the
+  // footer under it in shadow so the column has weight on the floor.
+  function pillarBase(ctx, x, y, T) {
+    const plinth = Math.max(3, Math.round(T * 0.4));
+    const footer = Math.max(1, Math.round(plinth * 0.35));
+    flutedShaft(ctx, x, y, T, T - plinth);
+    band(ctx, x, y + T - plinth, T, plinth, PILLAR.slate);
+    band(ctx, x, y + T - plinth, T, 1, PILLAR.highlight);
+    band(ctx, x, y + T - footer, T, footer, PILLAR.shadow);
+  }
+
+  // The lid, drawn only where the lid is actually there. Across an ordinary
+  // menu that is every column; with the gauntlet up it is every column except
+  // the ones over the gym, where the ceiling is deliberately cut away so an
+  // uncoil has somewhere to go. Painting a cornice across that hole would draw
+  // a ceiling the runner passes straight through.
+  //
+  // Run by run rather than column by column: a window is sixty-odd columns and
+  // this is four rectangles either way.
+  function drawCornice(ctx, T, cols) {
+    let start = -1;
+
+    const close = (end) => {
+      if (start < 0) return;
+      const x = start * T;
+      const w = (end - start + 1) * T;
+      band(ctx, x, 0, w, T, PILLAR.slate);
+      band(ctx, x, Math.round(T * 0.44), w, 1, PILLAR.groove);
+      band(ctx, x, Math.round(T * 0.68), w, T - Math.round(T * 0.68) - 1, PILLAR.shadow);
+      // The lit underside. One pixel, and the only line in the room that says
+      // where the ceiling stops and the air begins.
+      band(ctx, x, T - 1, w, 1, PILLAR.highlight);
+      start = -1;
+    };
+
+    for (let col = 0; col < cols; col++) {
+      const lidded = Level.at(playLevel, col, 0) === Level.TILE.GROUND;
+      if (lidded && start < 0) start = col;
+      if (!lidded) close(col - 1);
+    }
+    close(cols - 1);
+  }
+
+  function drawRoom(ctx) {
+    const T = playLevel.tile;
+    const cols = playLevel.width;
+    const rows = playLevel.height;
+
+    drawCornice(ctx, T, cols);
+
+    // Both walls run the full height of the level and always have: the carver
+    // fills them for every row, and the gauntlet's own clearing refuses to cut
+    // anything outside the edge columns. So a pillar needs no checking — it is
+    // a capital under the cornice, a plinth on the floor, and shaft between.
+    for (const col of [0, cols - 1]) {
+      const x = col * T;
+      pillarCapital(ctx, x, T, T);
+      for (let row = 2; row < rows - 1; row++) flutedShaft(ctx, x, row * T, T, T);
+      pillarBase(ctx, x, (rows - 1) * T, T);
+    }
+  }
+
+  // Painted once per rebuild rather than once per frame. A full height pillar
+  // is eight bands a row and there are two of them, which comes to something
+  // like four hundred and sixty rectangles — cheap enough one at a time and
+  // silly sixty times a second for a picture that only changes when the window
+  // does. Kept at device resolution and drawn back at CSS size, so the grooves
+  // stay one hard pixel on a retina screen instead of a soft two.
+  let roomArt = null;
+
+  function paintRoom(dpr) {
+    const w = playLevel.width * playLevel.tile;
+    const h = playLevel.height * playLevel.tile;
+    roomArt = document.createElement("canvas");
+    roomArt.width = Math.round(w * dpr);
+    roomArt.height = Math.round(h * dpr);
+    const ctx = roomArt.getContext("2d");
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    drawRoom(ctx);
+    roomArt.cssW = w;
+    roomArt.cssH = h;
+  }
+
   function renderPlayground() {
     playCtx.clearRect(0, 0, document.documentElement.clientWidth,
       document.documentElement.clientHeight);
+    // The room first, behind everything: the door stands in it, and the runner
+    // stands in front of it.
+    if (roomArt) playCtx.drawImage(roomArt, 0, 0, roomArt.cssW, roomArt.cssH);
     drawDoor(playCtx);
     drawSky(playCtx);
     drawDust(playCtx);
@@ -1392,8 +1539,14 @@
   // and used to be written in pixels only because a tile was a fixed twenty of
   // them. A tile is the window's now, so a corner measured in pixels would be a
   // different corner on every monitor.
+  //
+  // Twelve by fourteen rather than the narrow box it started as. The old zone
+  // was a spot you had to be standing on rather than a place you had to reach,
+  // and the reaching is the puzzle — a long climb up the left-hand wall, one
+  // kick at a time. Anywhere level with the title or the tabs counts now, so
+  // getting up there is the whole of it.
   function inSecretZone(body) {
-    return body.x < 7.5 && body.y < 7;
+    return body.x < 12 && body.y < 14;
   }
 
   document.addEventListener("keydown", (event) => {

@@ -5,18 +5,22 @@ const Mainscreen = (() => {
   // a second at a run — so the tile is the character's size, and at twenty
   // pixels the menu runner stood a third the height of the one in the caves.
   //
-  // Thirty-two is where the three things this number decides stop fighting.
-  // The runner is about fifty pixels, which reads as a character rather than a
+  // Thirty is where the three things this number decides stop fighting. The
+  // runner is forty-eight pixels, which reads as a character rather than a
   // token. A card edge snaps to within half a tile of where it is drawn, and
-  // half of thirty-two is a margin you have to look for. And the menu stays
-  // deep enough in rows for the sky gauntlet to have somewhere to be — at the
-  // game's own tile the whole page was eighteen rows and the gauntlet wants
-  // thirty, so it simply had nowhere to fit.
+  // half of thirty is a margin you have to look for.
+  //
+  // And thirty is what the gauntlet costs. It wants more than twenty-nine rows
+  // of window to exist at all, and a 1080p screen gives about 920 of them once
+  // the taskbar and the browser's own furniture are gone — thirty rows at a
+  // thirty pixel tile, and thirty-one at 940. Two pixels larger and the secret
+  // is a thing that only appears in fullscreen, which is a strange rule for a
+  // secret to have.
   //
   // A function of the window rather than a constant, because a small window
   // should not be a menu three rows tall.
   function tileFor(viewH) {
-    return Math.max(24, Math.min(32, Math.round(viewH / 28)));
+    return Math.max(24, Math.min(30, Math.round(viewH / 28)));
   }
 
   // A closed box: walls down both sides, a floor along the bottom, a lid across
