@@ -64,6 +64,7 @@
     lava: token("--lava"),
     lavaTop: token("--lava-top"),
     stoneDeep: token("--stone-deep"),
+    stoneRim: token("--stone-rim"),
     hazeFar: token("--haze-far"),
     hazeNear: token("--haze-near"),
     rule: token("--rule"),
@@ -627,8 +628,10 @@
     if (deep > 0) {
       const reach = Math.min(gameCamera.viewH * 0.55, deep);
       const glow = ctx.createLinearGradient(0, gameCamera.viewH - reach, 0, gameCamera.viewH);
-      glow.addColorStop(0, "rgba(234, 104, 36, 0)");
-      glow.addColorStop(1, "rgba(234, 104, 36, 0.07)");
+      // Matched to --lava by hand, because a gradient needs the colour broken
+      // into parts and a token arrives as one string.
+      glow.addColorStop(0, "rgba(255, 87, 34, 0)");
+      glow.addColorStop(1, "rgba(255, 87, 34, 0.07)");
       ctx.fillStyle = glow;
       ctx.fillRect(0, gameCamera.viewH - reach, gameCamera.viewW, reach);
     }

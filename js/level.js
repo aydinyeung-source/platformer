@@ -1250,17 +1250,23 @@ const Level = (() => {
             ctx.globalAlpha = 1;
           }
 
+          // A seam you can find if you look for it, and not otherwise. At a
+          // quarter opacity every tile was outlined and the cavern read as
+          // tiling; the rock wants to be one heavy mass with joints in it.
           if (seam) {
             ctx.strokeStyle = colours.paper;
-            ctx.globalAlpha = 0.25;
+            ctx.globalAlpha = 0.06;
             ctx.lineWidth = 1;
             ctx.strokeRect(px + 0.5, py + 0.5, tilePx - 1, tilePx - 1);
             ctx.globalAlpha = 1;
           }
 
-          // The lit face only belongs where the tile is actually exposed.
+          // The lit face only belongs where the tile is actually exposed, and
+          // it is a rim rather than a highlight: graphite a shade up from the
+          // rock, not ink. Drawn in the text colour every exposed block wore a
+          // white cap and the cave read as a brick wall.
           if (at(level, x, y - 1) !== TILE.GROUND) {
-            ctx.fillStyle = colours.ink;
+            ctx.fillStyle = colours.stoneRim;
             ctx.fillRect(px, py, tilePx + 0.5, cap);
           }
         } else if (tile === TILE.PLATFORM) {
