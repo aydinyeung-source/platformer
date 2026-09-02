@@ -33,9 +33,18 @@ const Mainscreen = (() => {
   // data-solid="platform" is one-way: thin bars — chip rows, the shelf the
   // door stands on — can be jumped up through and landed on. A card is solid
   // all the way through, because a card is big enough to be a building.
+  //
+  // One card is one box. Anything marked solid inside something else already
+  // marked solid is skipped: its rect is inside the outer one anyway, and the
+  // only thing measuring it again can do is round an edge to a different tile
+  // and leave a lip on a surface that is meant to be flat. The card decides
+  // where its own ground is, not the widgets sitting on it.
   function boxesFrom(root) {
     const boxes = [];
-    Array.prototype.forEach.call(root.querySelectorAll("[data-solid]"), (el) => {
+    const marked = Array.prototype.slice.call(root.querySelectorAll("[data-solid]"));
+
+    marked.forEach((el) => {
+      if (marked.some((outer) => outer !== el && outer.contains(el))) return;
       const rect = el.getBoundingClientRect();
       if (rect.width < 1 || rect.height < 1) return;
       boxes.push({ rect, platform: el.getAttribute("data-solid") === "platform" });
@@ -239,9 +248,16 @@ const Mainscreen = (() => {
 
     const floorLine = height - EDGE - CORRIDOR;
 
-    (boxes || []).forEach((box) => {
+    // Rock first, one-way bars second, whatever order the page listed them in.
+    // The guard below can only hold once the rock is down: a chip row measured
+    // before the card beneath it would write a one-way tile into that card's
+    // top surface, and a card you drop through is worse than no card at all.
+    const solids = (boxes || []).slice()
+      .sort((a, b) => Number(a.platform) - Number(b.platform));
+
+    solids.forEach((box) => {
       const x0 = tileOf(box.rect.left);
-      const y0 = tileOf(box.rect.top);
+      const y0 = Math.max(0, tileOf(box.rect.top));
       const x1 = Math.max(x0 + 1, tileOf(box.rect.right));
       const y1 = Math.min(floorLine, Math.max(y0 + 1, tileOf(box.rect.bottom)));
       const tile = box.platform ? T.PLATFORM : T.GROUND;

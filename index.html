@@ -39,7 +39,7 @@
 
   <div class="app" hidden>
   <div class="corner">
-    <span class="corner__version">v1.45.0</span>
+    <span class="corner__version">v1.46.0</span>
     <span class="corner__player" data-player></span>
     <span class="corner__total" data-total-meters hidden></span>
     <div class="corner__actions">
@@ -71,8 +71,13 @@
 
       <div data-panel="play">
 
-      <article class="seed" data-solid>
-        <div class="seed__group">
+      <!-- One card, not three. Seed, length, the tutorial and the controls were
+           separate boxes with the Tutorial button floating in the air between
+           two of them: a button standing on nothing, and a gap in the ground
+           the runner fell through on the way across. One panel is one solid
+           surface, and what is drawn is exactly what you can stand on. -->
+      <article class="panel" data-solid>
+        <div class="panel__section">
           <p class="label">Seed</p>
           <div class="chips" role="group" aria-label="Seed source">
             <button class="chip is-active" type="button" data-source="custom" aria-pressed="true">Custom</button>
@@ -84,7 +89,7 @@
           <p class="seed__resolved" data-resolved></p>
         </div>
 
-        <div class="seed__group">
+        <div class="panel__section">
           <p class="label">Run length</p>
           <div class="chips" role="group" aria-label="Run length">
             <button class="chip is-active" type="button" data-mode="1k" aria-pressed="true">1000 m</button>
@@ -93,21 +98,21 @@
             <button class="chip" type="button" data-mode="10k" aria-pressed="false">10 km</button>
           </div>
         </div>
-      </article>
 
-      <div class="actions">
-        <button class="button button--secondary" type="button" data-action="tutorial">Tutorial</button>
-        <p class="actions__hint">Run into the door to start</p>
-      </div>
-
-      <div class="shelf shelf--controls" data-solid>
-        <p class="label controls__label">Controls</p>
-        <div class="chips" role="group" aria-label="Control scheme">
-          <button class="chip is-active" type="button" data-scheme="modern" aria-pressed="true">Modern</button>
-          <button class="chip" type="button" data-scheme="retro" aria-pressed="false">Retro Arcade</button>
+        <div class="panel__section panel__actions">
+          <button class="button button--secondary" type="button" data-action="tutorial">Tutorial</button>
+          <p class="panel__hint">Run into the door to start</p>
         </div>
-        <dl class="controls" data-controls></dl>
-      </div>
+
+        <div class="panel__section">
+          <p class="label">Controls</p>
+          <div class="chips" role="group" aria-label="Control scheme">
+            <button class="chip is-active" type="button" data-scheme="modern" aria-pressed="true">Modern</button>
+            <button class="chip" type="button" data-scheme="retro" aria-pressed="false">Retro Arcade</button>
+          </div>
+          <dl class="controls" data-controls></dl>
+        </div>
+      </article>
       </div>
 
       <div data-panel="runs" hidden>

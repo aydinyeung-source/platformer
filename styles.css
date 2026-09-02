@@ -232,9 +232,16 @@ button {
   color: var(--ink-muted);
 }
 
-/* ------------------------------------------------------------------ seed lab */
+/* ------------------------------------------------------------------ the panel
 
-.seed {
+   Everything the play tab offers in one card: the seed, the run length, the way
+   into the tutorial, and the key list. They used to be two cards with a bare
+   button floating in the air between them — a gap on the page, and a real one
+   in the level, because only the cards are ground and the button was standing
+   on nothing. Sections are separated by a rule rather than by empty space, so
+   the card is continuous to look at and continuous to stand on.               */
+
+.panel {
   margin-top: 28px;
   padding: 22px 24px 20px;
   background: var(--paper-raised);
@@ -243,15 +250,27 @@ button {
   box-shadow: 0 18px 40px -32px rgba(35, 43, 40, 0.45);
 }
 
-.seed__row {
+/* Never above the first section: a rule there would read as a lid on the card. */
+.panel__section + .panel__section {
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 1px solid var(--rule);
+}
+
+/* The tutorial and the line saying what the door is for, on one row. Centred
+   rather than aligned by their feet, because the hint is a single line of text
+   beside a button and the two should read as one sentence with a control in it. */
+.panel__actions {
   display: flex;
-  align-items: flex-end;
-  gap: 12px;
+  align-items: center;
+  gap: 14px;
   flex-wrap: wrap;
 }
 
-.seed__field {
-  flex: 1 1 220px;
+.panel__hint {
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--ink-muted);
 }
 
 .seed__input {
@@ -274,13 +293,11 @@ button {
   outline: none;
 }
 
-.seed__actions {
-  display: flex;
-  gap: 8px;
-}
-
-.seed__group + .seed__group {
-  margin-top: 20px;
+/* Only ever there for the daily, so it comes and goes with the source chips. */
+.seed__resolved {
+  margin-top: 8px;
+  font-size: 11px;
+  color: var(--ink-muted);
 }
 
 .chips {
@@ -404,14 +421,17 @@ button {
 
 /* ------------------------------------------------------------------ controls */
 
+/* The key list, under the scheme chips it belongs to. The hairline is between
+   the chips and the keys, inside the section — the section's own rule is what
+   separates it from the run length above. */
 .controls {
   display: grid;
-  padding-top: 20px;
+  margin-top: 18px;
+  padding-top: 16px;
   border-top: 1px solid var(--rule);
   grid-template-columns: auto 1fr;
   gap: 11px 26px;
   max-width: 340px;
-  margin-top: 24px;
 }
 
 .controls__action {
@@ -424,10 +444,6 @@ button {
 .controls__keys {
   font-size: 12px;
   color: var(--ink);
-}
-
-.controls__label {
-  margin-top: 34px;
 }
 
 /* ------------------------------------------------------------------- loading */
@@ -797,14 +813,6 @@ button {
   opacity: 0;
 }
 
-.actions {
-  display: flex;
-  gap: 14px;
-  /* The door is taller than the button beside it and they stand on the same
-     ground, so the row lines its children up by their feet. */
-  align-items: flex-end;
-}
-
 .lesson {
   position: absolute;
   inset: 0;
@@ -957,22 +965,6 @@ button {
 
 .shelf--title .title {
   margin-top: 4px;
-}
-
-/* Inside a card the rule above the key list is one line too many. */
-.shelf--controls .controls__label {
-  margin-top: 0;
-}
-
-.shelf--controls .controls {
-  margin-top: 18px;
-  padding-top: 16px;
-}
-
-.actions__hint {
-  font-size: 11px;
-  letter-spacing: 0.04em;
-  color: var(--ink-muted);
 }
 
 /* Over the page and out of the way of it: the runner draws on top of the cards
