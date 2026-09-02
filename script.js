@@ -1,9 +1,9 @@
-// script.js â main menu: seed choice, run length, and handing off to a run
+// script.js — main menu: seed choice, run length, and handing off to a run
 
 (() => {
   // There is no sound, and until there is there is no switch for it. A control
   // that turns off something the game never does is a promise the game does not
-  // keep â and the first thing it costs is the player's trust in every other
+  // keep — and the first thing it costs is the player's trust in every other
   // control on the screen.
   const fullscreenButton = document.querySelector('[data-action="fullscreen"]');
   const playButton = document.querySelector('[data-action="play"]');
@@ -78,7 +78,7 @@
 
   // The menu is paper and the cave is not, so anything painted on the canvas
   // takes this set instead: the same palette with the page's lights and darks
-  // swapped for the world's. It is the whole of the split â the canvas clears
+  // swapped for the world's. It is the whole of the split — the canvas clears
   // to the void rather than to paper, and every line drawn over the rock reads
   // light-on-dark rather than the other way round.
   //
@@ -138,7 +138,7 @@
   //
   // Only finished runs, and never the tutorial. A distance you did not reach
   // the door of is not a distance you covered, so the total is always an exact
-  // pile of thousands â which is what makes it worth looking at rather than a
+  // pile of thousands — which is what makes it worth looking at rather than a
   // number that drifts up whenever you press Play.
   const TOTAL_KEY = "platformer.total_meters";
   const totalSlots = Array.from(document.querySelectorAll("[data-total-meters]"));
@@ -182,7 +182,7 @@
   // ---------------------------------------------------------------- ghosts
   //
   // A run keeps its own tape, per seed, and only when it beat what was there
-  // before â so the ghost you race is your best on that cave rather than your
+  // before — so the ghost you race is your best on that cave rather than your
   // last. Kept here rather than sent anywhere: a tape is a few kilobytes and
   // nobody else has any use for it.
   const GHOST_KEY = "platformer.ghost.";
@@ -234,7 +234,7 @@
     runsList.textContent = "";
     if (!rows || !rows.length) {
       runsNote.hidden = false;
-      runsNote.textContent = "No runs yet â finish one and it lands here";
+      runsNote.textContent = "No runs yet — finish one and it lands here";
       return;
     }
 
@@ -296,6 +296,7 @@
 
   function startLoading(seedOverride) {
     phase = "loading";
+    playLayer.hidden = true;
     // The honest part: the run is generated here, the moment Play is pressed.
     const wanted = seedOverride || seedInput.value;
     level = Level.generate(wanted, { mode: activeValue(modeButtons, "mode") });
@@ -303,12 +304,12 @@
     loader.hidden = false;
 
     loadMeta =
-      "Seed " + runSeedText.toUpperCase() + " Â· " + level.meters.toLocaleString("en-US") + " m";
+      "Seed " + runSeedText.toUpperCase() + " · " + level.meters.toLocaleString("en-US") + " m";
     loadStart = performance.now();
     shownPercent = -1;
     stageLabel.textContent = STAGES[0].label;
     fill.style.width = "0%";
-    loaderMeta.textContent = "0% Â· " + loadMeta;
+    loaderMeta.textContent = "0% · " + loadMeta;
     startLoop();
   }
 
@@ -337,7 +338,7 @@
     shownPercent = percent;
     stageLabel.textContent = label;
     fill.style.width = percent + "%";
-    loaderMeta.textContent = percent + "% Â· " + loadMeta;
+    loaderMeta.textContent = percent + "% · " + loadMeta;
   }
 
   // --------------------------------------------------------------------- game
@@ -354,7 +355,7 @@
   // stepped silhouette that read as blocks floating in the stone.
   const SKY_BOTTOM = 0;
 
-  // World row the magma glow starts creeping up from â the top of the deep rock
+  // World row the magma glow starts creeping up from — the top of the deep rock
   // band, so the wash and the darkest stone agree about where the abyss begins.
   const GLOW_FROM = 50;
 
@@ -431,7 +432,7 @@
   // weather: dust and heat, spawned by the renderer and simulated nowhere,
   // because nothing a particle does may change what a seed produces.
   // The art does not fill the cell. Every one of the ten character frames ends
-  // at pixel row 29, leaving two transparent rows at the bottom of the 32 â so
+  // at pixel row 29, leaving two transparent rows at the bottom of the 32 — so
   // a frame anchored by its cell hangs the runner two pixels above the floor.
   // activeH is what the body's height is measured against; padBottom is what
   // the anchor has to give back.
@@ -468,7 +469,7 @@
     if (player.recovering > 0) return FRAME.hurt;
 
     // Low first, and before anything airborne. A skim is airborne. So is a
-    // slide taken off an edge, and so is a crouch that walked off one â and in
+    // slide taken off an edge, and so is a crouch that walked off one — and in
     // every case the body is half height and under a roof that only fits it
     // because it is. Reaching the standing frames from here draws a full height
     // pose on a half height body and puts its head through the ceiling.
@@ -485,7 +486,7 @@
     if (Math.abs(body.vx) > 0.4) {
       // Walked, not ticked: the cycle advances with the ground covered, so it
       // never moonwalks and never scampers on the spot. A stride of four frames
-      // over about two and a quarter tiles â at four steps per tile it was nine
+      // over about two and a quarter tiles — at four steps per tile it was nine
       // full cycles a second, which is a blur rather than a run. The modulo is
       // written to survive a negative operand, so running left counts down the
       // cycle instead of jittering across the wrap.
@@ -496,7 +497,7 @@
   }
 
   // Anchored by the feet and centred on the body, because the art is bigger than
-  // the box it collides with â and it has to stay put when the box halves in
+  // the box it collides with — and it has to stay put when the box halves in
   // height for a slide.
   function drawFrame(ctx, frame, centreX, feetY, scale, flip, alpha) {
     if (!sheetReady) return false;
@@ -587,7 +588,7 @@
     for (const s of list) {
       if (s.state === "shattered") {
         // One puff, the first frame it is seen broken. The flag is the
-        // renderer's own â the simulation never reads it, so a run with the
+        // renderer's own — the simulation never reads it, so a run with the
         // window closed plays out exactly the same.
         if (!s.puffed) {
           s.puffed = true;
@@ -601,7 +602,7 @@
       if (px < -w || px > gameCamera.viewW + w) continue;
 
       // The tell. A tile of rock grinding itself loose, a fifth of a second
-      // before it is a problem â which is the whole difference between a hazard
+      // before it is a problem — which is the whole difference between a hazard
       // and an ambush.
       let shake = 0;
       if (s.state === "shaking") {
@@ -645,7 +646,7 @@
     // The art is exactly as tall as the body it belongs to. Drawing it two
     // tiles tall over a 1.6 tile box put four tenths of a tile of head above
     // the collision box, which is head through the ceiling everywhere the
-    // ceiling is low â and low ceilings are half the game now.
+    // ceiling is low — and low ceilings are half the game now.
     //
     // Height is fixed rather than taken from the body, because the body halves
     // for a slide and the art must not squash with it: the slide and crouch
@@ -737,7 +738,7 @@
 
     // The air is not one dark. It is lighter near the roof and nearly black at
     // the mantle, mixed across whatever slice of the world the camera is
-    // looking at â so the background says how deep you are before you have seen
+    // looking at — so the background says how deep you are before you have seen
     // a wall, and looking up or down actually changes something.
     if (level) {
       const top = gameCamera.y / gameTile;
@@ -786,7 +787,7 @@
 
     // The abyss is lit from below. Once the view is down among the deep rock
     // there is molten floor under it, and a warm wash rising off the bottom of
-    // the screen is what says so â no light source to place, no shadows to
+    // the screen is what says so — no light source to place, no shadows to
     // cast, just the suggestion that the dark down here is not empty.
     //
     // Drawn over the world rather than under it, because it is the air between
@@ -807,10 +808,10 @@
     if (showCoords) drawCoords(ctx, player);
 
     const line = player.finished
-      ? "Through the door Â· " + clock(player.time)
+      ? "Through the door · " + clock(player.time)
       : Player.metres(player).toLocaleString("en-US") + " / " + level.meters.toLocaleString("en-US") +
-        " m Â· " + clock(player.time) +
-        (player.falls ? " Â· " + player.falls + " falls" : "");
+        " m · " + clock(player.time) +
+        (player.falls ? " · " + player.falls + " falls" : "");
 
     if (line !== hudShown) {
       hudShown = line;
@@ -818,7 +819,7 @@
     }
 
     // The split. Ground gained or lost against your own best run on this cave,
-    // in metres, which is the only number that matters while you are running â
+    // in metres, which is the only number that matters while you are running —
     // a clock tells you how long you have taken, and this tells you whether
     // that was any good.
     //
@@ -863,7 +864,7 @@
     startLoop();
     hudSeed.textContent = level.tutorial
       ? "Tutorial"
-      : runSeedText.toUpperCase() + " Â· " + Level.resolveMode(level.mode).label;
+      : runSeedText.toUpperCase() + " · " + Level.resolveMode(level.mode).label;
     renderGame();
   }
 
@@ -871,6 +872,12 @@
     phase = "menu";
     session = null;
     gameView.hidden = true;
+    // Back on the menu, and back on your feet at the left end of it: the runner
+    // who went through the door is finished, and a finished runner does not
+    // move again.
+    playLayer.hidden = false;
+    resetPlayground();
+    startLoop();
     loader.hidden = true;
     lesson.hidden = true;
     victory.hidden = true;
@@ -895,7 +902,7 @@
   //
   // The tutorial stops the world and says one thing. Which keys it names
   // depends on how the player is holding the game, so the text carries tokens
-  // rather than key names and they are filled in when it is shown â otherwise a
+  // rather than key names and they are filled in when it is shown — otherwise a
   // player on the retro scheme is told to press keys that do nothing.
   const TUTORIAL_KEY = "platformer.tutorial_done";
   const KEYCAPS = {
@@ -1032,7 +1039,7 @@
     if (event.code !== "Space" || phase !== "game") return;
 
     // Space is jump, so it is only borrowed while something is actually asking
-    // to be dismissed â and then it is taken, so the same press does not also
+    // to be dismissed — and then it is taken, so the same press does not also
     // launch the runner out of the doorway it is standing in.
     if (!victory.hidden) {
       event.preventDefault();
@@ -1046,7 +1053,7 @@
   // --------------------------------------------------------------------- boot
 
   // The controls list is the scheme, so it is drawn from the scheme rather than
-  // written out beside it â otherwise switching would leave the menu confidently
+  // written out beside it — otherwise switching would leave the menu confidently
   // describing keys that no longer do anything.
   const controlsList = document.querySelector("[data-controls]");
   const schemeChips = document.querySelectorAll("[data-scheme]");
@@ -1079,12 +1086,271 @@
     });
   });
 
+  // ---------------------------------------------------------- the playground
+  //
+  // The menu is a level. Every card, shelf and chip row on it is a real
+  // surface, the screen edges are walls, and the runner you play the game with
+  // is standing on the bottom of it waiting for you to do something.
+  //
+  // The collision is read off the page with getBoundingClientRect rather than
+  // written down anywhere, so it is whatever the menu actually looks like right
+  // now: switch tabs, change the control scheme, resize the window, and it is
+  // rebuilt from the new layout instead of from a copy that has quietly stopped
+  // being true.
+
+  const playLayer = document.querySelector("[data-playground-layer]");
+  const playCanvas = document.querySelector("[data-playground]");
+  const playCtx = playCanvas.getContext("2d");
+  const doorButton = document.querySelector("[data-door]");
+  const ledgeEls = Array.from(document.querySelectorAll("[data-ledge]"));
+
+  let playLevel = null;
+  let playRunner = null;
+  let playAcc = 0;
+  let playDirty = true;
+  let playEntering = false;
+  let doorRect = null;
+
+  // Anything that moves a card moves the ground under the runner's feet. The
+  // rebuild is deferred to the next frame rather than done on the spot, because
+  // one click can change three things and the layout is only worth measuring
+  // once it has finished changing.
+  function queuePlayground() {
+    playDirty = true;
+  }
+
+  // Somewhere on the page that takes typing. While one of these holds the focus
+  // the runner is handed a dead keyboard: A and D are letters first.
+  function typing() {
+    const el = document.activeElement;
+    if (!el || !el.tagName) return false;
+    return el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable === true;
+  }
+
+  function inRock(level, body) {
+    const x0 = Math.floor(body.x + 0.001);
+    const x1 = Math.floor(body.x + body.w - 0.001);
+    const y0 = Math.floor(body.y + 0.001);
+    const y1 = Math.floor(body.y + body.h - 0.001);
+    for (let y = y0; y <= y1; y++) {
+      for (let x = x0; x <= x1; x++) if (Physics.solidAt(level, x, y)) return true;
+    }
+    return false;
+  }
+
+  // A rebuild can close the space a body was standing in: open the runs tab and
+  // a card appears where the runner was mid-jump. Lift them out of it, and
+  // failing that put them back at the start, which is always dug clear.
+  function freeUp(level, runner) {
+    const body = runner.body;
+    let lifted = 0;
+    while (inRock(level, body) && lifted < level.height) {
+      body.y -= 1;
+      lifted++;
+    }
+    if (!inRock(level, body)) return;
+    body.x = level.spawn.x + (1 - body.w) / 2;
+    body.y = level.spawn.y + 1 - body.h;
+    body.vx = 0;
+    body.vy = 0;
+  }
+
+  function rebuildPlayground() {
+    playDirty = false;
+
+    // The layer is position:fixed inset:0, so it stops at the scrollbars â and
+    // so do the rects every card is measured with. innerWidth counts the
+    // scrollbar in, which would put the right-hand wall behind it.
+    const w = document.documentElement.clientWidth;
+    const h = document.documentElement.clientHeight;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    playCanvas.width = Math.round(w * dpr);
+    playCanvas.height = Math.round(h * dpr);
+    playCanvas.style.width = w + "px";
+    playCanvas.style.height = h + "px";
+    playCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    playLevel = Mainscreen.fromPage(document, w, h);
+
+    // The staircase is laid out in tiles and the page is told where it went,
+    // rather than drawn in CSS and measured back. A step you can see and a
+    // step you can stand on have to be the same step.
+    const T = Mainscreen.TILE;
+    ledgeEls.forEach((el, i) => {
+      const spot = playLevel.ledges[i];
+      el.hidden = !spot;
+      if (!spot) return;
+      el.style.left = spot.x * T + "px";
+      el.style.top = spot.y * T + "px";
+      el.style.width = spot.w * T + "px";
+    });
+
+    // Measured in the same pass as the collision, so the art lands exactly
+    // where the tiles that finish the run are.
+    doorRect = doorButton ? doorButton.getBoundingClientRect() : null;
+
+    if (!playRunner) {
+      playRunner = Player.create(playLevel);
+      return;
+    }
+
+    // Keep them where they were standing. Only the room around them changed.
+    const body = playRunner.body;
+    body.x = Math.max(1, Math.min(body.x, playLevel.width - body.w - 1));
+    body.y = Math.min(body.y, playLevel.height - body.h - 1);
+    freeUp(playLevel, playRunner);
+    playRunner.safe.x = body.x;
+    playRunner.safe.y = body.y;
+  }
+
+  function resetPlayground() {
+    playRunner = null;
+    playAcc = 0;
+    playEntering = false;
+    queuePlayground();
+  }
+
+  const IDLE = {
+    left: false, right: false, jumpHeld: false, jumpPressed: false, slideHeld: false, mask: 0,
+  };
+
+  function stepPlayground(dt) {
+    if (playDirty || !playLevel) rebuildPlayground();
+
+    playAcc += Math.min(dt, 0.25);
+    let taken = 0;
+    while (playAcc >= Game.STEP && taken < Game.MAX_CATCHUP) {
+      // Polled either way. Skipping the poll while someone types would bank the
+      // press edges and fire them all the moment the field loses focus.
+      const live = readInput();
+      Player.update(playRunner, playLevel, typing() ? IDLE : live, Game.STEP);
+      playAcc -= Game.STEP;
+      taken++;
+    }
+    if (taken === Game.MAX_CATCHUP) playAcc = 0;
+
+    // Into the door. Player.update stops the runner dead in the doorway and
+    // fades them into it over half a second; the run starts when there is
+    // nothing left of them to see, so the menu is not yanked away mid-stride.
+    if (playRunner.finished) playEntering = true;
+    if (playEntering && playRunner.entering === 0) {
+      playEntering = false;
+      startLoading();
+    }
+  }
+
+  // ---------------------------------------------------------------- the door
+  //
+  // Pixel art rather than a picture: twelve across by eighteen down, scaled to
+  // whatever box the page gave the button and with the pixel size rounded down,
+  // so the planks stay square and the seams stay straight at any size.
+  const DOOR_ART = [
+    "....####....",
+    "..########..",
+    ".##########.",
+    "############",
+    "#=|=|==|=|=#",
+    "#=|=|==|=|=#",
+    "#=|=|==|=|=#",
+    "#=|=|==|=|=#",
+    "#=|=|==|=|=#",
+    "#=|=|==|=o=#",
+    "#=|=|==|=|=#",
+    "#=|=|==|=|=#",
+    "#=|=|==|=|=#",
+    "#=|=|==|=|=#",
+    "#=|=|==|=|=#",
+    "#=|=|==|=|=#",
+    "############",
+    "############",
+  ];
+
+  const DOOR_INK = { "#": "ink", "=": "stone", "|": "inkSoft", o: "accent" };
+
+  function drawDoor(ctx) {
+    if (!doorRect) return;
+
+    const cols = DOOR_ART[0].length;
+    const rows = DOOR_ART.length;
+    const px = Math.max(1, Math.floor(Math.min(doorRect.width / cols, doorRect.height / rows)));
+    const artW = px * cols;
+    const artH = px * rows;
+    const left = doorRect.left + (doorRect.width - artW) / 2;
+    const top = doorRect.top + (doorRect.height - artH) / 2;
+
+    // A little warmth spilling out from under it, so the door reads as the way
+    // through rather than as one more box on a page of boxes.
+    const cx = left + artW / 2;
+    const cy = top + artH * 0.62;
+    const reach = artW * 1.9;
+    const glow = ctx.createRadialGradient(cx, cy, 0, cx, cy, reach);
+    glow.addColorStop(0, "rgba(255, 87, 34, 0.18)");
+    glow.addColorStop(1, "rgba(255, 87, 34, 0)");
+    ctx.fillStyle = glow;
+    ctx.fillRect(cx - reach, cy - reach, reach * 2, reach * 2);
+
+    for (let row = 0; row < rows; row++) {
+      for (let col = 0; col < cols; col++) {
+        const ink = DOOR_INK[DOOR_ART[row][col]];
+        if (!ink) continue;
+        ctx.fillStyle = colours[ink];
+        ctx.fillRect(left + col * px, top + row * px, px, px);
+      }
+    }
+  }
+
+  function renderPlayground() {
+    playCtx.clearRect(0, 0, document.documentElement.clientWidth,
+      document.documentElement.clientHeight);
+    drawDoor(playCtx);
+
+    const body = playRunner.body;
+    const T = Mainscreen.TILE;
+    const scale = (T * Player.TUNING.height) / SHEET.activeH;
+    const flashing = playRunner.recovering > 0 && Math.floor(playRunner.recovering * 20) % 2 === 0;
+    const alpha = playRunner.finished ? playRunner.entering : flashing ? 0.45 : 1;
+    const centreX = (body.x + body.w / 2) * T;
+    const feetY = (body.y + body.h) * T;
+
+    if (drawFrame(playCtx, poseOf(playRunner), centreX, feetY, scale, playRunner.facing < 0, alpha)) return;
+
+    // No sheet loaded: a shape rather than nothing, in the menu's own ink so it
+    // reads as part of the page instead of as a broken image.
+    playCtx.globalAlpha = alpha;
+    playCtx.fillStyle = colours.ink;
+    playCtx.fillRect(centreX - (body.w * T) / 2, feetY - body.h * T, body.w * T, body.h * T);
+    playCtx.globalAlpha = 1;
+  }
+
+  window.addEventListener("resize", () => {
+    queuePlayground();
+    if (phase === "game") fitGame();
+  });
+
+  // Any click can move a card, and a mouse click leaves its button focused,
+  // which would hand every keypress to that button instead of to the runner.
+  // Only real pointer clicks blur: activating a button from the keyboard has no
+  // pointer behind it, and stealing focus there would strand a keyboard user
+  // halfway down the menu with nothing selected.
+  // The menu cards rise into place over the first second, one after another.
+  // Collision measured while that is still happening is collision for where the
+  // cards were passing through rather than where they came to rest, so each one
+  // asks for a rebuild as it settles.
+  document.addEventListener("animationend", queuePlayground);
+
+  document.addEventListener("click", (event) => {
+    queuePlayground();
+    const control = event.target && event.target.closest && event.target.closest("button");
+    if (control && event.detail > 0) control.blur();
+  });
+
   drawControls();
 
   Input.attach();
 
-  // The menu is plain DOM, so the frame loop stops entirely while it is up and
-  // starts again on Play. An idle menu should not be asking for frames.
+  // The menu is a level now, so the loop runs the whole time the page is up.
+  // It was stopped on the menu when the menu was plain DOM and nothing on it
+  // moved; there is somebody standing on it now.
   let lastFrame = performance.now();
   let looping = false;
 
@@ -1093,7 +1359,9 @@
     lastFrame = now;
 
     if (phase === "menu") {
-      looping = false;
+      stepPlayground(dt);
+      renderPlayground();
+      requestAnimationFrame(frame);
       return;
     }
 
@@ -1128,7 +1396,7 @@
       if (session.player.finished && !victoryShown) showVictory(session.player);
 
       // A step and a half faster than the runner for placing the view, two and a
-      // half with shift for sweeping the map â both flat, neither ramps.
+      // half with shift for sweeping the map — both flat, neither ramps.
       const sweep = Input.fastView() ? 2.5 : 1.5;
       Camera.update(gameCamera, dt, Input.cameraAxis(), Player.TUNING.runSpeed * sweep * gameTile);
       renderGame();
@@ -1146,6 +1414,7 @@
 
   function boot() {
     showTotal();
+    startLoop();
     seedInput.value = Rng.randomSeed();
     setSource("random");
     refresh();
