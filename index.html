@@ -39,7 +39,7 @@
 
   <div class="app" hidden>
   <div class="corner">
-    <span class="corner__version">v1.39.0</span>
+    <span class="corner__version">v1.40.0</span>
     <span class="corner__player" data-player></span>
     <span class="corner__total" data-total-meters hidden></span>
     <div class="corner__actions">
@@ -117,7 +117,10 @@
     <canvas class="game__canvas" data-game-canvas></canvas>
     <div class="game__hud">
       <p class="game__seed" data-hud-seed></p>
-      <p class="game__distance" data-hud-distance></p>
+      <div class="game__right">
+        <p class="game__split" data-hud-split hidden></p>
+        <p class="game__distance" data-hud-distance></p>
+      </div>
     </div>
     <button class="button button--secondary game__quit" type="button" data-action="quit">Quit</button>
 

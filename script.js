@@ -344,6 +344,7 @@
   const gameCanvas = document.querySelector("[data-game-canvas]");
   const hudSeed = document.querySelector("[data-hud-seed]");
   const hudDistance = document.querySelector("[data-hud-distance]");
+  const hudSplit = document.querySelector("[data-hud-split]");
 
   // World row where daylight stops. The maze is carved out of solid rock and
   // has a lid on it, so there is no daylight anywhere and no behind for hills
@@ -360,6 +361,7 @@
   let gameTile = 34;
   let gameOffsetY = 0;
   let hudShown = "";
+  let splitShown = "";
 
   function fitGame() {
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -828,6 +830,29 @@
       hudShown = line;
       hudDistance.textContent = line;
     }
+
+    // The split. Ground gained or lost against your own best run on this cave,
+    // in metres, which is the only number that matters while you are running —
+    // a clock tells you how long you have taken, and this tells you whether
+    // that was any good.
+    //
+    // Written only when it changes, like the line above it: this is a number
+    // that moves every step, and touching the DOM sixty times a second to say
+    // the same thing is how a HUD costs you frames.
+    if (session.ghost) {
+      const delta = Math.round(player.body.x - session.ghost.body.x);
+      const text = delta === 0 ? "" : (delta > 0 ? "+" : "") + delta + " m";
+      if (text !== splitShown) {
+        splitShown = text;
+        hudSplit.textContent = text;
+        hudSplit.hidden = !text;
+        hudSplit.classList.toggle("is-ahead", delta > 0);
+        hudSplit.classList.toggle("is-behind", delta < 0);
+      }
+    } else if (splitShown !== "") {
+      splitShown = "";
+      hudSplit.hidden = true;
+    }
   }
 
   function startGame() {
@@ -838,6 +863,8 @@
     // Your best on this cave, if you have one, comes along to race.
     const ghost = level.tutorial ? null : ghostFor(level.seed);
     session = Game.create(level, { ghostTape: ghost && ghost.tape });
+    splitShown = "";
+    hudSplit.hidden = true;
     hudShown = "";
     motes.length = 0;
     dustSeen = 0;

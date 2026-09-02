@@ -888,3 +888,37 @@ button {
 .runs__career [data-total-meters]:empty {
   display: none;
 }
+
+/* ---------------------------------------------------------------- the split */
+/* Metres gained or lost against your own best run on this cave. It sits above
+   the distance rather than beside it, because it changes every step and a
+   number that jitters next to a number that does not is hard to read. */
+
+.game__right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+.game__split {
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: var(--paper);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.1em;
+  color: var(--ink-muted);
+}
+
+.game__split.is-ahead {
+  color: var(--accent);
+}
+
+.game__split.is-behind {
+  color: var(--warn);
+}
+
+.game__split[hidden] {
+  display: none;
+}
