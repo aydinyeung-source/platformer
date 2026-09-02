@@ -19,8 +19,14 @@ const Mainscreen = (() => {
   //
   // A function of the window rather than a constant, because a small window
   // should not be a menu three rows tall.
+  // Floored rather than rounded, which sounds like a detail and is not. Rounding
+  // up hands back a tile that divides the window into fewer rows than a smaller
+  // one would: an 800 pixel window rounded to 29 and got 27 rows, while a 768
+  // pixel window took 27 and got 28. Taller window, less room — and in the band
+  // that lost a row, the gauntlet stopped fitting. Flooring makes rows climb
+  // with the window instead of wobbling, and costs at most a pixel of tile.
   function tileFor(viewH) {
-    return Math.max(24, Math.min(30, Math.round(viewH / 28)));
+    return Math.max(24, Math.min(30, Math.floor(viewH / 28)));
   }
 
   // A closed box: walls down both sides, a floor along the bottom, a lid across
