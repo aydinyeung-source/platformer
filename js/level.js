@@ -1240,14 +1240,31 @@ const Level = (() => {
 
   const GEM_GRID = 6;
 
-  // Which gem this tile has, or -1 for the ninety-eight in a hundred that have
-  // none. Its own hash, unrelated to the shading one, so the gems do not land in
-  // a pattern with the light. Rare on purpose: these are a thing you notice, and
-  // a cave wall studded with them is a cave wall nobody looks at twice.
+  // Depth decides both whether a tile has a gem and which kind. Nothing grows
+  // in the roof rock; gold and amethyst come in through the middle caverns; and
+  // the mantle is where diamond appears, alongside amethyst, and where the
+  // stones are commonest. It means going deeper is worth something to look at
+  // as well as to run through, and that a diamond means you went down for it.
+  const GEM_SURFACE = 28; // above this, none at all
+  const GEM_ABYSS = 50; // below this, the mantle
+  const GEM_MID_KINDS = [2, 1]; // citrine, amethyst
+  const GEM_DEEP_KINDS = [0, 1]; // diamond, amethyst
+  const GEM_MID_RATE = 15; // per thousand tiles: 1.5%
+  const GEM_DEEP_RATE = 35; // 3.5%
+
+  // Which gem this tile has, or -1 for the great majority that have none. Its
+  // own hash, unrelated to the shading one, so the gems do not land in a
+  // pattern with the light — and the roll and the choice of stone are taken
+  // from different ends of it, so the rarity does not decide the colour.
   function gemAt(x, y) {
+    if (y < GEM_SURFACE) return -1;
+
     const h = Math.imul(x * 374761393 + y * 668265263, 1274126177) >>> 0;
-    if (h % 100 >= 2) return -1; // two tiles in a hundred, exactly
-    return (h >>> 7) % GEM_TYPES.length;
+    const deep = y >= GEM_ABYSS;
+    if (h % 1000 >= (deep ? GEM_DEEP_RATE : GEM_MID_RATE)) return -1;
+
+    const kinds = deep ? GEM_DEEP_KINDS : GEM_MID_KINDS;
+    return kinds[(h >>> 12) % kinds.length];
   }
 
   // Draws the slice of the level the camera can see. Shared by every view, so
