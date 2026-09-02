@@ -1177,10 +1177,15 @@
   // A rebuild can close the space a body was standing in: open the runs tab and
   // a card appears where the runner was mid-jump. Lift them out of it, and
   // failing that put them back at the start, which is always dug clear.
+  // Lifting stops at the lid. Every tile outside the grid reads as empty, so a
+  // body lifted past the ceiling comes out the far side of it "free" — and then
+  // falls back and stands on the roof of the world, off the top of the screen,
+  // out of reach of everything. Better to give up the lift and take the spawn.
   function freeUp(level, runner) {
     const body = runner.body;
+    const lid = Mainscreen.EDGE;
     let lifted = 0;
-    while (inRock(level, body) && lifted < level.height) {
+    while (inRock(level, body) && body.y - 1 >= lid && lifted < level.height) {
       body.y -= 1;
       lifted++;
     }
@@ -1218,9 +1223,15 @@
     }
 
     // Keep them where they were standing. Only the room around them changed.
+    //
+    // Inside the box on every side, not just three of them. A window that gets
+    // shorter or narrower moves the walls in under a body that was standing
+    // where they used to be, and a body left outside the grid is one the tiles
+    // cannot get hold of: nothing outside is solid, so nothing outside stops it.
     const body = playRunner.body;
-    body.x = Math.max(1, Math.min(body.x, playLevel.width - body.w - 1));
-    body.y = Math.min(body.y, playLevel.height - body.h - 1);
+    const edge = Mainscreen.EDGE;
+    body.x = Math.max(edge, Math.min(body.x, playLevel.width - body.w - edge));
+    body.y = Math.max(edge, Math.min(body.y, playLevel.height - body.h - edge));
     freeUp(playLevel, playRunner);
     playRunner.safe.x = body.x;
     playRunner.safe.y = body.y;

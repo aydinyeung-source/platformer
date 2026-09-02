@@ -6,10 +6,25 @@ const Mainscreen = (() => {
   // that a card is something you climb rather than something you step over.
   const TILE = 20;
 
-  // Walls down both sides and a floor along the bottom. The top is left open:
-  // a jump that clears the screen comes back down, and a lid there would be a
-  // ceiling nobody can see to duck.
+  // A closed box: walls down both sides, a floor along the bottom, a lid across
+  // the top.
+  //
+  // The lid was left off for a long time on the grounds that a jump clearing
+  // the screen comes back down on its own. A jump does. A wall kick does not —
+  // two faces to bounce between and nothing overhead is a climb with no top to
+  // it, and the runner leaves the window and does not come back. The old
+  // objection was that a lid is a ceiling nobody can see to duck, and it is
+  // wrong here for one reason: this ceiling is the top of the window, which is
+  // the one edge in the world that needs no drawing to be obvious.
   const EDGE = 1;
+
+  // Rows under the lid that no card may reach — the mirror of CORRIDOR below.
+  // A body is 1.6 tiles tall, so a card whose top row sits closer than this to
+  // the ceiling is a surface with no room to stand on: land there and the head
+  // is inside the lid, which is not a landing, it is being wedged between two
+  // solid things. Cards are cut off here for the same reason they are cut off
+  // above the floor.
+  const HEADROOM = 2;
 
   // Rows above the floor that no card is allowed to reach. On a window too
   // short for the menu the page scrolls, and a card that runs off the bottom of
@@ -163,6 +178,15 @@ const Mainscreen = (() => {
       clear(x, SKY.deck - 2);
     }
 
+    // The menu has a lid on it now, and the gym is the one place that takes it
+    // back off. The chasm past the mouth is crossed by an uncoil, which leaves
+    // a deck six rows down and rises nearly five tiles; under the lid it tops
+    // out at row one instead, carries about five tiles rather than nearly eight,
+    // and lands in the middle of a seven tile hole. The gauntlet is a hidden
+    // room reached on purpose, so the escape the lid exists to stop is not a
+    // risk here — and the jump does not work without the sky.
+    for (let x = u; x < width - EDGE; x++) clear(x, SKY.lid);
+
     // --------------------------------------------------------- the vault tower
     // Eight tiles of blank face with nothing opposite it, so the only way up is
     // to kick off it and drift back onto it. Its top is the two-row pocket
@@ -242,10 +266,15 @@ const Mainscreen = (() => {
         put(width - 1 - e, y, T.GROUND);
       }
     }
+    // Floor and lid. The lid is what makes this a box rather than a well.
     for (let x = 0; x < width; x++) {
-      for (let e = 0; e < EDGE; e++) put(x, height - 1 - e, T.GROUND);
+      for (let e = 0; e < EDGE; e++) {
+        put(x, e, T.GROUND);
+        put(x, height - 1 - e, T.GROUND);
+      }
     }
 
+    const roofLine = EDGE + HEADROOM;
     const floorLine = height - EDGE - CORRIDOR;
 
     // Rock first, one-way bars second, whatever order the page listed them in.
@@ -257,7 +286,7 @@ const Mainscreen = (() => {
 
     solids.forEach((box) => {
       const x0 = tileOf(box.rect.left);
-      const y0 = Math.max(0, tileOf(box.rect.top));
+      const y0 = Math.max(roofLine, tileOf(box.rect.top));
       const x1 = Math.max(x0 + 1, tileOf(box.rect.right));
       const y1 = Math.min(floorLine, Math.max(y0 + 1, tileOf(box.rect.bottom)));
       const tile = box.platform ? T.PLATFORM : T.GROUND;
@@ -341,5 +370,8 @@ const Mainscreen = (() => {
     return skyFits(Math.ceil(viewW / TILE), Math.ceil(viewH / TILE), cardsRight);
   }
 
-  return { TILE, EDGE, CORRIDOR, SKY, skyRoom, tileOf, boxesFrom, doorFrom, build, fromPage };
+  return {
+    TILE, EDGE, HEADROOM, CORRIDOR, SKY,
+    skyRoom, tileOf, boxesFrom, doorFrom, build, fromPage,
+  };
 })();

@@ -148,12 +148,14 @@ button {
    than its width — a wide, short laptop screen was being given a wide screen's
    generous top margin and then losing the bottom of the menu for it.
 
-   The floor never gives up more than this. Mainscreen keeps three tiles clear
-   above the floor so the corridor to the door always runs the width of the
-   window, and cards are cut off there; a bottom margin shorter than those
-   sixty pixels would draw a card down into ground it does not own. */
+   Neither margin goes below three tiles, and both have a reason on the other
+   side of the glass. Mainscreen keeps three rows clear above the floor, so the
+   corridor to the door runs the width of the window at any size, and three rows
+   under the lid, so there is room to stand on the topmost card instead of being
+   wedged against the ceiling. Cards are cut off at both lines — so a margin
+   shorter than those sixty pixels draws a card into ground it does not own. */
 .stage {
-  padding: clamp(22px, 4vh, 76px) clamp(22px, 7vw, 96px) clamp(64px, 8vh, 110px);
+  padding: clamp(48px, 4vh, 76px) clamp(22px, 7vw, 96px) clamp(64px, 8vh, 110px);
 }
 
 .screen {
@@ -337,8 +339,10 @@ button {
 
 /* A short window spends its spacing before it spends any of the menu. */
 @media (max-height: 720px) {
+  /* Both floors stand: three tiles of clearance at each end, whatever else the
+     window has to give up. */
   .stage {
-    padding-top: 20px;
+    padding-top: 48px;
     padding-bottom: 64px;
   }
 
