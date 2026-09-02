@@ -1327,38 +1327,37 @@ const Level = (() => {
     return kinds[(h >>> 12) % kinds.length];
   }
 
-  // A wall torch, three across and six down: a flame over an iron bracket
-  // pinned to the rock above it. The two flame rows are given separately so the
-  // tip can be swapped between gold and amber as it burns.
-  const TORCH_IRON = "#2c3340";
-  const TORCH_IRON_DARK = "#1a1e26";
-  const TORCH_FLAME = "#ff9100";
-  const TORCH_CORE = "#ffd600";
-
-  const TORCH_BODY = [
-    { x: 1, y: 3, c: TORCH_IRON },
-    { x: 0, y: 4, c: TORCH_IRON }, { x: 1, y: 4, c: TORCH_IRON }, { x: 2, y: 4, c: TORCH_IRON },
-    { x: 1, y: 5, c: TORCH_IRON_DARK },
-  ];
-
-  // Two frames of flame. Swapping between them is the whole of the flicker —
-  // a torch that never moves reads as a painted-on decal.
-  const TORCH_FLAMES = [
-    [
-      { x: 1, y: 0, c: TORCH_CORE },
-      { x: 0, y: 1, c: TORCH_FLAME }, { x: 1, y: 1, c: TORCH_CORE }, { x: 2, y: 1, c: TORCH_FLAME },
-      { x: 1, y: 2, c: TORCH_FLAME },
-    ],
-    [
-      { x: 1, y: 0, c: TORCH_FLAME },
-      { x: 0, y: 1, c: TORCH_FLAME }, { x: 1, y: 1, c: TORCH_CORE }, { x: 2, y: 1, c: TORCH_CORE },
-      { x: 1, y: 2, c: TORCH_FLAME }, { x: 2, y: 2, c: TORCH_FLAME },
-    ],
-  ];
-
-  const TORCH_W = 3;
-  const TORCH_H = 6;
+  // A wall torch: two across and eight down, a flame sitting on a wooden stick
+  // that darkens toward its base. Whole frames rather than a body and a flame
+  // drawn separately, because the two frames differ only in which side of the
+  // flame is the bright one — the flicker is a shimmer across it, not a shape
+  // that changes.
+  const TORCH_W = 2;
+  const TORCH_H = 8;
   const TORCH_REACH = 2.5; // tiles of glow around each one
+
+  const TORCH_FRAMES = [
+    [
+      { x: 0, y: 0, c: "#ffee58" }, { x: 1, y: 0, c: "#ff9800" },
+      { x: 0, y: 1, c: "#ff5722" }, { x: 1, y: 1, c: "#d50000" },
+      { x: 0, y: 2, c: "#6d4c41" }, { x: 1, y: 2, c: "#4e342e" },
+      { x: 0, y: 3, c: "#5d4037" }, { x: 1, y: 3, c: "#3e2723" },
+      { x: 0, y: 4, c: "#5d4037" }, { x: 1, y: 4, c: "#3e2723" },
+      { x: 0, y: 5, c: "#4e342e" }, { x: 1, y: 5, c: "#3e2723" },
+      { x: 0, y: 6, c: "#3e2723" }, { x: 1, y: 6, c: "#271810" },
+      { x: 0, y: 7, c: "#271810" }, { x: 1, y: 7, c: "#1b1008" },
+    ],
+    [
+      { x: 0, y: 0, c: "#ff9800" }, { x: 1, y: 0, c: "#ffee58" },
+      { x: 0, y: 1, c: "#d50000" }, { x: 1, y: 1, c: "#ff5722" },
+      { x: 0, y: 2, c: "#6d4c41" }, { x: 1, y: 2, c: "#4e342e" },
+      { x: 0, y: 3, c: "#5d4037" }, { x: 1, y: 3, c: "#3e2723" },
+      { x: 0, y: 4, c: "#5d4037" }, { x: 1, y: 4, c: "#3e2723" },
+      { x: 0, y: 5, c: "#4e342e" }, { x: 1, y: 5, c: "#3e2723" },
+      { x: 0, y: 6, c: "#3e2723" }, { x: 1, y: 6, c: "#271810" },
+      { x: 0, y: 7, c: "#271810" }, { x: 1, y: 7, c: "#1b1008" },
+    ],
+  ];
 
   // Draws the slice of the level the camera can see. Shared by every view, so
   // the world looks the same however it is being looked at.
@@ -1484,15 +1483,16 @@ const Level = (() => {
         if (t.y < view.y0 - 1 || t.y > view.y1 + 1) continue;
 
         const beat = now * 7 + t.x * 1.7 + t.y * 2.3;
-        const flame = TORCH_FLAMES[Math.sin(beat) > 0 ? 0 : 1];
-        const ox = t.x * tilePx + Math.round((tilePx - TORCH_W * dot) / 2);
-        const oy = t.y * tilePx + Math.round((tilePx - TORCH_H * dot) / 2);
+        const frame = TORCH_FRAMES[Math.sin(beat) > 0 ? 0 : 1];
 
-        for (const cell of TORCH_BODY) {
-          ctx.fillStyle = cell.c;
-          ctx.fillRect(ox + cell.x * dot, oy + cell.y * dot, dot, dot);
-        }
-        for (const cell of flame) {
+        // Hung from the top of its tile rather than centred in it. The rock
+        // this is fixed to is the tile directly above, so the flame belongs
+        // just under that and the stick hangs down from it — centred, the
+        // torch floats in the middle of the passage attached to nothing.
+        const ox = t.x * tilePx + Math.round((tilePx - TORCH_W * dot) / 2);
+        const oy = t.y * tilePx + dot;
+
+        for (const cell of frame) {
           ctx.fillStyle = cell.c;
           ctx.fillRect(ox + cell.x * dot, oy + cell.y * dot, dot, dot);
         }
