@@ -1702,6 +1702,23 @@
     if (!taught) startTutorial();
   }
 
+  // Kept on the device, so a cave does not need a connection to be carved. The
+  // worker only ever answers for files this origin serves — every Supabase call
+  // still goes out and, offline, still fails the way the code already expects.
+  //
+  // Deferred to load, because registering competes with the very files it is
+  // registering to cache, and the first visit is the one that has to fetch all
+  // of them anyway.
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("./sw.js").catch(() => {
+        // Opened from a file:// path, served without HTTPS, or refused by the
+        // browser's settings. The game plays exactly as it did before — online,
+        // and from the network every time.
+      });
+    });
+  }
+
   // The menu waits for the gate. Booting behind the login card would roll a seed
   // and start the loop for someone who is not signed in yet.
   const gate = document.querySelector(".app");

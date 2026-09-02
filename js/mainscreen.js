@@ -1,18 +1,22 @@
 // mainscreen.js — the menu, read as a level you can stand on
 
 const Mainscreen = (() => {
-  // The menu runner is the game runner, so the menu's tile is the game's tile:
-  // the same formula and the same clamp, which is about fourteen rows of world
-  // on the screen. Everything the body is measured in is tiles — 1.6 of them
-  // tall, nine of them a second at a run — so matching the tile is the only way
-  // to match the size. At twenty pixels the menu character stood a third the
-  // height of the one in the caves.
+  // Everything a body is measured in is tiles — 1.6 of them tall, nine of them
+  // a second at a run — so the tile is the character's size, and at twenty
+  // pixels the menu runner stood a third the height of the one in the caves.
   //
-  // It is a function of the window rather than a constant because the game's is
-  // too, and a level built at one tile size and drawn at another is a level
-  // where nothing is where it looks.
+  // Thirty-two is where the three things this number decides stop fighting.
+  // The runner is about fifty pixels, which reads as a character rather than a
+  // token. A card edge snaps to within half a tile of where it is drawn, and
+  // half of thirty-two is a margin you have to look for. And the menu stays
+  // deep enough in rows for the sky gauntlet to have somewhere to be — at the
+  // game's own tile the whole page was eighteen rows and the gauntlet wants
+  // thirty, so it simply had nowhere to fit.
+  //
+  // A function of the window rather than a constant, because a small window
+  // should not be a menu three rows tall.
   function tileFor(viewH) {
-    return Math.max(26, Math.min(52, Math.round(viewH / 14)));
+    return Math.max(24, Math.min(32, Math.round(viewH / 28)));
   }
 
   // A closed box: walls down both sides, a floor along the bottom, a lid across

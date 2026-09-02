@@ -325,21 +325,42 @@
 
   // ---------------------------------------------------------------- restore
 
+  // A request that never arrived is not the server saying no. fetch rejects
+  // with a TypeError when it cannot reach anything at all, where a refusal
+  // comes back as a response and is thrown out of readResponse — so the two are
+  // told apart by which of them threw, rather than by reading the message.
+  function unreachable(error) {
+    return error instanceof TypeError || navigator.onLine === false;
+  }
+
   async function restore() {
     const session = loadSession();
     if (!session || !session.access_token) return lock();
 
     try {
-      const user = await getUser(session.access_token);
-      unlock(user);
-    } catch (e) {
+      unlock(await getUser(session.access_token));
+    } catch (first) {
       try {
+        // No point asking twice when the first ask never left the building.
+        if (unreachable(first)) throw first;
         const next = stamp(await refresh(session.refresh_token));
         saveSession(next);
         unlock(next.user || (await getUser(next.access_token)));
-      } catch (e2) {
-        clearSession();
-        return lock();
+      } catch (second) {
+        if (!unreachable(second)) {
+          clearSession();
+          return lock();
+        }
+
+        // Offline. The session already on this device is the only evidence
+        // there is, so it is taken: the game is entirely local once it has
+        // loaded, and an installed app that shows a login screen whenever the
+        // wifi is down is not an offline game. It is not the last word either
+        // — the heartbeat below is still running, and the first tick that
+        // reaches the server signs this tab out if the account has moved on.
+        // Everything the cloud is actually for keeps failing meanwhile, which
+        // the code that calls it already expects.
+        unlock(session.user || null);
       }
     }
 
