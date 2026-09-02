@@ -1028,6 +1028,33 @@
   document.querySelector('[data-action="tutorial"]').addEventListener("click", startTutorial);
   document.querySelector('[data-action="quit"]').addEventListener("click", quitGame);
 
+  // Keys that move the page, and must not. The stylesheet takes the scrollbars
+  // away, which is most of the job; this is the rest of it, because a browser
+  // with nothing to scroll still answers these by walking the focus ring down
+  // the page and dragging the view with it.
+  //
+  // input.js already swallows the arrows and space — but only when the key
+  // reaches the page. A button that has been tabbed to is a UI target, so
+  // input.js hands the press back to the browser, and the runner's own jump and
+  // camera keys scroll the menu out from under him. Caught here on the way
+  // down, before anything focused gets a say.
+  const SCROLLS_PAGE = [
+    "Space", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight",
+    "PageUp", "PageDown", "Home", "End",
+  ];
+
+  document.addEventListener("keydown", (event) => {
+    if (SCROLLS_PAGE.indexOf(event.code) < 0 || typing()) return;
+
+    // Space on a focused button is that button being pressed, and a menu that
+    // can only be worked with a mouse is a worse menu than one that scrolls.
+    // Nothing else in this list activates anything, so nothing else is spared.
+    const focused = document.activeElement;
+    if (event.code === "Space" && focused && focused.tagName === "BUTTON") return;
+
+    event.preventDefault();
+  }, true);
+
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && phase !== "menu") quitGame();
 

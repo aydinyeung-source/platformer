@@ -73,8 +73,27 @@
   box-sizing: border-box;
 }
 
+/* The window is the level, so the window does not scroll.
+
+   The menu's collision is read off the page with getBoundingClientRect, which
+   answers in viewport coordinates, and the canvas the runner is drawn on is
+   fixed to the viewport as well. Scroll the page and the cards slide out from
+   under the ground that was measured for them: the runner stands on air a
+   little above a card, or sinks into one, and every jump is measured against a
+   floor that is no longer where it was. Nothing else in the file matters as
+   much as these two lines. */
+html {
+  height: 100%;
+  overflow: hidden;
+}
+
 body {
-  min-height: 100vh;
+  height: 100%;
+  overflow: hidden;
+  /* Trackpads rubber-band and phones pull to refresh even where there is
+     nothing to scroll, and both drag the fixed canvas out of line while they
+     do it. */
+  overscroll-behavior: none;
   background: var(--paper);
   color: var(--ink);
   font-family: var(--mono);
@@ -124,8 +143,17 @@ button {
 
 /* ------------------------------------------------------------------- screens */
 
+/* Nothing scrolls now, so the margins are the first thing a short window gets
+   to spend. The top and bottom are measured against the window's height rather
+   than its width — a wide, short laptop screen was being given a wide screen's
+   generous top margin and then losing the bottom of the menu for it.
+
+   The floor never gives up more than this. Mainscreen keeps three tiles clear
+   above the floor so the corridor to the door always runs the width of the
+   window, and cards are cut off there; a bottom margin shorter than those
+   sixty pixels would draw a card down into ground it does not own. */
 .stage {
-  padding: clamp(32px, 6vw, 76px) clamp(22px, 7vw, 96px) clamp(56px, 10vw, 110px);
+  padding: clamp(22px, 4vh, 76px) clamp(22px, 7vw, 96px) clamp(64px, 8vh, 110px);
 }
 
 .screen {
@@ -242,6 +270,9 @@ button {
    the card is continuous to look at and continuous to stand on.               */
 
 .panel {
+  /* One number for the whole card's rhythm, so a short window can tighten it
+     in one place instead of restating every rule that spends it. */
+  --panel-gap: 18px;
   margin-top: 28px;
   padding: 22px 24px 20px;
   background: var(--paper-raised);
@@ -252,8 +283,8 @@ button {
 
 /* Never above the first section: a rule there would read as a lid on the card. */
 .panel__section + .panel__section {
-  margin-top: 18px;
-  padding-top: 18px;
+  margin-top: var(--panel-gap);
+  padding-top: var(--panel-gap);
   border-top: 1px solid var(--rule);
 }
 
@@ -271,6 +302,59 @@ button {
   font-size: 11px;
   letter-spacing: 0.04em;
   color: var(--ink-muted);
+}
+
+/* The key list beside the rest of the card rather than under it. Stacked, the
+   menu came to about 880 pixels and a laptop has 660 to give it — and with the
+   page locked, anything past the bottom of the window is not scrolled to, it is
+   gone. Side by side the whole menu lands inside 560, which every window has.
+
+   It is also the better shape to play on: a broad, low card is a plateau to run
+   the length of, where the tall one was a face to climb one kick at a time. */
+@media (min-width: 720px) {
+  .panel {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 320px);
+  }
+
+  .panel__section {
+    grid-column: 1;
+    padding-right: 28px;
+  }
+
+  /* Spanning all three rows on the right, divided by a line down the card
+     rather than across it. Written with both classes so it outranks the
+     sibling rule above, which is what puts the rule back on top of it. */
+  .panel__section.panel__section--keys {
+    grid-column: 2;
+    grid-row: 1 / span 3;
+    margin-top: 0;
+    padding: 0 0 0 28px;
+    border-top: 0;
+    border-left: 1px solid var(--rule);
+  }
+}
+
+/* A short window spends its spacing before it spends any of the menu. */
+@media (max-height: 720px) {
+  .stage {
+    padding-top: 20px;
+    padding-bottom: 64px;
+  }
+
+  .panel {
+    --panel-gap: 13px;
+  }
+
+  .title {
+    font-size: 24px;
+  }
+
+  .controls {
+    margin-top: 13px;
+    padding-top: 13px;
+    gap: 8px 22px;
+  }
 }
 
 .seed__input {
@@ -555,11 +639,14 @@ button {
 
 /* --------------------------------------------------------------------- auth */
 
+/* The page cannot scroll any more, so the gate has to carry its own: this is
+   the one screen that has to stay reachable on a window too small for it. */
 .auth {
   display: grid;
   place-items: center;
-  min-height: 100vh;
+  height: 100%;
   padding: 24px;
+  overflow-y: auto;
 }
 
 .auth[hidden],
@@ -750,10 +837,17 @@ button {
   margin-top: 18px;
 }
 
+/* Ten finished runs is more rows than a short window has room for, and with the
+   page locked a row past the bottom of it is not scrolled to, it is lost. The
+   list keeps its own scroll instead — contained, so reaching its end does not
+   hand the gesture on to the page behind it. */
 .runs {
+  max-height: 46vh;
   margin-top: 22px;
   border-top: 1px solid var(--rule);
   list-style: none;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .run {
