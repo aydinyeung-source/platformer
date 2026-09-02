@@ -1351,23 +1351,41 @@
   // only find by walking into it, which is the one thing a wall must never be.
   // These are exactly those tiles, painted at last.
   //
-  // Slate rather than the menu's paper, because they are not another card. They
-  // are the room the cards are standing in.
-  const PILLAR = {
-    highlight: "#3b4556",
-    slate: "#252c38",
-    shadow: "#161a22",
-    groove: "#11141a",
+  // Polished white marble, lit from the left. Five tones and each has a job:
+  // the lit edge, the face the light lands on flat, the turn away from it, the
+  // cut of a groove, and the one line dark enough to be an edge.
+  //
+  // That last one earns its place twice over. Everything else here is lighter
+  // than the menu's paper, so on a pale page the outline is the only tone that
+  // can say where marble stops and the room behind it starts — without it the
+  // pillars dissolve into the background they are supposed to be framing.
+  const MARBLE = {
+    light: "#ffffff",
+    face: "#f4f7f5",
+    shade: "#dde5e1",
+    groove: "#c5d1cc",
+    outline: "#8a9992",
   };
 
-  // Eight bands across the width of a shaft: the lit edge, stone, a cut groove,
-  // stone, a second groove, stone, the turn into shadow, and the dark side.
-  // Fluting is the whole difference between a column and a bar — one of these
-  // has a round side and a shaded one, and the other is a rectangle.
+  // Eight bands across the width of a shaft: the lit edge, the face, a cut
+  // groove, face again, a second groove, face, the turn into shade, and the
+  // dark side. Fluting is the whole difference between a column and a bar —
+  // one of these has a round side and a shaded one, and the other is a
+  // rectangle.
   const FLUTING = [
-    PILLAR.highlight, PILLAR.slate, PILLAR.groove, PILLAR.slate,
-    PILLAR.groove, PILLAR.slate, PILLAR.shadow, PILLAR.groove,
+    MARBLE.light, MARBLE.face, MARBLE.groove, MARBLE.face,
+    MARBLE.groove, MARBLE.face, MARBLE.shade, MARBLE.outline,
   ];
+
+  // The right-hand pillar takes the same bands the other way round, so both are
+  // lit from the middle of the room and shaded towards the walls. Running them
+  // both the same way is the physically honest thing for a single light source
+  // and it looks wrong here for a reason worth writing down: a pillar's outer
+  // edge is the edge of the window, where there is nothing to stand out
+  // against, and its inner edge is the only one the page can see. Unmirrored,
+  // the dark band lands on the window edge at both ends and the right-hand
+  // pillar has no edge at all — it fades into the paper it is meant to frame.
+  const FLUTING_MIRROR = FLUTING.slice().reverse();
 
   // Whole pixels, and never less than one. A moulding worked out as a fraction
   // of a small tile rounds away to nothing, and a column with no capital is a
@@ -1380,35 +1398,105 @@
   // The eight bands, with their edges rounded to whole pixels and worked out
   // from the tile rather than from each other, so they always add up to exactly
   // one tile and the grooves stay hard lines instead of smearing over two.
-  function flutedShaft(ctx, x, y, T, h) {
-    for (let i = 0; i < FLUTING.length; i++) {
-      const x0 = Math.round((i * T) / FLUTING.length);
-      const x1 = Math.round(((i + 1) * T) / FLUTING.length);
+  function flutedShaft(ctx, x, y, T, h, bands) {
+    const ink = bands || FLUTING;
+    for (let i = 0; i < ink.length; i++) {
+      const x0 = Math.round((i * T) / ink.length);
+      const x1 = Math.round(((i + 1) * T) / ink.length);
       if (x1 <= x0) continue;
-      ctx.fillStyle = FLUTING[i];
+      ctx.fillStyle = ink[i];
       ctx.fillRect(x + x0, y, x1 - x0, h);
     }
   }
 
-  // The slab a column carries the ceiling on: flutes running up into a collar,
-  // lit along its top edge where the cornice rests on it and cut away beneath.
-  function pillarCapital(ctx, x, y, T) {
-    const slab = Math.max(2, Math.round(T * 0.42));
-    flutedShaft(ctx, x, y + slab, T, T - slab);
-    band(ctx, x, y, T, slab, PILLAR.slate);
-    band(ctx, x, y, T, 1, PILLAR.highlight);
-    band(ctx, x, y + slab - 1, T, 1, PILLAR.groove);
+  // One volute: the scroll at the corner of an Ionic capital, seen end on, so
+  // it is a disc with a spiral wound into it. At a dozen pixels across there is
+  // no room to wind anything — what reads at this size is a round edge, an eye
+  // in the middle of it, and light on the upper left. The half pixel is what
+  // keeps a one pixel stroke on one pixel instead of straddling two.
+  function volute(ctx, cx, cy, r) {
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.fillStyle = MARBLE.face;
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.arc(cx + 0.5, cy + 0.5, r - 0.5, 0, Math.PI * 2);
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = MARBLE.outline;
+    ctx.stroke();
+
+    // The lit quarter, over the top left of the roll.
+    ctx.beginPath();
+    ctx.arc(cx + 0.5, cy + 0.5, r - 1.5, Math.PI, Math.PI * 1.5);
+    ctx.strokeStyle = MARBLE.light;
+    ctx.stroke();
+
+    // The eye, and one turn of the spiral coming off it.
+    ctx.beginPath();
+    ctx.arc(cx, cy, Math.max(1, r * 0.34), 0, Math.PI * 2);
+    ctx.fillStyle = MARBLE.shade;
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.arc(cx + 0.5, cy + 0.5, Math.max(1.5, r * 0.62), Math.PI * 0.35, Math.PI * 1.85);
+    ctx.strokeStyle = MARBLE.groove;
+    ctx.stroke();
   }
 
-  // And the one it stands on: flutes running down into a plinth, with the
-  // footer under it in shadow so the column has weight on the floor.
-  function pillarBase(ctx, x, y, T) {
-    const plinth = Math.max(3, Math.round(T * 0.4));
-    const footer = Math.max(1, Math.round(plinth * 0.35));
-    flutedShaft(ctx, x, y, T, T - plinth);
-    band(ctx, x, y + T - plinth, T, plinth, PILLAR.slate);
-    band(ctx, x, y + T - plinth, T, 1, PILLAR.highlight);
-    band(ctx, x, y + T - footer, T, footer, PILLAR.shadow);
+  // The capital, Ionic: a flat abacus on top, a pair of volutes scrolled out to
+  // the corners under it, and the neck where the flutes start. It is the one
+  // part of a column nobody mistakes for anything else, which is why it is
+  // worth the arcs — everything else in this room is rectangles.
+  function pillarCapital(ctx, x, y, T, bands) {
+    const abacus = Math.max(3, Math.round(T * 0.17));
+    const scroll = Math.max(6, Math.round(T * 0.4));
+    const neck = Math.max(2, Math.round(T * 0.1));
+    const shaftTop = y + abacus + scroll + neck;
+
+    // Flutes first, from the neck down, so everything above overpaints them.
+    if (shaftTop < y + T) flutedShaft(ctx, x, shaftTop, T, y + T - shaftTop, bands);
+
+    // The cushion between the two scrolls, so they read as one carved block
+    // rather than two beads stuck to a post.
+    band(ctx, x, y + abacus, T, scroll, MARBLE.face);
+    band(ctx, x, y + abacus + scroll - 1, T, 1, MARBLE.groove);
+
+    const r = scroll / 2;
+    volute(ctx, x + r, y + abacus + r, r);
+    volute(ctx, x + T - r, y + abacus + r, r);
+
+    // The abacus: the slab the cornice actually sits on. Drawn last of the
+    // three so the scrolls tuck under it.
+    band(ctx, x, y, T, abacus, MARBLE.face);
+    band(ctx, x, y, T, 1, MARBLE.light);
+    band(ctx, x, y + abacus - 1, T, 1, MARBLE.outline);
+
+    // The neck, under the scrolls and above the flutes.
+    band(ctx, x, y + abacus + scroll, T, neck, MARBLE.face);
+    band(ctx, x, y + abacus + scroll + neck - 1, T, 1, MARBLE.groove);
+  }
+
+  // And the base it stands on: flutes running down into a torus — the fat
+  // convex roll every Roman column has at its foot — and a square plinth under
+  // that. The roll is lit across its crown and turns to shade underneath, which
+  // is the whole of what makes it read as round rather than as another band.
+  function pillarBase(ctx, x, y, T, bands) {
+    const plinth = Math.max(3, Math.round(T * 0.3));
+    const torus = Math.max(3, Math.round(T * 0.26));
+    const top = y + T - plinth - torus;
+
+    flutedShaft(ctx, x, y, T, top - y, bands);
+
+    band(ctx, x, top, T, torus, MARBLE.face);
+    band(ctx, x, top, T, 1, MARBLE.groove);
+    band(ctx, x, top + 1, T, Math.max(1, Math.round(torus * 0.35)), MARBLE.light);
+    band(ctx, x, top + torus - Math.max(1, Math.round(torus * 0.3)), T,
+      Math.max(1, Math.round(torus * 0.3)), MARBLE.shade);
+
+    band(ctx, x, y + T - plinth, T, plinth, MARBLE.face);
+    band(ctx, x, y + T - plinth, T, 1, MARBLE.light);
+    band(ctx, x, y + T - 1, T, 1, MARBLE.outline);
   }
 
   // The lid, drawn only where the lid is actually there. Across an ordinary
@@ -1426,12 +1514,15 @@
       if (start < 0) return;
       const x = start * T;
       const w = (end - start + 1) * T;
-      band(ctx, x, 0, w, T, PILLAR.slate);
-      band(ctx, x, Math.round(T * 0.44), w, 1, PILLAR.groove);
-      band(ctx, x, Math.round(T * 0.68), w, T - Math.round(T * 0.68) - 1, PILLAR.shadow);
-      // The lit underside. One pixel, and the only line in the room that says
-      // where the ceiling stops and the air begins.
-      band(ctx, x, T - 1, w, 1, PILLAR.highlight);
+      band(ctx, x, 0, w, T, MARBLE.face);
+      band(ctx, x, 0, w, 1, MARBLE.light);
+      band(ctx, x, Math.round(T * 0.44), w, 1, MARBLE.groove);
+      band(ctx, x, Math.round(T * 0.68), w, T - Math.round(T * 0.68) - 1, MARBLE.shade);
+      // One pixel, and the only line in the room that says where the ceiling
+      // stops and the air begins. In slate it was the lit edge; in marble it
+      // has to be the dark one, because every other tone up here is brighter
+      // than the page and a white line on pale paper draws nothing at all.
+      band(ctx, x, T - 1, w, 1, MARBLE.outline);
       start = -1;
     };
 
@@ -1450,15 +1541,32 @@
 
     drawCornice(ctx, T, cols);
 
+    // The floor, between the two pillars and along the bottom row. It is the
+    // row the carver has always laid as solid ground and the row the runner
+    // spawns standing on — so this draws no new surface, it draws the one that
+    // was already underfoot and unpainted. Cards can never reach it: they are
+    // cut off three rows higher so the corridor to the door stays open.
+    const floorY = (rows - 1) * T;
+    const inner = (cols - 2) * T;
+    band(ctx, T, floorY, inner, T, MARBLE.face);
+    // The polished top surface, and directly under it the line that separates
+    // it from the air. White alone is the right colour for a lit floor and the
+    // wrong one for an edge on a pale page, so it gets both.
+    band(ctx, T, floorY, inner, 1, MARBLE.light);
+    band(ctx, T, floorY + 1, inner, 1, MARBLE.groove);
+    band(ctx, T, floorY + Math.round(T * 0.55), inner, T - Math.round(T * 0.55), MARBLE.shade);
+
     // Both walls run the full height of the level and always have: the carver
     // fills them for every row, and the gauntlet's own clearing refuses to cut
     // anything outside the edge columns. So a pillar needs no checking — it is
-    // a capital under the cornice, a plinth on the floor, and shaft between.
+    // a capital under the cornice, a base on the floor, and shaft between.
+    // Drawn after the floor so the bases sit on top of it rather than in it.
     for (const col of [0, cols - 1]) {
       const x = col * T;
-      pillarCapital(ctx, x, T, T);
-      for (let row = 2; row < rows - 1; row++) flutedShaft(ctx, x, row * T, T, T);
-      pillarBase(ctx, x, (rows - 1) * T, T);
+      const bands = col === 0 ? FLUTING : FLUTING_MIRROR;
+      pillarCapital(ctx, x, T, T, bands);
+      for (let row = 2; row < rows - 1; row++) flutedShaft(ctx, x, row * T, T, T, bands);
+      pillarBase(ctx, x, (rows - 1) * T, T, bands);
     }
   }
 
