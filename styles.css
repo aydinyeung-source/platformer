@@ -41,14 +41,19 @@
   --haze-far: #0a0c0e;
   --haze-near: #12151b;
 
-  /* Rock gets darker the deeper it is dug. Three bands, each a lit face and a
-     shaded one, so a shaft looks like it is going somewhere. */
-  --rock-high: #2e3542;
-  --rock-high-deep: #252b36;
-  --rock-mid: #222834;
-  --rock-mid-deep: #1a1f29;
-  --rock-deep: #181d26;
-  --rock-deep-deep: #12151c;
+  /* Rock darkens the deeper it is dug, and it does it smoothly: two anchors
+     with every row between them mixed from the pair. Bands left visible seams
+     across the cave where one stopped and the next began, and the per-tile
+     checkerboard that used to sit on top of them read as tiling rather than as
+     stone. A gradient has neither problem. */
+  --rock-top: #3a4250;
+  --rock-bottom: #101319;
+
+  /* The air does the same. The dark behind the rock is not one dark: it is
+     lighter near the roof and nearly black at the mantle, which is what makes
+     depth legible before you have seen a single wall. */
+  --void-top: #171c24;
+  --void-bottom: #06080a;
 
   --rounded: "Nunito", "Segoe UI", system-ui, sans-serif;
   --mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;

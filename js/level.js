@@ -1265,22 +1265,33 @@ const Level = (() => {
   // Blocks are drawn as blocks: a body, a lit top face where open air touches
   // them, a seam between neighbours, and a per-tile shade that never changes for
   // a given seed. Flat silhouettes read as a wash; this reads as ground.
-  function shade(x, y) {
-    const h = (x * 73856093) ^ (y * 19349663);
-    return ((h >>> 3) & 7) < 3;
+  // Two colours and how far between them, as a hex string canvas will take.
+  // Depth is a continuum, so the rock that expresses it has to be one too:
+  // bands leave a seam across the cave at every boundary, and a per-tile
+  // checkerboard laid over them reads as tiling rather than as stone.
+  function mix(a, b, t) {
+    const u = t < 0 ? 0 : t > 1 ? 1 : t;
+    let out = "#";
+    for (let i = 1; i < 7; i += 2) {
+      const from = parseInt(a.substr(i, 2), 16);
+      const to = parseInt(b.substr(i, 2), 16);
+      out += Math.round(from + (to - from) * u).toString(16).padStart(2, "0");
+    }
+    return out;
   }
 
-  // How deep this rock is, as a pair of colours: the face the light catches and
-  // the face it does not. Shallow rock is slate, the middle is charcoal, and
-  // the bottom of the world is near black — so a shaft reads as going somewhere
-  // rather than as a hole in a flat wall.
-  const HIGH_BAND = 25;
-  const DEEP_BAND = 50;
+  // The rock at a given row. Worked out once per row rather than once per tile:
+  // a screen is a dozen rows and several thousand tiles, and the answer only
+  // ever depends on how deep the row is.
+  function rockRow(y, height, colours) {
+    return mix(colours.rockTop, colours.rockBottom, y / (height - 1));
+  }
 
-  function rockAt(y, colours) {
-    if (y < HIGH_BAND) return [colours.rockHigh, colours.rockHighDeep];
-    if (y < DEEP_BAND) return [colours.rockMid, colours.rockMidDeep];
-    return [colours.rockDeep, colours.rockDeepDeep];
+  // The same ramp, for anyone outside this file who needs to tint by depth —
+  // the background behind the rock has to agree with the rock, or the two read
+  // as different worlds.
+  function depthTint(y, height, top, bottom) {
+    return mix(top, bottom, y / (height - 1));
   }
 
   // Gemstones in the rock face, drawn pixel by pixel inside a six by six grid.
@@ -1329,8 +1340,10 @@ const Level = (() => {
   const GEM_ABYSS = 50; // below this, the mantle
   const GEM_MID_KINDS = [2, 1]; // citrine, amethyst
   const GEM_DEEP_KINDS = [0, 1]; // diamond, amethyst
-  const GEM_MID_RATE = 15; // per thousand tiles: 1.5%
-  const GEM_DEEP_RATE = 35; // 3.5%
+  // Per ten thousand tiles, so a third of a rate stays exact: 0.5% through the
+  // middle caverns and about 1.17% in the mantle.
+  const GEM_MID_RATE = 50;
+  const GEM_DEEP_RATE = 117;
 
   // Which gem this tile has, or -1 for the great majority that have none. Its
   // own hash, unrelated to the shading one, so the gems do not land in a
@@ -1341,7 +1354,7 @@ const Level = (() => {
 
     const h = Math.imul(x * 374761393 + y * 668265263, 1274126177) >>> 0;
     const deep = y >= GEM_ABYSS;
-    if (h % 1000 >= (deep ? GEM_DEEP_RATE : GEM_MID_RATE)) return -1;
+    if (h % 10000 >= (deep ? GEM_DEEP_RATE : GEM_MID_RATE)) return -1;
 
     const kinds = deep ? GEM_DEEP_KINDS : GEM_MID_KINDS;
     return kinds[(h >>> 12) % kinds.length];
@@ -1391,6 +1404,11 @@ const Level = (() => {
     const lip = Math.max(3, Math.round(tilePx * 0.22));
     const seam = tilePx >= 18;
 
+    // One colour per visible row, mixed before the tile loop rather than inside
+    // it.
+    const rockShade = [];
+    for (let y = view.y0; y <= view.y1; y++) rockShade[y] = rockRow(y, level.height, colours);
+
     ctx.save();
     ctx.translate(-camera.x, -camera.y);
 
@@ -1403,8 +1421,7 @@ const Level = (() => {
         const py = y * tilePx;
 
         if (tile === TILE.GROUND) {
-          const rock = rockAt(y, colours);
-          ctx.fillStyle = shade(x, y) ? rock[1] : rock[0];
+          ctx.fillStyle = rockShade[y];
           ctx.fillRect(px, py, tilePx + 0.5, tilePx + 0.5);
 
           // The gem, if this tile has one. Drawn before the seam and the lit
@@ -1543,6 +1560,7 @@ const Level = (() => {
     resolveMode,
     generate,
     createTutorial,
+    depthTint,
     at,
     surfaceAt,
     floorAt,

@@ -68,14 +68,12 @@
     hazeFar: token("--haze-far"),
     hazeNear: token("--haze-near"),
     rule: token("--rule"),
-    // Three depths of rock, each with a lit face and a shaded one. The gems in
-    // the rock carry their own colours: they are artwork, not theme.
-    rockHigh: token("--rock-high"),
-    rockHighDeep: token("--rock-high-deep"),
-    rockMid: token("--rock-mid"),
-    rockMidDeep: token("--rock-mid-deep"),
-    rockDeep: token("--rock-deep"),
-    rockDeepDeep: token("--rock-deep-deep"),
+    // The two ends of the depth ramp, for the rock and for the air behind it.
+    // The gems carry their own colours: they are artwork, not theme.
+    rockTop: token("--rock-top"),
+    rockBottom: token("--rock-bottom"),
+    voidTop: token("--void-top"),
+    voidBottom: token("--void-bottom"),
   };
 
   // The menu is paper and the cave is not, so anything painted on the canvas
@@ -598,7 +596,20 @@
     const ctx = gameCanvas.getContext("2d");
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-    ctx.fillStyle = world.paper;
+    // The air is not one dark. It is lighter near the roof and nearly black at
+    // the mantle, mixed across whatever slice of the world the camera is
+    // looking at — so the background says how deep you are before you have seen
+    // a wall, and looking up or down actually changes something.
+    if (level) {
+      const top = gameCamera.y / gameTile;
+      const bottom = (gameCamera.y + gameCamera.viewH) / gameTile;
+      const air = ctx.createLinearGradient(0, 0, 0, gameCamera.viewH);
+      air.addColorStop(0, Level.depthTint(top, level.height, world.voidTop, world.voidBottom));
+      air.addColorStop(1, Level.depthTint(bottom, level.height, world.voidTop, world.voidBottom));
+      ctx.fillStyle = air;
+    } else {
+      ctx.fillStyle = world.paper;
+    }
     ctx.fillRect(0, 0, gameCamera.viewW, gameCamera.viewH);
     if (!level || !session) return;
 
