@@ -606,7 +606,7 @@
 
     ctx.save();
     ctx.translate(0, gameOffsetY);
-    Level.render(ctx, level, gameCamera, gameTile, world);
+    Level.render(ctx, level, gameCamera, gameTile, world, performance.now() / 1000);
     drawMotes(ctx);
     drawRunner(ctx, session.player);
     ctx.restore();

@@ -758,6 +758,64 @@ const Level = (() => {
     put(goal.x, goal.y, TILE.DOOR);
     put(goal.x, goal.y - 1, TILE.DOOR);
 
+    // ---------------------------------------------------------------- torches
+    //
+    // Something to separate a passage from the void behind it. A cave lit only
+    // by the colour of its own rock is a cave where a tunnel and a hole in the
+    // world look identical, and the whole game is deciding which of those you
+    // are looking at.
+    //
+    // Placed last, against the finished rock, because a torch needs a ceiling
+    // to hang from and nothing knows where the ceilings are until the digging
+    // has stopped.
+    const torches = [];
+    const TORCH_GAP = 7; // never two closer than this, or they read as a string of lights
+
+    const canMount = (x, y) =>
+      peek(x, y) === TILE.EMPTY &&
+      peek(x, y - 1) === TILE.GROUND && // fixed to the rock overhead
+      peek(x, y + 1) !== TILE.LAVA;
+
+    // Somewhere near here with rock above it. Torches are wanted at particular
+    // places — a junction, a doorway — and the exact tile matters much less
+    // than being close to the thing it is lighting.
+    const mountTorch = (x, y) => {
+      for (let d = 0; d <= 4; d++) {
+        for (const s of d === 0 ? [1] : [-1, 1]) {
+          const cx = x + d * s;
+          for (let dy = 0; dy <= 4; dy++) {
+            const cy = y - dy;
+            if (!canMount(cx, cy)) continue;
+            if (torches.some((t) => Math.abs(t.x - cx) < TORCH_GAP && Math.abs(t.y - cy) < 5)) {
+              continue;
+            }
+            torches.push({ x: cx, y: cy });
+            return true;
+          }
+        }
+      }
+      return false;
+    };
+
+    // The two that are not decoration: one at the start so the first thing you
+    // see is lit, one at the door so the last thing you are looking for is.
+    mountTorch(spawn.x, spawn.y);
+    mountTorch(goal.x, goal.y);
+
+    // One at every junction, which is where the forks are and so where the
+    // decisions are.
+    for (const node of rooms) mountTorch(node.x, node.floorY - 1);
+
+    // And along the long runs, so a corridor has a rhythm to it rather than
+    // going dark between one junction and the next.
+    for (const place of places) {
+      if (place.type !== "corridor") continue;
+      if (place.x1 - place.x0 < 16) continue;
+      for (let x = place.x0 + 6; x <= place.x1 - 4; x += rng.int(16, 20)) {
+        mountTorch(x, place.floorY - 1);
+      }
+    }
+
     // A hard lid on the world. Rock is the boundary, so there is no lip to get
     // over and no empty air above it to end up standing in.
     for (let cx = 0; cx < width; cx++) put(cx, 0, TILE.GROUND);
@@ -780,10 +838,12 @@ const Level = (() => {
       goal,
       places,
       rooms,
+      torches,
       links: Array.from(linked, (k) => k.split("|").map(Number)),
       rules: RULES,
       tally: {
         ducts,
+        torches: torches.length,
         crawlways: crawls.filter((s) => s.head < HEADROOM).length,
         shallow,
         pools,
@@ -1267,9 +1327,46 @@ const Level = (() => {
     return kinds[(h >>> 12) % kinds.length];
   }
 
+  // A wall torch, three across and six down: a flame over an iron bracket
+  // pinned to the rock above it. The two flame rows are given separately so the
+  // tip can be swapped between gold and amber as it burns.
+  const TORCH_IRON = "#2c3340";
+  const TORCH_IRON_DARK = "#1a1e26";
+  const TORCH_FLAME = "#ff9100";
+  const TORCH_CORE = "#ffd600";
+
+  const TORCH_BODY = [
+    { x: 1, y: 3, c: TORCH_IRON },
+    { x: 0, y: 4, c: TORCH_IRON }, { x: 1, y: 4, c: TORCH_IRON }, { x: 2, y: 4, c: TORCH_IRON },
+    { x: 1, y: 5, c: TORCH_IRON_DARK },
+  ];
+
+  // Two frames of flame. Swapping between them is the whole of the flicker —
+  // a torch that never moves reads as a painted-on decal.
+  const TORCH_FLAMES = [
+    [
+      { x: 1, y: 0, c: TORCH_CORE },
+      { x: 0, y: 1, c: TORCH_FLAME }, { x: 1, y: 1, c: TORCH_CORE }, { x: 2, y: 1, c: TORCH_FLAME },
+      { x: 1, y: 2, c: TORCH_FLAME },
+    ],
+    [
+      { x: 1, y: 0, c: TORCH_FLAME },
+      { x: 0, y: 1, c: TORCH_FLAME }, { x: 1, y: 1, c: TORCH_CORE }, { x: 2, y: 1, c: TORCH_CORE },
+      { x: 1, y: 2, c: TORCH_FLAME }, { x: 2, y: 2, c: TORCH_FLAME },
+    ],
+  ];
+
+  const TORCH_W = 3;
+  const TORCH_H = 6;
+  const TORCH_REACH = 2.5; // tiles of glow around each one
+
   // Draws the slice of the level the camera can see. Shared by every view, so
   // the world looks the same however it is being looked at.
-  function render(ctx, level, camera, tilePx, colours) {
+  //
+  // `now` is seconds, and only the flames use it: everything else here is a
+  // function of the level alone, so a still frame of a given seed is the same
+  // picture every time whatever the clock says.
+  function render(ctx, level, camera, tilePx, colours, now = 0) {
     const view = Camera.visibleTiles(camera, tilePx, level.width, level.height);
     const cap = Math.max(2, Math.round(tilePx * 0.16));
     const lip = Math.max(3, Math.round(tilePx * 0.22));
@@ -1349,6 +1446,55 @@ const Level = (() => {
           }
         } else if (tile === TILE.DOOR) {
           if (at(level, x, y + 1) !== TILE.DOOR) drawDoor(ctx, px, py, tilePx, colours);
+        }
+      }
+    }
+
+    // ---------------------------------------------------------------- torches
+    //
+    // Light first, over the rock rather than under it: the point of a torch
+    // here is that the stone around it comes up out of the dark, and a glow
+    // painted underneath the tiles lights nothing at all.
+    if (level.torches) {
+      const dot = Math.max(1, Math.round(tilePx / 10));
+      const reach = TORCH_REACH * tilePx;
+
+      for (const t of level.torches) {
+        if (t.x < view.x0 - 3 || t.x > view.x1 + 3) continue;
+        if (t.y < view.y0 - 3 || t.y > view.y1 + 3) continue;
+
+        // Each flame keeps its own time, offset by where it is, so a corridor
+        // of them flickers raggedly instead of blinking in unison.
+        const beat = now * 7 + t.x * 1.7 + t.y * 2.3;
+        const lick = Math.sin(beat) * 0.5 + 0.5;
+
+        const cx = t.x * tilePx + tilePx / 2;
+        const cy = t.y * tilePx + tilePx / 2;
+
+        const glow = ctx.createRadialGradient(cx, cy, 0, cx, cy, reach);
+        glow.addColorStop(0, "rgba(255, 145, 0, " + (0.08 + lick * 0.03).toFixed(3) + ")");
+        glow.addColorStop(1, "rgba(255, 145, 0, 0)");
+        ctx.fillStyle = glow;
+        ctx.fillRect(cx - reach, cy - reach, reach * 2, reach * 2);
+      }
+
+      // Then the brackets, over their own light.
+      for (const t of level.torches) {
+        if (t.x < view.x0 - 1 || t.x > view.x1 + 1) continue;
+        if (t.y < view.y0 - 1 || t.y > view.y1 + 1) continue;
+
+        const beat = now * 7 + t.x * 1.7 + t.y * 2.3;
+        const flame = TORCH_FLAMES[Math.sin(beat) > 0 ? 0 : 1];
+        const ox = t.x * tilePx + Math.round((tilePx - TORCH_W * dot) / 2);
+        const oy = t.y * tilePx + Math.round((tilePx - TORCH_H * dot) / 2);
+
+        for (const cell of TORCH_BODY) {
+          ctx.fillStyle = cell.c;
+          ctx.fillRect(ox + cell.x * dot, oy + cell.y * dot, dot, dot);
+        }
+        for (const cell of flame) {
+          ctx.fillStyle = cell.c;
+          ctx.fillRect(ox + cell.x * dot, oy + cell.y * dot, dot, dot);
         }
       }
     }
