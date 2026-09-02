@@ -273,6 +273,7 @@ const Level = (() => {
       let segX = fromX;
       let segY = fromY;
       let segHead = head;
+      let tread = 0; // columns to hold the floor flat before the next step
       let stone = 0; // tiles of rock still to lay across a crossing
       let bridge = 0; // tiles of plank still to lay over a narrow one
       let gap = 0; // tiles of nothing still to leave
@@ -299,15 +300,27 @@ const Level = (() => {
         if (!low) {
           // Hold the line home: once only just enough columns remain to close
           // the gap a row at a time, stop wandering and converge.
-          if (left <= Math.abs(y - toY) + 2) {
+          const closing = left <= Math.abs(y - toY) + 2;
+          if (closing) {
             want = toY;
           } else if (i % 5 === 0) {
             const base = fromY + Math.round((toY - fromY) * (i / Math.max(1, span - 1)));
             want = clamp(base + rng.int(-wander, wander), CEIL_LIMIT, FLOOR_LIMIT);
           }
 
-          if (y < want) y++;
-          else if (y > want) y--;
+          // Terraces rather than a staircase. Stepping every column turns a
+          // change of height into a diagonal, which is the one shape rock never
+          // makes; holding the floor flat for a few columns between steps gives
+          // it landings, and a landing is somewhere to stand and look.
+          //
+          // Not while closing, though: converging needs a row a column, and a
+          // tunnel that terraces on the way home does not arrive.
+          if (tread > 0 && !closing) {
+            tread--;
+          } else if (y !== want) {
+            y += y < want ? 1 : -1;
+            tread = closing ? 0 : rng.int(2, 4);
+          }
         }
 
         if (y !== segY) {
@@ -475,7 +488,10 @@ const Level = (() => {
       } else {
         const above = a.r < b.r ? a : b;
         const below = a.r < b.r ? b : a;
-        shaft(above.x - 1, SHAFT_W, below.floorY, above.floorY);
+        // Two wide or three: a tight chimney is a faster climb, because the far
+        // wall is closer to kick to, and a wide one is a drop you can fall down
+        // without touching the sides.
+        shaft(above.x - 1, rng.chance(0.25) ? 2 : SHAFT_W, below.floorY, above.floorY);
       }
     }
 
@@ -695,19 +711,23 @@ const Level = (() => {
       //
       // Everywhere else the platforms are gone. This is the one place the
       // level's connectedness rests on them.
+      // A rung is two tiles in a three wide shaft and one in a two wide, so
+      // there is always a column left open beside it. A rung that spans the
+      // whole chimney is a floor, and a chimney floored every few rows is a
+      // ladder you cannot fall back down.
+      const rungW = w >= 3 ? 2 : 1;
       const anchored = (lx, y) =>
-        peek(lx - 1, y) === TILE.GROUND || peek(lx + 2, y) === TILE.GROUND;
+        peek(lx - 1, y) === TILE.GROUND || peek(lx + rungW, y) === TILE.GROUND;
       const chimney = w <= 3 &&
         peek(x - 1, Math.round((top + bottom) / 2)) === TILE.GROUND &&
         peek(x + w, Math.round((top + bottom) / 2)) === TILE.GROUND;
 
       let side = 0;
       const addRung = (y) => {
-        const turn = side ? x : x + w - 2;
-        const other = side ? x + w - 2 : x;
+        const turn = side ? x : x + w - rungW;
+        const other = side ? x + w - rungW : x;
         const lx = anchored(turn, y) || !anchored(other, y) ? turn : other;
-        put(lx, y, TILE.PLATFORM);
-        put(lx + 1, y, TILE.PLATFORM);
+        for (let i = 0; i < rungW; i++) put(lx + i, y, TILE.PLATFORM);
         side = side ? 0 : 1;
       };
 
@@ -1334,7 +1354,7 @@ const Level = (() => {
   // that changes.
   const TORCH_W = 2;
   const TORCH_H = 8;
-  const TORCH_REACH = 2.5; // tiles of glow around each one
+  const TORCH_REACH = 3.2; // tiles of glow around each one
 
   const TORCH_FRAMES = [
     [
@@ -1471,8 +1491,8 @@ const Level = (() => {
         const cy = t.y * tilePx + tilePx / 2;
 
         const glow = ctx.createRadialGradient(cx, cy, 0, cx, cy, reach);
-        glow.addColorStop(0, "rgba(255, 145, 0, " + (0.08 + lick * 0.03).toFixed(3) + ")");
-        glow.addColorStop(1, "rgba(255, 145, 0, 0)");
+        glow.addColorStop(0, "rgba(255, 175, 60, " + (0.22 + lick * 0.05).toFixed(3) + ")");
+        glow.addColorStop(1, "rgba(255, 175, 60, 0)");
         ctx.fillStyle = glow;
         ctx.fillRect(cx - reach, cy - reach, reach * 2, reach * 2);
       }

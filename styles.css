@@ -37,18 +37,18 @@
   /* The lit top edge of exposed rock. Barely lighter than the stone under it —
      a rim, not a highlight. Drawn in ink it made every block a white-topped
      brick and the cave a wall of masonry. */
-  --stone-rim: #2c3340;
+  --stone-rim: #3b4556;
   --haze-far: #0a0c0e;
   --haze-near: #12151b;
 
   /* Rock gets darker the deeper it is dug. Three bands, each a lit face and a
      shaded one, so a shaft looks like it is going somewhere. */
-  --rock-high: #232833;
-  --rock-high-deep: #1a1e26;
-  --rock-mid: #1a1e26;
-  --rock-mid-deep: #13161c;
-  --rock-deep: #0f1216;
-  --rock-deep-deep: #0b0d10;
+  --rock-high: #2e3542;
+  --rock-high-deep: #252b36;
+  --rock-mid: #222834;
+  --rock-mid-deep: #1a1f29;
+  --rock-deep: #181d26;
+  --rock-deep-deep: #12151c;
 
   --rounded: "Nunito", "Segoe UI", system-ui, sans-serif;
   --mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
