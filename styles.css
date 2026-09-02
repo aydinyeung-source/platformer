@@ -1,27 +1,44 @@
 /* styles.css — page layout, canvas sizing, UI overlays */
 
-/* Palette: "Fernstone sage" */
+/* Palette: "Fernstone sage", underground.
+   The world is a cave with a lid on it and no daylight anywhere in it, so the
+   page is the dark and the ink is the light. Everything below is one source of
+   truth: nothing paints with a colour that is not named here. */
 :root {
-  --paper: #e7ebe8;
-  --paper-raised: #f9fbfa;
-  --ink: #232b28;
-  --ink-soft: #4d5a56;
-  --ink-muted: #7f8c88;
-  --accent: #47705d;
-  --accent-light: #9cbbaa;
-  --rule: rgba(35, 43, 40, 0.13);
+  --paper: #111513; /* cave air, and the void behind everything */
+  --paper-raised: #1b221f;
+  --ink: #e2ebe6;
+  --ink-soft: #97ada2;
+  --ink-muted: #62756d;
+  --accent: #4e856c;
+  --accent-light: #89b8a2;
+  --rule: rgba(226, 235, 230, 0.12);
   /* The one warm colour in the palette, spent only on the runner and the
      arrow that finds them. Nothing else may use it. */
-  --alert: #c4632a;
+  --alert: #e0682b;
   /* Terrain. Blocks are drawn as real tiles with faces and seams, so they need
      their own weights rather than a wash of ink at low opacity. */
   --warn: #a4503c; /* the one red in the palette, for things that went wrong */
-  --lava: #d9793a;
-  --lava-top: #eaa864;
-  --stone: #c2cac5;
-  --stone-deep: #bac2bd;
-  --haze-far: #dde2df;
-  --haze-near: #d2d9d5;
+  --lava: #ea6824;
+  --lava-top: #ffa647;
+  --stone: #2c3833;
+  --stone-deep: #202a26;
+  --haze-far: #151b18;
+  --haze-near: #1c2420;
+
+  /* Rock gets darker the deeper it is dug. Three bands, each a lit face and a
+     shaded one, so a shaft looks like it is going somewhere. */
+  --rock-high: #34423c;
+  --rock-high-deep: #2c3833;
+  --rock-mid: #25302b;
+  --rock-mid-deep: #1c2420;
+  --rock-deep: #161d1a;
+  --rock-deep-deep: #101412;
+
+  /* Rare specks in the rock face. Two percent of tiles, so they read as
+     mineral rather than as texture. */
+  --fleck-amber: #c98a3a;
+  --fleck-bone: #b9c4bb;
 
   --rounded: "Nunito", "Segoe UI", system-ui, sans-serif;
   --mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;

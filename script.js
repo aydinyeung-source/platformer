@@ -67,6 +67,16 @@
     hazeFar: token("--haze-far"),
     hazeNear: token("--haze-near"),
     rule: token("--rule"),
+    // Three depths of rock, each with a lit face and a shaded one, and the two
+    // specks that turn up in it.
+    rockHigh: token("--rock-high"),
+    rockHighDeep: token("--rock-high-deep"),
+    rockMid: token("--rock-mid"),
+    rockMidDeep: token("--rock-mid-deep"),
+    rockDeep: token("--rock-deep"),
+    rockDeepDeep: token("--rock-deep-deep"),
+    fleckAmber: token("--fleck-amber"),
+    fleckBone: token("--fleck-bone"),
   };
 
   // --------------------------------------------------------------- seed state
@@ -254,6 +264,10 @@
   // to stand in: left switched on, they showed through every carved room as a
   // stepped silhouette that read as blocks floating in the stone.
   const SKY_BOTTOM = 0;
+
+  // World row the magma glow starts creeping up from — the top of the deep rock
+  // band, so the wash and the darkest stone agree about where the abyss begins.
+  const GLOW_FROM = 50;
 
   const gameCamera = Camera.create({ viewW: 800, viewH: 400 });
   let session = null;
@@ -601,6 +615,23 @@
       label: away > 0 ? away + " M" : null,
       size: 14,
     });
+
+    // The abyss is lit from below. Once the view is down among the deep rock
+    // there is molten floor under it, and a warm wash rising off the bottom of
+    // the screen is what says so — no light source to place, no shadows to
+    // cast, just the suggestion that the dark down here is not empty.
+    //
+    // Drawn over the world rather than under it, because it is the air between
+    // the camera and the rock rather than anything the rock is standing on.
+    const deep = gameCamera.y + gameCamera.viewH - GLOW_FROM * gameTile;
+    if (deep > 0) {
+      const reach = Math.min(gameCamera.viewH * 0.55, deep);
+      const glow = ctx.createLinearGradient(0, gameCamera.viewH - reach, 0, gameCamera.viewH);
+      glow.addColorStop(0, "rgba(234, 104, 36, 0)");
+      glow.addColorStop(1, "rgba(234, 104, 36, 0.07)");
+      ctx.fillStyle = glow;
+      ctx.fillRect(0, gameCamera.viewH - reach, gameCamera.viewW, reach);
+    }
 
     const player = session.player;
     if (showCoords) drawCoords(ctx, player);

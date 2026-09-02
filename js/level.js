@@ -1190,6 +1190,29 @@ const Level = (() => {
     return ((h >>> 3) & 7) < 3;
   }
 
+  // How deep this rock is, as a pair of colours: the face the light catches and
+  // the face it does not. Shallow rock is slate, the middle is charcoal, and
+  // the bottom of the world is near black — so a shaft reads as going somewhere
+  // rather than as a hole in a flat wall.
+  const HIGH_BAND = 25;
+  const DEEP_BAND = 50;
+
+  function rockAt(y, colours) {
+    if (y < HIGH_BAND) return [colours.rockHigh, colours.rockHighDeep];
+    if (y < DEEP_BAND) return [colours.rockMid, colours.rockMidDeep];
+    return [colours.rockDeep, colours.rockDeepDeep];
+  }
+
+  // A speck in the rock face: amber glint or pale bone, on one tile in fifty.
+  // Its own hash, unrelated to the shading one, so the specks do not land in a
+  // pattern with the light. Rare on purpose — at any more than this it stops
+  // reading as mineral and starts reading as noise.
+  function fleck(x, y) {
+    const h = Math.imul(x * 374761393 + y * 668265263, 1274126177) >>> 0;
+    if (h % 100 >= 2) return 0; // two tiles in a hundred, exactly
+    return (h >>> 7) & 1 ? 1 : 2;
+  }
+
   // Draws the slice of the level the camera can see. Shared by every view, so
   // the world looks the same however it is being looked at.
   function render(ctx, level, camera, tilePx, colours) {
@@ -1210,8 +1233,22 @@ const Level = (() => {
         const py = y * tilePx;
 
         if (tile === TILE.GROUND) {
-          ctx.fillStyle = shade(x, y) ? colours.stoneDeep : colours.stone;
+          const rock = rockAt(y, colours);
+          ctx.fillStyle = shade(x, y) ? rock[1] : rock[0];
           ctx.fillRect(px, py, tilePx + 0.5, tilePx + 0.5);
+
+          // The speck, if this tile has one. Drawn before the seam and the lit
+          // face so both still read over the top of it.
+          const speck = fleck(x, y);
+          if (speck) {
+            const size = Math.max(2, Math.round(tilePx * 0.09));
+            const ox = ((x * 2654435761) >>> 8) % Math.max(1, tilePx - size * 2);
+            const oy = ((y * 2246822519) >>> 8) % Math.max(1, tilePx - size * 2);
+            ctx.fillStyle = speck === 1 ? colours.fleckAmber : colours.fleckBone;
+            ctx.globalAlpha = speck === 1 ? 0.75 : 0.5;
+            ctx.fillRect(px + size + ox, py + size + oy, size, size);
+            ctx.globalAlpha = 1;
+          }
 
           if (seam) {
             ctx.strokeStyle = colours.paper;
