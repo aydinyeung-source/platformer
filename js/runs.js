@@ -1,7 +1,7 @@
 // leaderboard.js — recording runs and reading your own recent ones
 
 const Runs = (() => {
-  const VERSION = "1.58.0";
+  const VERSION = "1.59.0";
 
   // Your history lives on this machine first and in the cloud second. The
   // cloud copy is a convenience — it follows you to another browser — but it

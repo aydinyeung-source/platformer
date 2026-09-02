@@ -1458,8 +1458,14 @@
   // the edge of the window, because that is where these columns stand; what is
   // left is a capital projecting into the room, which is what you would see of
   // a column at the edge of a photograph.
+  // Deep enough that the scroll can sit past the shaft rather than on it. At a
+  // sixth of a tile the volute was wider than the projection it stood on, so
+  // the coil landed inboard with a bare lip of cushion sticking out past it —
+  // a circle drawn inside a column with a shelf attached, which is what nobody
+  // has ever built. Past a quarter of a tile the scroll's own centre clears the
+  // shaft and it starts doing what a volute does: turning the corner.
   function flareOf(T) {
-    return Math.max(3, Math.round(T * 0.17));
+    return Math.max(4, Math.round(T * 0.28));
   }
 
   function pillarCapital(ctx, x, y, T, bands) {
@@ -1467,7 +1473,7 @@
     const wide = T + flare * 2;
     const left = x - flare;
     const abacus = Math.max(3, Math.round(T * 0.17));
-    const scroll = Math.max(6, Math.round(T * 0.4));
+    const scroll = Math.max(7, Math.round(T * 0.46));
     const neck = Math.max(2, Math.round(T * 0.1));
     const shaftTop = y + abacus + scroll + neck;
 
@@ -1479,9 +1485,11 @@
     band(ctx, left, y + abacus, wide, scroll, MARBLE.face);
     band(ctx, left, y + abacus + scroll - 1, wide, 1, MARBLE.groove);
 
-    // On the corners of the flare rather than the corners of the shaft, which
-    // is the difference between a volute scrolling outward and a circle drawn
-    // inside a column.
+    // Hard out on the corners: each scroll's outer curve lands exactly on the
+    // edge of the cushion, so the coil is what ends the capital rather than
+    // something sitting inboard of a bare ledge. With the flare deeper than the
+    // scroll's radius that puts both centres outside the shaft entirely, which
+    // is the whole difference between a volute and a circle drawn on a column.
     const r = scroll / 2;
     volute(ctx, left + r, y + abacus + r, r);
     volute(ctx, left + wide - r, y + abacus + r, r);
