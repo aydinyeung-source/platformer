@@ -11,6 +11,9 @@ const Game = (() => {
     return {
       level,
       player: Player.create(level),
+      // Hazards that move are part of the run, not part of the scenery, so they
+      // live in the session and tick with it.
+      stalactites: Enemy.create(level.stalactites),
       // Every button press, at a fixed 60 Hz. A seed plus this tape reproduces
       // the run exactly, which is what lets a claimed time be checked rather
       // than taken on trust.
@@ -60,6 +63,7 @@ const Game = (() => {
       const input = poll();
       record(session, input.mask || 0);
       Player.update(session.player, session.level, input, STEP);
+      Enemy.update(session.stalactites, session.player, session.level, STEP);
       session.accumulator -= STEP;
       session.steps++;
       taken++;

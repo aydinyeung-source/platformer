@@ -836,6 +836,43 @@ const Level = (() => {
       }
     }
 
+    // ------------------------------------------------------------ stalactites
+    //
+    // Hung from the ceiling of horizontal passages, thickest near the roof of
+    // the world and almost absent in the mantle — the deep has lava and gems to
+    // be about, and a hazard everywhere is a hazard nowhere.
+    //
+    // Every constraint here is about fairness rather than looks. There has to
+    // be room to see one coming and get out from under it, so a passage with
+    // less than three rows is left alone, which rules out every crawlway and
+    // every duct without naming them. There has to be floor beneath it, so one
+    // never drops into a pool and vanishes. And it never hangs in a shaft: the
+    // way out of a shaft is a climb, and a climb interrupted is a fall all the
+    // way back down.
+    const stalactites = [];
+    const inShaft = (x) => shafts.some((s) => x >= s.x0 - 1 && x <= s.x1 + 1);
+
+    for (const place of places) {
+      if (place.type !== "corridor" && place.type !== "chamber") continue;
+
+      for (let x = place.x0 + 2; x <= place.x1 - 2; x++) {
+        if (inShaft(x)) continue;
+        if (peek(x, place.floorY) !== TILE.GROUND) continue; // no floor, or lava
+
+        // The topmost open row in this column: what a stalactite hangs from.
+        let top = place.floorY - 1;
+        while (top > 1 && peek(x, top - 1) === TILE.EMPTY) top--;
+        if (place.floorY - top < 3) continue; // no room to dodge
+
+        // Thick near the roof, thinning with depth, nearly gone in the mantle.
+        const chance = top < 35 ? 10 : top < 50 ? 5 : 1;
+        if (detail.int(0, 99) >= chance) continue;
+        if (stalactites.some((s) => Math.abs(s.x - x) < 6)) continue;
+
+        stalactites.push({ x, y: top, floorY: place.floorY });
+      }
+    }
+
     // A hard lid on the world. Rock is the boundary, so there is no lip to get
     // over and no empty air above it to end up standing in.
     for (let cx = 0; cx < width; cx++) put(cx, 0, TILE.GROUND);
@@ -859,11 +896,13 @@ const Level = (() => {
       places,
       rooms,
       torches,
+      stalactites,
       links: Array.from(linked, (k) => k.split("|").map(Number)),
       rules: RULES,
       tally: {
         ducts,
         torches: torches.length,
+        stalactites: stalactites.length,
         crawlways: crawls.filter((s) => s.head < HEADROOM).length,
         shallow,
         pools,
@@ -988,6 +1027,9 @@ const Level = (() => {
       spawn: { x: 6, y: TOP - 1 },
       goal: { x: 192, y: HIGH - 1 },
       places: [],
+      // The tutorial teaches; it does not ambush.
+      torches: [],
+      stalactites: [],
       rules: RULES,
       tutorial: true,
       // Where the game stops to say something, and what it says. The x is the

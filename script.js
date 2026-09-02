@@ -496,6 +496,50 @@
     }
   }
 
+  // ------------------------------------------------------------ stalactites
+  //
+  // Drawn here rather than in Level.render, because these move: the level knows
+  // where they hang, the session knows which have fallen, and only one of those
+  // two is the same picture every frame.
+  function drawStalactites(ctx, list, now) {
+    if (!list) return;
+    const dot = Math.max(1, Math.round(gameTile / 8));
+    const w = Enemy.ART_W * dot;
+
+    for (const s of list) {
+      if (s.state === "shattered") {
+        // One puff, the first frame it is seen broken. The flag is the
+        // renderer's own — the simulation never reads it, so a run with the
+        // window closed plays out exactly the same.
+        if (!s.puffed) {
+          s.puffed = true;
+          puff(s.x + 0.5, s.floorY, 5, 4);
+        }
+        continue;
+      }
+
+      const px = s.x * gameTile - gameCamera.x + (gameTile - w) / 2;
+      const py = s.y * gameTile - gameCamera.y;
+      if (px < -w || px > gameCamera.viewW + w) continue;
+
+      // The tell. A tile of rock grinding itself loose, a fifth of a second
+      // before it is a problem — which is the whole difference between a hazard
+      // and an ambush.
+      let shake = 0;
+      if (s.state === "shaking") {
+        shake = Math.sin(now * 45 + s.x) > 0 ? 1 : -1;
+        if (Math.random() < 0.25) {
+          mote(s.x + 0.5, s.y + 0.9, (Math.random() - 0.5) * 0.6, 0.5, FRAME.dust, 0.3);
+        }
+      }
+
+      for (const cell of Enemy.ART) {
+        ctx.fillStyle = cell.c;
+        ctx.fillRect(px + shake + cell.x * dot, py + cell.y * dot, dot, dot);
+      }
+    }
+  }
+
   function drawRunner(ctx, player) {
     const body = player.body;
     const w = body.w * gameTile;
@@ -618,6 +662,7 @@
     ctx.save();
     ctx.translate(0, gameOffsetY);
     Level.render(ctx, level, gameCamera, gameTile, world, performance.now() / 1000);
+    drawStalactites(ctx, session.stalactites, performance.now() / 1000);
     drawMotes(ctx);
     drawRunner(ctx, session.player);
     ctx.restore();
