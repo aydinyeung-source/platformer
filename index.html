@@ -39,8 +39,9 @@
 
   <div class="app" hidden>
   <div class="corner">
-    <span class="corner__version">v1.38.0</span>
+    <span class="corner__version">v1.39.0</span>
     <span class="corner__player" data-player></span>
+    <span class="corner__total" data-total-meters hidden></span>
     <div class="corner__actions">
       <button class="button button--secondary" type="button" data-action="fullscreen">Fullscreen</button>
     </div>
@@ -96,6 +97,7 @@
       </div>
 
       <div data-panel="runs" hidden>
+        <p class="runs__career"><span class="label">Career</span> <span data-total-meters hidden></span></p>
         <ol class="runs" data-runs-list></ol>
         <p class="runs__note" data-runs-note>No runs yet</p>
       </div>

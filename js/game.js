@@ -7,8 +7,53 @@ const Game = (() => {
   const STEP = 1 / 60;
   const MAX_CATCHUP = 5;
 
-  function create(level) {
-    return {
+  // A tape read back. The recording is run-length encoded — a mask and how many
+  // steps it was held — and this unpacks it into one input per step, the same
+  // shape the live poll produces.
+  //
+  // The press edge has to be rebuilt rather than stored: a tape remembers what
+  // was held, and "pressed" means held now and not the step before. Getting
+  // that wrong makes a replayed jump fire every frame the button was down,
+  // which is a ghost that flies.
+  function decodeTape(tapeString) {
+    const runs = [];
+    for (const chunk of String(tapeString || "").split(".")) {
+      const parts = chunk.split("x");
+      if (parts.length !== 2) continue;
+      const mask = parseInt(parts[0], 16);
+      const count = parseInt(parts[1], 10);
+      if (Number.isFinite(mask) && Number.isFinite(count) && count > 0) runs.push([mask, count]);
+    }
+
+    let at = 0;
+    let left = runs.length ? runs[0][1] : 0;
+    let previous = 0;
+
+    return function step() {
+      const mask = at < runs.length ? runs[at][0] : 0;
+      if (at < runs.length) {
+        left--;
+        if (left <= 0) {
+          at++;
+          left = at < runs.length ? runs[at][1] : 0;
+        }
+      }
+
+      const pressed = mask & ~previous;
+      previous = mask;
+      return {
+        left: (mask & Input.SIM.LEFT) !== 0,
+        right: (mask & Input.SIM.RIGHT) !== 0,
+        jumpHeld: (mask & Input.SIM.JUMP) !== 0,
+        jumpPressed: (pressed & Input.SIM.JUMP) !== 0,
+        slideHeld: (mask & Input.SIM.DOWN) !== 0,
+        mask,
+      };
+    };
+  }
+
+  function create(level, options = {}) {
+    const session = {
       level,
       player: Player.create(level),
       // Hazards that move are part of the run, not part of the scenery, so they
@@ -24,7 +69,20 @@ const Game = (() => {
       // something at; everything else carries none and never pauses.
       taught: 0,
       lesson: null,
+      // The ghost, when there is one to race: a second runner on the same
+      // level, driven by a recording instead of a keyboard. It shares nothing
+      // with the live one — its own body, its own clock — so it cannot be
+      // bumped into, cannot set off a stalactite, and cannot be blamed.
+      ghost: null,
+      ghostInput: null,
     };
+
+    if (options.ghostTape) {
+      session.ghost = Player.create(level);
+      session.ghostInput = decodeTape(options.ghostTape);
+    }
+
+    return session;
   }
 
   // Reading is not playing, so the clock is not running while you read. The
@@ -64,6 +122,12 @@ const Game = (() => {
       record(session, input.mask || 0);
       Player.update(session.player, session.level, input, STEP);
       Enemy.update(session.stalactites, session.player, session.level, STEP);
+
+      // The ghost runs on the same clock and nothing else in common: it is a
+      // recording being played, not a runner being simulated against.
+      if (session.ghost && !session.ghost.finished) {
+        Player.update(session.ghost, session.level, session.ghostInput(), STEP);
+      }
       session.accumulator -= STEP;
       session.steps++;
       taken++;
@@ -86,5 +150,5 @@ const Game = (() => {
     return session;
   }
 
-  return { STEP, MAX_CATCHUP, create, advance, resume, tape };
+  return { STEP, MAX_CATCHUP, create, advance, resume, tape, decodeTape };
 })();

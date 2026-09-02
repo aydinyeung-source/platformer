@@ -862,3 +862,29 @@ button {
   color: var(--ink);
   font-variant-numeric: tabular-nums;
 }
+
+/* -------------------------------------------------------------- the career */
+/* Distance actually crossed, which is only ever whole caves — so it reads as a
+   tally of finished runs rather than a number that creeps up while you play. */
+
+.corner__total {
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  color: var(--ink-muted);
+}
+
+.runs__career {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 14px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--rule);
+  font-family: var(--mono);
+  font-size: 15px;
+  color: var(--ink);
+}
+
+.runs__career [data-total-meters]:empty {
+  display: none;
+}

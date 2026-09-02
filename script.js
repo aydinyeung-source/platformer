@@ -134,6 +134,80 @@
     seedInput.blur();
   });
 
+  // ---------------------------------------------------------------- career
+  //
+  // Only finished runs, and never the tutorial. A distance you did not reach
+  // the door of is not a distance you covered, so the total is always an exact
+  // pile of thousands — which is what makes it worth looking at rather than a
+  // number that drifts up whenever you press Play.
+  const TOTAL_KEY = "platformer.total_meters";
+  const totalSlots = Array.from(document.querySelectorAll("[data-total-meters]"));
+
+  function readTotal() {
+    try {
+      const raw = Number(localStorage.getItem(TOTAL_KEY));
+      return Number.isFinite(raw) && raw > 0 ? raw : 0;
+    } catch (err) {
+      return 0; // storage blocked: the career is this session's, and that is all
+    }
+  }
+
+  function distance(metres) {
+    if (metres >= 10000) {
+      const km = metres / 1000;
+      return (km % 1 === 0 ? km : km.toFixed(1)) + " km";
+    }
+    return metres.toLocaleString("en-US") + " m";
+  }
+
+  function showTotal() {
+    const total = readTotal();
+    const text = total ? distance(total) + " run" : "";
+    totalSlots.forEach((slot) => {
+      slot.textContent = text;
+      slot.hidden = !total;
+    });
+  }
+
+  function addToTotal(metres) {
+    const next = readTotal() + metres;
+    try {
+      localStorage.setItem(TOTAL_KEY, String(next));
+    } catch (err) {
+      // Nothing to do: the run still happened, it just is not remembered.
+    }
+    showTotal();
+  }
+
+  // ---------------------------------------------------------------- ghosts
+  //
+  // A run keeps its own tape, per seed, and only when it beat what was there
+  // before — so the ghost you race is your best on that cave rather than your
+  // last. Kept here rather than sent anywhere: a tape is a few kilobytes and
+  // nobody else has any use for it.
+  const GHOST_KEY = "platformer.ghost.";
+
+  function ghostFor(seed) {
+    try {
+      const raw = localStorage.getItem(GHOST_KEY + seed);
+      if (!raw) return null;
+      const saved = JSON.parse(raw);
+      return saved && saved.tape ? saved : null;
+    } catch (err) {
+      return null;
+    }
+  }
+
+  function keepGhost(seed, seconds, tapeString) {
+    const best = ghostFor(seed);
+    if (best && best.seconds <= seconds) return;
+    try {
+      localStorage.setItem(GHOST_KEY + seed, JSON.stringify({ seconds, tape: tapeString }));
+    } catch (err) {
+      // A full or blocked store costs the ghost, not the run.
+    }
+  }
+
   // ------------------------------------------------------------ recent runs
 
   const tabs = Array.from(document.querySelectorAll("[data-tab]"));
@@ -540,6 +614,23 @@
     }
   }
 
+  // Your best run on this cave, played back beside you. Same sprite, a third
+  // of the opacity, and no fallback: with no sheet loaded there is nothing to
+  // draw a ghost with that would not read as a second real runner.
+  function drawGhost(ctx, ghost) {
+    const body = ghost.body;
+    const scale = (gameTile * Player.TUNING.height) / SHEET.activeH;
+    drawFrame(
+      ctx,
+      poseOf(ghost),
+      body.x * gameTile - gameCamera.x + (body.w * gameTile) / 2,
+      body.y * gameTile - gameCamera.y + body.h * gameTile,
+      scale,
+      ghost.facing < 0,
+      0.32
+    );
+  }
+
   function drawRunner(ctx, player) {
     const body = player.body;
     const w = body.w * gameTile;
@@ -664,6 +755,9 @@
     Level.render(ctx, level, gameCamera, gameTile, world, performance.now() / 1000);
     drawStalactites(ctx, session.stalactites, performance.now() / 1000);
     drawMotes(ctx);
+    // The ghost goes down before the runner, and faintly: it is there to be
+    // chased, not to be mistaken for you at a glance.
+    if (session.ghost) drawGhost(ctx, session.ghost);
     drawRunner(ctx, session.player);
     ctx.restore();
 
@@ -741,7 +835,9 @@
     loader.hidden = true;
     gameView.hidden = false;
 
-    session = Game.create(level);
+    // Your best on this cave, if you have one, comes along to race.
+    const ghost = level.tutorial ? null : ghostFor(level.seed);
+    session = Game.create(level, { ghostTape: ghost && ghost.tape });
     hudShown = "";
     motes.length = 0;
     dustSeen = 0;
@@ -855,6 +951,13 @@
     // reading, and its numbers are the whole point of having finished.
     victory.hidden = false;
     victoryShown = true;
+
+    // A finished cave adds its full length to the career, and never the
+    // tutorial: the total is a record of caves crossed, not time spent.
+    if (!level.tutorial && player.finished) {
+      addToTotal(level.meters);
+      keepGhost(level.seed, player.time, Game.tape(session));
+    }
 
     // Finishing it once is what counts as having done it.
     if (level.tutorial) {
@@ -1012,6 +1115,7 @@
   }
 
   function boot() {
+    showTotal();
     seedInput.value = Rng.randomSeed();
     setSource("random");
     refresh();
