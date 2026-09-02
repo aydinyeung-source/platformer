@@ -60,6 +60,14 @@
   --gold: #b8912f;
   --gold-light: #f0d97a;
 
+  /* The two pillars the menu stands between: pale polished stone, warm rather
+     than blue, with graphite in the grooves and along the turned edges. */
+  --pillar-lit: #fdfefd;
+  --pillar-face: #dde3df;
+  --pillar-edge: #7f8b86;
+  --pillar-flute: #6b7772;
+  --pillar-line: #4f5a56;
+
   --rounded: "Nunito", "Segoe UI", system-ui, sans-serif;
   --mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
   --ease-soft: cubic-bezier(0.22, 0.85, 0.24, 1);
@@ -799,8 +807,10 @@ button {
 
 .actions {
   display: flex;
-  gap: 10px;
-  align-items: center;
+  gap: 14px;
+  /* The door is taller than the button beside it and they stand on the same
+     ground, so the row lines its children up by their feet. */
+  align-items: flex-end;
 }
 
 .lesson {
@@ -1012,23 +1022,25 @@ button {
 /* The way in. The art is painted on the canvas above it, so the button itself
    is only a box to aim at and a target for the mouse — but it keeps a focus
    ring, because a control you can reach with the keyboard has to show it. */
+/* The way in, standing in the slot the Play button used to have: directly
+   under the seed card, on top of the controls shelf below it. The art is
+   painted on the canvas above, so the button itself is only a box to aim at
+   and a target for the mouse â but it keeps a focus ring, because a control
+   you can reach with the keyboard has to show that you have. */
 .door {
-  position: absolute;
-  right: 7vw;
-  bottom: 20px;
+  position: relative;
   width: 52px;
   height: 78px;
   padding: 0;
   border: 0;
   background: transparent;
-  pointer-events: auto;
   cursor: pointer;
 }
 
 .door__label {
   position: absolute;
   left: 50%;
-  top: -20px;
+  top: -18px;
   transform: translateX(-50%);
   font-size: 10px;
   text-transform: uppercase;
@@ -1042,11 +1054,5 @@ button {
   border-radius: 4px;
 }
 
-/* Narrow windows have no empty right-hand side for the door to stand in.
-   The staircase looks after itself: a step with no clear room for it is not
+/* The staircase looks after itself: a step with no clear room for it is not
    laid at all, so it never appears without something to stand on. */
-@media (max-width: 900px) {
-  .door {
-    right: 16px;
-  }
-}

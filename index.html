@@ -39,7 +39,7 @@
 
   <div class="app" hidden>
   <div class="corner">
-    <span class="corner__version">v1.43.0</span>
+    <span class="corner__version">v1.44.0</span>
     <span class="corner__player" data-player></span>
     <span class="corner__total" data-total-meters hidden></span>
     <div class="corner__actions">
@@ -85,7 +85,11 @@
         </div>
       </article>
 
-      <div class="actions" data-solid="platform">
+      <div class="actions">
+        <button class="door" type="button" data-action="play" data-door
+                aria-label="Start the run">
+          <span class="door__label">Play</span>
+        </button>
         <button class="button button--secondary" type="button" data-action="tutorial">Tutorial</button>
         <p class="actions__hint">Run into the door to start</p>
       </div>
@@ -111,15 +115,6 @@
   </main>
 
   <div class="playground" data-playground-layer>
-    <div class="ledge" data-ledge hidden></div>
-    <div class="ledge" data-ledge hidden></div>
-    <div class="ledge" data-ledge hidden></div>
-
-    <button class="door" type="button" data-action="play" data-door
-            aria-label="Start the run">
-      <span class="door__label">Play</span>
-    </button>
-
     <canvas class="playground__canvas" data-playground aria-hidden="true"></canvas>
   </div>
 
