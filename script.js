@@ -1703,14 +1703,20 @@
   // them. A tile is the window's now, so a corner measured in pixels would be a
   // different corner on every monitor.
   //
-  // Fourteen by sixteen rather than the narrow box it started as. The old zone
-  // was a spot you had to be standing on rather than a place you had to reach,
-  // and the reaching is the puzzle — a long climb up the left-hand wall, one
-  // kick at a time. Anywhere up in that corner counts now, so getting up there
-  // is the whole of it, and a combo held two tiles off the mark is not a combo
-  // that silently did nothing.
+  // Six by six, which is the corner and not much else. Fourteen by sixteen was
+  // half the screen — a zone that large stops being a place you climb to and
+  // becomes most of the room, which costs the secret the only thing that made
+  // it one.
+  //
+  // Six down rather than two or three, though, and that is the ceiling's doing.
+  // There is a lid on row zero now, so a climb up the left-hand wall does not
+  // hang at the top waiting to be noticed: the runner's head meets rock at y of
+  // one, stops dead, and falls. A window of two or three rows would have to be
+  // hit on the frame of the bonk. Five rows of fall is time to be holding three
+  // keys in, which is what the combo is meant to test — the climb, not the
+  // reflex at the end of it.
   function inSecretZone(body) {
-    return body.x < 14 && body.y < 16;
+    return body.x < 6 && body.y < 6;
   }
 
   // On the window rather than the document, so a press is seen wherever it
