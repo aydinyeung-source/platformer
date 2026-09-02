@@ -64,7 +64,162 @@ const Mainscreen = (() => {
     return rect.width < 1 || rect.height < 1 ? null : rect;
   }
 
-  function build(viewW, viewH, boxes, doorRect) {
+  // ----------------------------------------------------------------- the sky
+  //
+  // A second world above the menu, built only when somebody asks for it in a
+  // way nobody is told about. Rows, in tiles down from the top of the window:
+  //
+  //   0        the lid over the bridge
+  //   1-2      two rows of headroom, which is exactly a standing body and no
+  //            jump at all — sprint it, do not hop it
+  //   3        the bridge deck, from the left wall to the mouth of the gym
+  //   4-5      the vault landing, in the two rows under the bridge
+  //   6        the gym's upper deck: run-up, chasm, far side
+  //   10       the low roof over the skim pit
+  //   13       the gym's lower deck, and the tops of the chimney walls
+  //   25       the chimney floor
+  //
+  // Every distance in it is measured against the movement envelope rather than
+  // picked by eye: the chasm is wider than a jump and narrower than an uncoil,
+  // the roof is lower than a jump and higher than a skim, the chimney is two
+  // wide, and the vault face is eight tall with nothing to bounce off.
+  //
+  // The route is a loop, and the exit is deliberately the hardest thing on it
+  // to reach: the vault sits under the bridge with open air on one side and
+  // eight blank tiles below, so the only way onto it is up its own face, from
+  // the top of the chimney you just climbed out of.
+  const SKY = {
+    lid: 0,
+    deck: 3,
+    // Three rows under the bridge rather than two. A climber coming up the
+    // face bonks the deck's underside on the way, and with only a body's
+    // height of pocket there is no time to drift sideways onto the top before
+    // falling back past it â the climb was possible and the landing was not.
+    vault: 7,
+    upper: 6,
+    roof: 10,
+    lower: 13,
+    pitFloor: 25,
+
+    mouth: 2, // columns of bridge past the vault before the gym deck starts
+    runUp: 8, // deck before the chasm — a slide needs a run at it
+    chasm: 7, // a jump covers 5.2 tiles, an uncoil about 7.9
+    landing: 3,
+    // Three, not two. Under a two-row roof a jump bonks after four tenths of a
+    // tile and still carries about 1.9 across, which clears a two-wide hole;
+    // three asks for 2.3, which only the skim's flat 2.7 will do.
+    skimPit: 3,
+    shaft: 2, // the chimney: its two faces, two columns apart
+  };
+
+  // The gym starts clear of the cards; the vault tower takes the two columns to
+  // its left, tucked under the bridge.
+  function skyPlan(width, cardsRight) {
+    const g = Math.max(cardsRight + 3, EDGE + 6);
+    const last = g + SKY.mouth + SKY.runUp + SKY.chasm + SKY.landing + 1;
+    return { g, last, fits: last <= width - EDGE - 1 };
+  }
+
+  // Wide enough for the gauntlet and tall enough for the chimney to have a
+  // floor of its own. Anything smaller and the secret is simply not there,
+  // which is better than a gauntlet with one of its obstacles folded flat.
+  function skyFits(width, height, cardsRight) {
+    return skyPlan(width, cardsRight).fits && height > SKY.pitFloor + 4;
+  }
+
+  function carveSky(put, get, width, height, cardsRight) {
+    const T = Level.TILE;
+    if (!skyFits(width, height, cardsRight)) return null;
+
+    const g = skyPlan(width, cardsRight).g;
+    const u = g + SKY.mouth; // where the gym's upper deck begins
+    const laid = [];
+
+    function stone(x, y) {
+      if (x < EDGE || x >= width - EDGE || y < 0 || y >= height) return;
+      put(x, y, T.GROUND);
+      laid.push({ x, y });
+    }
+
+    function clear(x, y) {
+      if (x < EDGE || x >= width - EDGE || y < 0 || y >= height) return;
+      put(x, y, T.EMPTY);
+    }
+
+    function row(y, x0, x1) {
+      for (let x = x0; x <= x1; x++) stone(x, y);
+    }
+
+    function column(x, y0, y1) {
+      for (let y = y0; y <= y1; y++) stone(x, y);
+    }
+
+    // -------------------------------------------------------------- the bridge
+    // Deck and lid stop at the mouth of the gym: past that the sky is open,
+    // because an uncoil needs five clear rows over its head and a headhitter
+    // corridor has two.
+    row(SKY.deck, EDGE, u - 1);
+    row(SKY.lid, EDGE, u - 1);
+    for (let x = EDGE; x < u; x++) {
+      clear(x, SKY.deck - 1);
+      clear(x, SKY.deck - 2);
+    }
+
+    // --------------------------------------------------------- the vault tower
+    // Eight tiles of blank face with nothing opposite it, so the only way up is
+    // to kick off it and drift back onto it. Its top is the two-row pocket
+    // under the bridge deck.
+    column(g - 2, SKY.vault, SKY.lower + 1);
+    column(g - 1, SKY.vault, SKY.lower + 1);
+    const exit = { x: g - 2, y: SKY.vault - 3, w: 2, h: 3 };
+    for (let y = exit.y; y < exit.y + exit.h; y++) {
+      for (let x = exit.x; x < exit.x + exit.w; x++) clear(x, y);
+    }
+
+    // ------------------------------------------------------- the uncoil chasm
+    const runEnd = u + SKY.runUp - 1;
+    const farSide = runEnd + SKY.chasm + 1;
+    const upperEnd = farSide + SKY.landing - 1;
+    row(SKY.upper, u, runEnd);
+    row(SKY.upper, farSide, upperEnd);
+
+    // ----------------------------------------------------------- the skim pit
+    // Entered by walking off the right-hand end of the upper deck, and run back
+    // the other way: right to left, under a roof too low to jump beneath, over
+    // a hole too wide to walk across.
+    const lowRight = upperEnd + 1;
+    const lowLeft = g + SKY.shaft + 2;
+    row(SKY.lower, lowLeft, lowRight);
+    row(SKY.roof, lowLeft, lowRight - 4);
+    const pitAt = lowLeft + 4;
+    for (let x = pitAt; x < pitAt + SKY.skimPit; x++) clear(x, SKY.lower);
+
+    // ------------------------------------------------------------ the chimney
+    // Two faces, two columns apart, twelve rows deep. Kicking the same face
+    // twice barely lifts you; alternating them is a climb, and there is no
+    // other way out.
+    // Placed so the climber steps out of it onto the vault's own face: the
+    // left wall's top is the one tile that has the tower beside it.
+    const left = g;
+    const rightWall = g + SKY.shaft + 1;
+    column(left, SKY.lower, SKY.pitFloor);
+    column(rightWall, SKY.lower, SKY.pitFloor);
+    row(SKY.pitFloor, left, rightWall);
+    for (let y = SKY.lower; y < SKY.pitFloor; y++) {
+      for (let x = left + 1; x < rightWall; x++) clear(x, y);
+    }
+
+    return {
+      tiles: laid,
+      exit,
+      // Where the runner is set down when the bridge appears: on the deck at
+      // the left-hand end, in the headroom, facing the length of it.
+      entry: { x: EDGE + 1, y: SKY.deck - 1 },
+      gym: u,
+    };
+  }
+
+  function build(viewW, viewH, boxes, doorRect, options) {
     const width = Math.max(12, Math.ceil(viewW / TILE));
     const height = Math.max(10, Math.ceil(viewH / TILE));
     const tiles = new Uint8Array(width * height);
@@ -150,6 +305,18 @@ const Mainscreen = (() => {
       below = placed;
     }
 
+    // The sky goes in over the top of the cards it clears â it is a second
+    // world, not a decoration on this one â but under the door, which is the
+    // one thing on the screen that always has to work.
+    let sky = null;
+    if (options && options.sky) {
+      let cardsRight = EDGE;
+      (boxes || []).forEach((box) => {
+        cardsRight = Math.max(cardsRight, tileOf(box.rect.right));
+      });
+      sky = carveSky(put, get, width, height, cardsRight);
+    }
+
     // The door is written last and over everything, because it is the one
     // thing on the screen that has to work.
     let door = null;
@@ -171,6 +338,7 @@ const Mainscreen = (() => {
       spawn,
       door,
       ledges,
+      sky,
       // Player.update reads these off the level it is given. A menu has no
       // seed, no length and no career: it is a place, not a run.
       meters: width,
@@ -181,9 +349,20 @@ const Mainscreen = (() => {
   }
 
   // The whole page, measured and turned into collision in one go.
-  function fromPage(root, viewW, viewH) {
-    return build(viewW, viewH, boxesFrom(root), doorFrom(root));
+  function fromPage(root, viewW, viewH, options) {
+    return build(viewW, viewH, boxesFrom(root), doorFrom(root), options);
   }
 
-  return { TILE, EDGE, CORRIDOR, STEPS, tileOf, boxesFrom, doorFrom, build, fromPage };
+  // Whether the page is big enough for the secret at all. Asked before the
+  // combo is allowed to do anything, so a window with no room for the gauntlet
+  // simply has no secret rather than half of one.
+  function skyRoom(root, viewW, viewH) {
+    let cardsRight = EDGE;
+    boxesFrom(root).forEach((box) => {
+      cardsRight = Math.max(cardsRight, tileOf(box.rect.right));
+    });
+    return skyFits(Math.ceil(viewW / TILE), Math.ceil(viewH / TILE), cardsRight);
+  }
+
+  return { TILE, EDGE, CORRIDOR, STEPS, SKY, skyRoom, tileOf, boxesFrom, doorFrom, build, fromPage };
 })();

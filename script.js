@@ -74,6 +74,9 @@
     rockBottom: token("--rock-bottom"),
     voidTop: token("--void-top"),
     voidBottom: token("--void-bottom"),
+    // The one thing on the menu that is neither paper nor stone.
+    gold: token("--gold"),
+    goldLight: token("--gold-light"),
   };
 
   // The menu is paper and the cave is not, so anything painted on the canvas
@@ -1170,7 +1173,7 @@
     playCanvas.style.height = h + "px";
     playCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-    playLevel = Mainscreen.fromPage(document, w, h);
+    playLevel = Mainscreen.fromPage(document, w, h, { sky: playSky });
 
     // The staircase is laid out in tiles and the page is told where it went,
     // rather than drawn in CSS and measured back. A step you can see and a
@@ -1205,6 +1208,8 @@
 
   function resetPlayground() {
     playRunner = null;
+    playSky = false;
+    playDust.length = 0;
     playAcc = 0;
     playEntering = false;
     queuePlayground();
@@ -1228,6 +1233,10 @@
       taken++;
     }
     if (taken === Game.MAX_CATCHUP) playAcc = 0;
+
+    stepDust(dt);
+    if (!playSky && comboHeld() && inSecretZone(playRunner.body)) armSky();
+    checkVault();
 
     // Into the door. Player.update stops the runner dead in the doorway and
     // fades them into it over half a second; the run starts when there is
@@ -1303,6 +1312,8 @@
     playCtx.clearRect(0, 0, document.documentElement.clientWidth,
       document.documentElement.clientHeight);
     drawDoor(playCtx);
+    drawSky(playCtx);
+    drawDust(playCtx);
 
     const body = playRunner.body;
     const T = Mainscreen.TILE;
@@ -1320,6 +1331,211 @@
     playCtx.fillStyle = colours.ink;
     playCtx.fillRect(centreX - (body.w * T) / 2, feetY - body.h * T, body.w * T, body.h * T);
     playCtx.globalAlpha = 1;
+  }
+
+  // ------------------------------------------------------------- the secret
+  //
+  // Nothing announces this and nothing ever will. Get the runner into the top
+  // left corner of the menu — which takes a long climb up the left-hand wall,
+  // one kick at a time — and hold K, C and R together, and a stone bridge
+  // arrives across the top of the screen with a training gauntlet on the end
+  // of it.
+  //
+  // The three keys are watched here rather than in input.js because input.js
+  // only knows the four bits the simulation runs on, and a recording of a run
+  // has no business carrying a cheat code in it.
+  const COMBO = ["KeyK", "KeyC", "KeyR"];
+  const comboDown = new Set();
+
+  let playSky = false;
+  // Set when a window turns out to have no room for the gauntlet, and cleared
+  // when the keys come up. Without it the combo would build and unbuild the
+  // level twice a frame for as long as it is held.
+  let skyRefused = false;
+
+  function comboHeld() {
+    return COMBO.every((code) => comboDown.has(code));
+  }
+
+  // The top left corner, in page pixels, which is what the zone was described
+  // in — the runner is measured in tiles, so it is converted rather than the
+  // other way round.
+  function inSecretZone(body) {
+    return body.x * Mainscreen.TILE < 150 && body.y * Mainscreen.TILE < 140;
+  }
+
+  document.addEventListener("keydown", (event) => {
+    if (COMBO.indexOf(event.code) < 0 || typing()) return;
+    comboDown.add(event.code);
+  });
+
+  document.addEventListener("keyup", (event) => {
+    comboDown.delete(event.code);
+    skyRefused = false;
+  });
+
+  // Alt-tabbing away with two of the three down otherwise leaves them down.
+  window.addEventListener("blur", () => comboDown.clear());
+
+  // ---------------------------------------------------------------- the dust
+  //
+  // The playground's own weather, in tiles, with its own little step. The
+  // game's motes are tied to the camera and the game's tile size, and neither
+  // of those exists up here.
+  const playDust = [];
+
+  function puffSky(x, y, count, spread, gold) {
+    for (let i = 0; i < count; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = Math.random() * spread;
+      playDust.push({
+        x,
+        y,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed - spread * 0.4,
+        life: 0.5 + Math.random() * 0.6,
+        age: 0,
+        gold: Boolean(gold),
+      });
+    }
+  }
+
+  function stepDust(dt) {
+    for (let i = playDust.length - 1; i >= 0; i--) {
+      const mote = playDust[i];
+      mote.age += dt;
+      if (mote.age >= mote.life) {
+        playDust.splice(i, 1);
+        continue;
+      }
+      mote.x += mote.vx * dt;
+      mote.y += mote.vy * dt;
+      mote.vy += 5 * dt; // barely any weight: this is dust, not gravel
+      mote.vx *= 0.96;
+    }
+  }
+
+  function drawDust(ctx) {
+    const T = Mainscreen.TILE;
+    playDust.forEach((mote) => {
+      const left = 1 - mote.age / mote.life;
+      ctx.globalAlpha = left * 0.7;
+      ctx.fillStyle = mote.gold ? colours.goldLight : colours.inkMuted;
+      const size = Math.max(1, Math.round(left * 4));
+      ctx.fillRect(Math.round(mote.x * T), Math.round(mote.y * T), size, size);
+    });
+    ctx.globalAlpha = 1;
+  }
+
+  // --------------------------------------------------------- arming the sky
+
+  function armSky() {
+    if (playSky || skyRefused) return;
+    playSky = true;
+    rebuildPlayground();
+
+    // No room for the gauntlet on this window: put it back the way it was
+    // rather than build half of it.
+    if (!playLevel.sky) {
+      playSky = false;
+      skyRefused = true;
+      rebuildPlayground();
+      return;
+    }
+
+    const entry = playLevel.sky.entry;
+    const body = playRunner.body;
+    body.x = entry.x + (1 - body.w) / 2;
+    body.y = entry.y + 1 - body.h;
+    body.vx = 0;
+    body.vy = 0;
+    playRunner.safe.x = body.x;
+    playRunner.safe.y = body.y;
+    playRunner.sliding = false;
+    body.h = Player.TUNING.height;
+
+    puffSky(body.x + body.w / 2, body.y + body.h, 22, 3.2);
+  }
+
+  // The vault, and the way home. Reached only by climbing the eight tiles of
+  // blank face under the bridge, which is the last thing the gauntlet asks for.
+  function checkVault() {
+    const box = playSky && playLevel.sky && playLevel.sky.exit;
+    if (!box) return;
+
+    const body = playRunner.body;
+    if (!(body.x < box.x + box.w && body.x + body.w > box.x &&
+          body.y < box.y + box.h && body.y + body.h > box.y)) return;
+
+    puffSky(body.x + body.w / 2, body.y + body.h, 40, 5, true);
+    playSky = false;
+    rebuildPlayground();
+
+    // Home the long way: the sky is gone from under them and they fall the
+    // whole height of the menu to the floor they started on.
+    playRunner.safe.x = playLevel.spawn.x + (1 - body.w) / 2;
+    playRunner.safe.y = playLevel.spawn.y + 1 - body.h;
+    body.vx = 0;
+    body.vy = 0;
+  }
+
+  // ------------------------------------------------------------ drawing it
+  //
+  // Every tile the carver laid, and nothing else: what is drawn and what is
+  // solid come from the same list, so the bridge cannot grow a step that is
+  // only paint.
+  const SCONCE = [
+    "...##...",
+    "..####..",
+    ".##oo##.",
+    "##o..o##",
+    "##o..o##",
+    ".##oo##.",
+    "..####..",
+    "...##...",
+  ];
+
+  function drawSky(ctx) {
+    if (!playSky || !playLevel.sky) return;
+    const T = Mainscreen.TILE;
+
+    ctx.fillStyle = colours.stone;
+    playLevel.sky.tiles.forEach((tile) => {
+      ctx.fillRect(tile.x * T, tile.y * T, T, T);
+    });
+
+    // A lit top edge on any tile with sky above it, so a deck reads as
+    // something to land on rather than as a bar of shadow.
+    ctx.fillStyle = colours.stoneRim;
+    playLevel.sky.tiles.forEach((tile) => {
+      if (Level.at(playLevel, tile.x, tile.y - 1) === Level.TILE.GROUND) return;
+      ctx.fillRect(tile.x * T, tile.y * T, T, 2);
+    });
+
+    const box = playLevel.sky.exit;
+    const px = Math.max(1, Math.floor((box.w * T) / SCONCE[0].length));
+    const artW = px * SCONCE[0].length;
+    const artH = px * SCONCE.length;
+    const left = box.x * T + (box.w * T - artW) / 2;
+    const top = box.y * T + (box.h * T - artH) / 2;
+
+    const cx = left + artW / 2;
+    const cy = top + artH / 2;
+    const reach = artW * 1.6;
+    const glow = ctx.createRadialGradient(cx, cy, 0, cx, cy, reach);
+    glow.addColorStop(0, "rgba(240, 217, 122, 0.5)");
+    glow.addColorStop(1, "rgba(240, 217, 122, 0)");
+    ctx.fillStyle = glow;
+    ctx.fillRect(cx - reach, cy - reach, reach * 2, reach * 2);
+
+    for (let row = 0; row < SCONCE.length; row++) {
+      for (let col = 0; col < SCONCE[row].length; col++) {
+        const mark = SCONCE[row][col];
+        if (mark === ".") continue;
+        ctx.fillStyle = mark === "o" ? colours.goldLight : colours.gold;
+        ctx.fillRect(left + col * px, top + row * px, px, px);
+      }
+    }
   }
 
   window.addEventListener("resize", () => {

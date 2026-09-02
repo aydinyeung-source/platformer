@@ -55,6 +55,11 @@
   --void-top: #171c24;
   --void-bottom: #06080a;
 
+  /* The only gold on the page, and nothing on the menu uses it. It belongs to
+     one object that most people will never see. */
+  --gold: #b8912f;
+  --gold-light: #f0d97a;
+
   --rounded: "Nunito", "Segoe UI", system-ui, sans-serif;
   --mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
   --ease-soft: cubic-bezier(0.22, 0.85, 0.24, 1);
