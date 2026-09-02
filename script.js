@@ -68,16 +68,14 @@
     hazeFar: token("--haze-far"),
     hazeNear: token("--haze-near"),
     rule: token("--rule"),
-    // Three depths of rock, each with a lit face and a shaded one, and the two
-    // specks that turn up in it.
+    // Three depths of rock, each with a lit face and a shaded one. The gems in
+    // the rock carry their own colours: they are artwork, not theme.
     rockHigh: token("--rock-high"),
     rockHighDeep: token("--rock-high-deep"),
     rockMid: token("--rock-mid"),
     rockMidDeep: token("--rock-mid-deep"),
     rockDeep: token("--rock-deep"),
     rockDeepDeep: token("--rock-deep-deep"),
-    fleckAmber: token("--fleck-amber"),
-    fleckBone: token("--fleck-bone"),
   };
 
   // --------------------------------------------------------------- seed state

@@ -1203,14 +1203,51 @@ const Level = (() => {
     return [colours.rockDeep, colours.rockDeepDeep];
   }
 
-  // A speck in the rock face: amber glint or pale bone, on one tile in fifty.
-  // Its own hash, unrelated to the shading one, so the specks do not land in a
-  // pattern with the light. Rare on purpose — at any more than this it stops
-  // reading as mineral and starts reading as noise.
-  function fleck(x, y) {
+  // Gemstones in the rock face, drawn pixel by pixel inside a six by six grid.
+  // Each is shaded in its own colours — a white highlight at the top left, the
+  // body of the stone, a dark facet at the bottom right — so they read as cut
+  // rather than as coloured dots. Hard-coded rather than drawn from the
+  // palette, because these are artwork and not theme: a gem is the same gem
+  // whatever colour the cave is painted.
+  const GEM_TYPES = [
+    // 1. Cyan diamond
+    [
+      { x: 1, y: 0, c: "#ffffff" }, { x: 2, y: 0, c: "#00e5ff" },
+      { x: 0, y: 1, c: "#ffffff" }, { x: 1, y: 1, c: "#00e5ff" }, { x: 2, y: 1, c: "#00e5ff" }, { x: 3, y: 1, c: "#00e5ff" }, { x: 4, y: 1, c: "#00838f" },
+      { x: 0, y: 2, c: "#00e5ff" }, { x: 1, y: 2, c: "#00e5ff" }, { x: 2, y: 2, c: "#00e5ff" }, { x: 3, y: 2, c: "#00e5ff" }, { x: 4, y: 2, c: "#00838f" }, { x: 5, y: 2, c: "#00838f" },
+      { x: 1, y: 3, c: "#00e5ff" }, { x: 2, y: 3, c: "#00e5ff" }, { x: 3, y: 3, c: "#00838f" }, { x: 4, y: 3, c: "#00838f" },
+      { x: 2, y: 4, c: "#00e5ff" }, { x: 3, y: 4, c: "#00838f" },
+      { x: 3, y: 5, c: "#00838f" },
+    ],
+    // 2. Purple amethyst
+    [
+      { x: 1, y: 0, c: "#f3e5f5" },
+      { x: 0, y: 1, c: "#f3e5f5" }, { x: 1, y: 1, c: "#e040fb" }, { x: 3, y: 1, c: "#f3e5f5" },
+      { x: 0, y: 2, c: "#e040fb" }, { x: 1, y: 2, c: "#e040fb" }, { x: 3, y: 2, c: "#e040fb" }, { x: 4, y: 2, c: "#6a1b9a" },
+      { x: 0, y: 3, c: "#e040fb" }, { x: 1, y: 3, c: "#e040fb" }, { x: 2, y: 3, c: "#6a1b9a" }, { x: 3, y: 3, c: "#e040fb" }, { x: 4, y: 3, c: "#6a1b9a" },
+      { x: 1, y: 4, c: "#e040fb" }, { x: 2, y: 4, c: "#6a1b9a" }, { x: 3, y: 4, c: "#6a1b9a" }, { x: 4, y: 4, c: "#6a1b9a" },
+      { x: 2, y: 5, c: "#6a1b9a" }, { x: 3, y: 5, c: "#6a1b9a" },
+    ],
+    // 3. Gold citrine
+    [
+      { x: 1, y: 0, c: "#fff59d" }, { x: 2, y: 0, c: "#ffd600" },
+      { x: 0, y: 1, c: "#fff59d" }, { x: 1, y: 1, c: "#ffd600" }, { x: 2, y: 1, c: "#ffd600" }, { x: 3, y: 1, c: "#ff6f00" },
+      { x: 0, y: 2, c: "#ffd600" }, { x: 1, y: 2, c: "#ffd600" }, { x: 2, y: 2, c: "#ffd600" }, { x: 3, y: 2, c: "#ff6f00" }, { x: 4, y: 2, c: "#ff6f00" },
+      { x: 1, y: 3, c: "#ffd600" }, { x: 2, y: 3, c: "#ff6f00" }, { x: 3, y: 3, c: "#ff6f00" },
+      { x: 2, y: 4, c: "#ff6f00" },
+    ],
+  ];
+
+  const GEM_GRID = 6;
+
+  // Which gem this tile has, or -1 for the ninety-eight in a hundred that have
+  // none. Its own hash, unrelated to the shading one, so the gems do not land in
+  // a pattern with the light. Rare on purpose: these are a thing you notice, and
+  // a cave wall studded with them is a cave wall nobody looks at twice.
+  function gemAt(x, y) {
     const h = Math.imul(x * 374761393 + y * 668265263, 1274126177) >>> 0;
-    if (h % 100 >= 2) return 0; // two tiles in a hundred, exactly
-    return (h >>> 7) & 1 ? 1 : 2;
+    if (h % 100 >= 2) return -1; // two tiles in a hundred, exactly
+    return (h >>> 7) % GEM_TYPES.length;
   }
 
   // Draws the slice of the level the camera can see. Shared by every view, so
@@ -1237,17 +1274,25 @@ const Level = (() => {
           ctx.fillStyle = shade(x, y) ? rock[1] : rock[0];
           ctx.fillRect(px, py, tilePx + 0.5, tilePx + 0.5);
 
-          // The speck, if this tile has one. Drawn before the seam and the lit
-          // face so both still read over the top of it.
-          const speck = fleck(x, y);
-          if (speck) {
-            const size = Math.max(2, Math.round(tilePx * 0.09));
-            const ox = ((x * 2654435761) >>> 8) % Math.max(1, tilePx - size * 2);
-            const oy = ((y * 2246822519) >>> 8) % Math.max(1, tilePx - size * 2);
-            ctx.fillStyle = speck === 1 ? colours.fleckAmber : colours.fleckBone;
-            ctx.globalAlpha = speck === 1 ? 0.75 : 0.5;
-            ctx.fillRect(px + size + ox, py + size + oy, size, size);
-            ctx.globalAlpha = 1;
+          // The gem, if this tile has one. Drawn before the seam and the lit
+          // face so both still read over the top of it — the stone is in front
+          // of the gem at its edges, which is what embeds it in the rock rather
+          // than sticking it on.
+          const gem = gemAt(x, y);
+          if (gem >= 0) {
+            // Half a tile across, so it is a cluster in the rock face and not a
+            // tile made of gemstone. Whole pixels only: a fractional pixel on a
+            // pixel-art gem is a blurred gem.
+            const dot = Math.max(2, Math.round(tilePx / (GEM_GRID * 2)));
+            const span = dot * GEM_GRID;
+            const room = Math.max(1, tilePx - span);
+            const ox = ((x * 2654435761) >>> 8) % room;
+            const oy = ((y * 2246822519) >>> 8) % room;
+
+            for (const cell of GEM_TYPES[gem]) {
+              ctx.fillStyle = cell.c;
+              ctx.fillRect(px + ox + cell.x * dot, py + oy + cell.y * dot, dot, dot);
+            }
           }
 
           // A seam you can find if you look for it, and not otherwise. At a
