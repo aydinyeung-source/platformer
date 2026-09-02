@@ -137,6 +137,22 @@ const Mainscreen = (() => {
     lower: 13,
     pitFloor: 25,
 
+    // ---------------------------------------------------------------- columns
+    //
+    // Fixed, like every row above them, and they were not always. The gauntlet
+    // used to be placed relative to the widest card on the page — measured in
+    // pixels, converted to tiles, and pushed three columns clear of it — which
+    // sounds careful and behaves badly. The panel is up to 820 pixels wide
+    // wherever it is drawn, so on a narrow window the cards eat the same number
+    // of tiles while there are far fewer of them to go round: the gauntlet was
+    // shoved to a column past the right-hand wall, skyFits said no, and the
+    // secret quietly did not exist under about 1700 pixels of window.
+    //
+    // The cards are not in the way in any case. This is a second world laid
+    // over the menu, not a room squeezed in beside it, and while it is up the
+    // runner is in it. So the columns are simply stated here with the rows.
+    bridge: 6, // the bridge deck's left end
+    gym: 10, // the chimney's left wall; the vault tower stands just left of it
     mouth: 2, // columns of bridge past the vault before the gym deck starts
     runUp: 8, // deck before the chasm — a slide needs a run at it
     chasm: 7, // a jump covers 5.2 tiles, an uncoil about 7.9
@@ -151,13 +167,26 @@ const Mainscreen = (() => {
     shaft: 2, // the chimney: its two faces, two columns apart
   };
 
-  // The gym starts clear of the cards; the vault tower takes the two columns to
-  // its left, tucked under the bridge.
-  function skyPlan(width, cardsRight) {
-    const g = Math.max(cardsRight + 3, EDGE + 6);
-    const last = g + SKY.mouth + SKY.runUp + SKY.chasm + SKY.landing + 1;
-    return { g, last, fits: last <= width - EDGE - 1 };
+  // Where everything lands, worked out once from the columns above. Nothing in
+  // here depends on the window or on anything the page happens to be showing —
+  // the gauntlet is the same shape on every screen that has room for it.
+  //
+  // The corner left of the bridge stays empty on purpose. Columns nought to
+  // five are where the climb that summons this happens, and dropping a deck
+  // into them would build the secret on top of the player asking for it.
+  function skyPlan() {
+    const g = SKY.gym;
+    const u = g + SKY.mouth; // where the gym's upper deck begins
+    const runEnd = u + SKY.runUp - 1;
+    const farSide = runEnd + SKY.chasm + 1;
+    const upperEnd = farSide + SKY.landing - 1;
+    return { g, u, runEnd, farSide, upperEnd, last: upperEnd + 1 };
   }
+
+  // The narrowest window the whole thing fits inside, derived rather than
+  // guessed: the last column it uses, plus the wall, plus the column the wall
+  // needs beside it.
+  const MIN_WIDTH = skyPlan().last + EDGE + 1;
 
   // How deep the chimney can go in a window this tall.
   //
@@ -185,17 +214,19 @@ const Mainscreen = (() => {
   // have no secret on a window this small than a hollow one.
   const MIN_CHIMNEY = 10;
 
-  function skyFits(width, height, cardsRight) {
-    return skyPlan(width, cardsRight).fits &&
-      pitFloorFor(height) - SKY.lower >= MIN_CHIMNEY;
+  // Two questions about the grid and nothing else: is it wide enough to hold
+  // the gauntlet, and deep enough for the chimney to still be a chimney.
+  function skyFits(width, height) {
+    return width >= MIN_WIDTH && pitFloorFor(height) - SKY.lower >= MIN_CHIMNEY;
   }
 
-  function carveSky(put, get, width, height, cardsRight) {
+  function carveSky(put, get, width, height) {
     const T = Level.TILE;
-    if (!skyFits(width, height, cardsRight)) return null;
+    if (!skyFits(width, height)) return null;
 
-    const g = skyPlan(width, cardsRight).g;
-    const u = g + SKY.mouth; // where the gym's upper deck begins
+    const plan = skyPlan();
+    const g = plan.g;
+    const u = plan.u;
     const laid = [];
 
     function stone(x, y) {
@@ -221,9 +252,14 @@ const Mainscreen = (() => {
     // Deck and lid stop at the mouth of the gym: past that the sky is open,
     // because an uncoil needs five clear rows over its head and a headhitter
     // corridor has two.
-    row(SKY.deck, EDGE, u - 1);
-    row(SKY.lid, EDGE, u - 1);
-    for (let x = EDGE; x < u; x++) {
+    //
+    // It starts at column six rather than at the wall, so the corner the player
+    // just climbed to summon it is left the way they found it — the same six
+    // columns the combo is watching. A deck laid through there would appear
+    // inside the runner who asked for it.
+    row(SKY.deck, SKY.bridge, u - 1);
+    row(SKY.lid, SKY.bridge, u - 1);
+    for (let x = SKY.bridge; x < u; x++) {
       clear(x, SKY.deck - 1);
       clear(x, SKY.deck - 2);
     }
@@ -249,11 +285,10 @@ const Mainscreen = (() => {
     }
 
     // ------------------------------------------------------- the uncoil chasm
-    const runEnd = u + SKY.runUp - 1;
-    const farSide = runEnd + SKY.chasm + 1;
-    const upperEnd = farSide + SKY.landing - 1;
+    const runEnd = plan.runEnd;
+    const upperEnd = plan.upperEnd;
     row(SKY.upper, u, runEnd);
-    row(SKY.upper, farSide, upperEnd);
+    row(SKY.upper, plan.farSide, upperEnd);
 
     // ----------------------------------------------------------- the skim pit
     // Entered by walking off the right-hand end of the upper deck, and run back
@@ -300,7 +335,7 @@ const Mainscreen = (() => {
       exit,
       // Where the runner is set down when the bridge appears: on the deck at
       // the left-hand end, in the headroom, facing the length of it.
-      entry: { x: EDGE + 1, y: SKY.deck - 1 },
+      entry: { x: SKY.bridge + 1, y: SKY.deck - 1 },
       gym: u,
     };
   }
@@ -381,13 +416,7 @@ const Mainscreen = (() => {
     // world, not a decoration on this one â but under the door, which is the
     // one thing on the screen that always has to work.
     let sky = null;
-    if (options && options.sky) {
-      let cardsRight = EDGE;
-      (boxes || []).forEach((box) => {
-        cardsRight = Math.max(cardsRight, tileOf(box.rect.right, TILE));
-      });
-      sky = carveSky(put, get, width, height, cardsRight);
-    }
+    if (options && options.sky) sky = carveSky(put, get, width, height);
 
     // The door is written last and over everything, because it is the one
     // thing on the screen that has to work.
@@ -429,18 +458,13 @@ const Mainscreen = (() => {
     return build(viewW, viewH, boxesFrom(root), doorFrom(root), options);
   }
 
-  // Whether the page is big enough for the secret at all. Asked before the
-  // combo is allowed to do anything, so a window with no room for the gauntlet
-  // simply has no secret rather than half of one.
-  function skyRoom(root, viewW, viewH) {
+  // Whether the window is big enough for the secret at all — a grid question
+  // now, with nothing to measure on the page. Floored the way build counts
+  // them: rounding up would answer yes to a window the carver then finds it has
+  // no room in.
+  function skyRoom(viewW, viewH) {
     const tile = tileFor(viewH);
-    let cardsRight = EDGE;
-    boxesFrom(root).forEach((box) => {
-      cardsRight = Math.max(cardsRight, tileOf(box.rect.right, tile));
-    });
-    // Floored, the way build counts them. Rounding up here would answer yes to
-    // a window the carver then finds it has no room in.
-    return skyFits(Math.floor(viewW / tile), Math.floor(viewH / tile), cardsRight);
+    return skyFits(Math.floor(viewW / tile), Math.floor(viewH / tile));
   }
 
   return {
