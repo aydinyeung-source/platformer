@@ -1,22 +1,32 @@
 /* styles.css — page layout, canvas sizing, UI overlays */
 
-/* Palette: "Obsidian and ember".
-   The world is a cave with a lid on it and no daylight anywhere in it, so the
-   page is the dark and the ink is the light. The dark is neutral — cool
-   graphite and basalt, no green in any of it — and every warm colour in the
-   file is the fire: the runner, the arrow that finds them, and the magma.
-   Nothing paints with a colour that is not named here. */
+/* Two palettes, and the split is the point.
+   The page is paper: a light, quiet menu you read. The world is a cave with a
+   lid on it and no daylight anywhere in it, so everything drawn on the canvas
+   takes the --world- set below instead, where the darks and lights are the
+   other way round. Nothing paints with a colour that is not named here. */
 :root {
-  --paper: #0d0f12; /* cave air, and the void behind everything */
-  --paper-raised: #151820;
-  --ink: #f0f3f8;
-  --ink-soft: #9ba3b5;
-  --ink-muted: #60687a;
-  --accent: #e65100;
-  --accent-light: #ff8a50;
-  --rule: rgba(240, 243, 248, 0.08);
+  --paper: #e7ebe8; /* the menu's ground */
+  --paper-raised: #f9fbfa;
+  --ink: #232b28;
+  --ink-soft: #4d5a56;
+  --ink-muted: #7f8c88;
+  --accent: #47705d;
+  --accent-light: #9cbbaa;
+  --rule: rgba(35, 43, 40, 0.13);
   /* Spent on the runner and the arrow that finds them. Nothing else may use it. */
-  --alert: #ff6d00;
+  --alert: #c4632a;
+
+  /* The cave. The canvas clears to the void rather than to paper, and anything
+     drawn on it reads light-on-dark — so ink, its softer weights and the hair
+     rule all need a second version that is not the menu's.
+     Without this the page and the world share one palette, and lightening the
+     menu takes the cave with it. */
+  --world-void: #0d0f12;
+  --world-ink: #f0f3f8;
+  --world-ink-soft: #9ba3b5;
+  --world-ink-muted: #60687a;
+  --world-rule: rgba(240, 243, 248, 0.08);
   /* Terrain. Blocks are drawn as real tiles with faces and seams, so they need
      their own weights rather than a wash of ink at low opacity. */
   --warn: #b4453a; /* the one red in the palette, for things that went wrong */
@@ -292,10 +302,8 @@ button {
 
 .chip.is-active {
   background: var(--accent);
-  /* A graphite rim rather than more ember: the border's job is to seat the chip
-     against the dark, and matching it to the fill leaves it floating. */
-  border-color: var(--stone-rim);
-  color: var(--ink);
+  border-color: var(--accent);
+  color: var(--paper-raised);
 }
 
 /* ------------------------------------------------------------------- buttons */
@@ -309,9 +317,7 @@ button {
   font-family: var(--rounded);
   font-weight: 700;
   font-size: 21px;
-  /* Ice white on ember, not the panel colour: on a dark page the old pairing
-     was a dark label on a bright button, which reads as disabled. */
-  color: var(--ink);
+  color: var(--paper-raised);
   transition: background-color 420ms var(--ease-soft), transform 320ms var(--ease-soft);
 }
 

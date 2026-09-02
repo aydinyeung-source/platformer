@@ -78,6 +78,21 @@
     rockDeepDeep: token("--rock-deep-deep"),
   };
 
+  // The menu is paper and the cave is not, so anything painted on the canvas
+  // takes this set instead: the same palette with the page's lights and darks
+  // swapped for the world's. It is the whole of the split — the canvas clears
+  // to the void rather than to paper, and every line drawn over the rock reads
+  // light-on-dark rather than the other way round.
+  //
+  // Sharing one set is how lightening a menu turns a cave into a snowfield.
+  const world = Object.assign({}, colours, {
+    paper: token("--world-void"),
+    ink: token("--world-ink"),
+    inkSoft: token("--world-ink-soft"),
+    inkMuted: token("--world-ink-muted"),
+    rule: token("--world-rule"),
+  });
+
   // --------------------------------------------------------------- seed state
 
   // Nothing about the run is generated here. The map is not built, drawn or
@@ -509,7 +524,7 @@
     // flashes; finishing fades into the doorway rather than standing in front
     // of it.
     ctx.globalAlpha = alpha;
-    ctx.fillStyle = colours.alert;
+    ctx.fillStyle = world.alert;
     if (ctx.roundRect) {
       ctx.beginPath();
       ctx.roundRect(px, py, w, h, Math.max(3, gameTile * 0.14));
@@ -519,7 +534,7 @@
     }
 
     // A darker band reads as a head and shows which way the runner faces.
-    ctx.fillStyle = colours.ink;
+    ctx.fillStyle = world.ink;
     ctx.globalAlpha *= 0.65;
     const eyeW = w * 0.3;
     ctx.fillRect(px + (player.facing > 0 ? w - eyeW - w * 0.12 : w * 0.12), py + h * 0.16, eyeW, h * 0.12);
@@ -559,14 +574,14 @@
 
     ctx.save();
     ctx.globalAlpha = 0.82;
-    ctx.fillStyle = colours.paper;
+    ctx.fillStyle = world.paper;
     ctx.fillRect(x, y, w, h);
     ctx.globalAlpha = 1;
-    ctx.strokeStyle = colours.rule;
+    ctx.strokeStyle = world.rule;
     ctx.lineWidth = 1;
     ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
 
-    ctx.fillStyle = colours.ink;
+    ctx.fillStyle = world.ink;
     ctx.font = "12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace";
     ctx.textBaseline = "top";
     lines.forEach((text, i) => ctx.fillText(text, x + pad, y + pad + i * lead));
@@ -583,7 +598,7 @@
     const ctx = gameCanvas.getContext("2d");
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-    ctx.fillStyle = colours.paper;
+    ctx.fillStyle = world.paper;
     ctx.fillRect(0, 0, gameCamera.viewW, gameCamera.viewH);
     if (!level || !session) return;
 
@@ -591,7 +606,7 @@
 
     ctx.save();
     ctx.translate(0, gameOffsetY);
-    Level.render(ctx, level, gameCamera, gameTile, colours);
+    Level.render(ctx, level, gameCamera, gameTile, world);
     drawMotes(ctx);
     drawRunner(ctx, session.player);
     ctx.restore();
@@ -609,8 +624,8 @@
     const away = Math.round(Math.max(behind, ahead, 0) / gameTile);
 
     UI.offscreenArrow(ctx, gameCamera, target, {
-      colour: colours.alert,
-      outline: colours.paper,
+      colour: world.alert,
+      outline: world.paper,
       label: away > 0 ? away + " M" : null,
       size: 14,
     });
