@@ -141,8 +141,11 @@
   //
   // Only finished runs, and never the tutorial. A distance you did not reach
   // the door of is not a distance you covered, so the total is always an exact
-  // pile of thousands — which is what makes it worth looking at rather than a
+  // pile of whole caves — which is what makes it worth looking at rather than a
   // number that drifts up whenever you press Play.
+  //
+  // Whole caves used to mean whole thousands. The sprint is half of one, so the
+  // total now lands on halves as well, and the reading below has to say so.
   const TOTAL_KEY = "platformer.total_meters";
   const totalSlots = Array.from(document.querySelectorAll("[data-total-meters]"));
 
@@ -155,6 +158,10 @@
     }
   }
 
+  // Metres up to ten thousand of them, kilometres after that. Every run is a
+  // multiple of five hundred, so a career only ever lands on a whole kilometre
+  // or a half — and one decimal place says a half exactly. There is no rounding
+  // here to be wrong about: a total that reads 10.5 km is 10 500 metres.
   function distance(metres) {
     if (metres >= 10000) {
       const km = metres / 1000;

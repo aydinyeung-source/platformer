@@ -117,7 +117,11 @@ alter table public.runs
 alter table public.runs drop column if exists inputs;
 
 alter table public.runs
-  add constraint runs_mode_known check (mode in ('1k', '2k', '5k', '10k')),
+  -- '10k' is no longer offered by the menu, and it stays on this list anyway.
+  -- Postgres checks a constraint against the rows already in the table when it
+  -- is added, so dropping a retired mode from here would make this file refuse
+  -- to re-run on any database that has a 10 km run in it.
+  add constraint runs_mode_known check (mode in ('500m', '1k', '2k', '5k', '10k')),
   add constraint runs_distance_sane check (reached between 0 and 10000 and falls >= 0),
 
   -- The player's top speed is 9 metres per second and nothing in the game
@@ -126,10 +130,12 @@ alter table public.runs
   -- for float rounding only.
   add constraint runs_time_possible check (seconds >= reached / 9.05),
 
-  -- Claiming a finish means claiming the whole distance.
+  -- Claiming a finish means claiming the whole distance. The else arm is the
+  -- retired 10 km, which is why it is still spelled out at all.
   add constraint runs_finished_means_finished check (
     not finished or reached >= case mode
-      when '1k' then 1000 when '2k' then 2000 when '5k' then 5000 else 10000 end
+      when '500m' then 500 when '1k' then 1000 when '2k' then 2000
+      when '5k' then 5000 else 10000 end
   );
 
 create index if not exists runs_board on public.runs (seed, mode, seconds);

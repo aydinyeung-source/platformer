@@ -30,9 +30,17 @@ const Level = (() => {
 
   // The run is the goal: cross this far to the right and reach the door.
   const MODES = [
+    { id: "500m", label: "500 m", meters: 500 },
     { id: "1k", label: "1000 m", meters: 1000 },
     { id: "2k", label: "2 km", meters: 2000 },
     { id: "5k", label: "5 km", meters: 5000 },
+  ];
+
+  // Lengths the menu used to offer and does not any more. Nothing generates one
+  // and no chip picks one, so they are not playable — but a run history outlives
+  // the menu that made it, and a 10 km run somebody finished has to keep saying
+  // 10 km rather than being relabelled as whatever now sits first in the list.
+  const RETIRED = [
     { id: "10k", label: "10 km", meters: 10000 },
   ];
 
@@ -46,7 +54,11 @@ const Level = (() => {
   }
 
   function resolveMode(id) {
-    return MODES.find((mode) => mode.id === id) || MODES[0];
+    return (
+      MODES.find((mode) => mode.id === id) ||
+      RETIRED.find((mode) => mode.id === id) ||
+      MODES[0]
+    );
   }
 
   // ---------------------------------------------------------------- carving
