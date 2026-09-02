@@ -1448,7 +1448,24 @@
   // the corners under it, and the neck where the flutes start. It is the one
   // part of a column nobody mistakes for anything else, which is why it is
   // worth the arcs — everything else in this room is rectangles.
+  // How far the capital and the base project past the shaft. A column the same
+  // width all the way up is a pipe: the flare is the whole of what makes the
+  // top read as carrying something and the foot as standing on something.
+  //
+  // Paint, and nothing but paint. The shaft's tile is the wall the runner
+  // actually collides with and it is untouched — the overhang leans out over
+  // the air beside it, which is what an overhang is. Half of each one is off
+  // the edge of the window, because that is where these columns stand; what is
+  // left is a capital projecting into the room, which is what you would see of
+  // a column at the edge of a photograph.
+  function flareOf(T) {
+    return Math.max(3, Math.round(T * 0.17));
+  }
+
   function pillarCapital(ctx, x, y, T, bands) {
+    const flare = flareOf(T);
+    const wide = T + flare * 2;
+    const left = x - flare;
     const abacus = Math.max(3, Math.round(T * 0.17));
     const scroll = Math.max(6, Math.round(T * 0.4));
     const neck = Math.max(2, Math.round(T * 0.1));
@@ -1457,22 +1474,26 @@
     // Flutes first, from the neck down, so everything above overpaints them.
     if (shaftTop < y + T) flutedShaft(ctx, x, shaftTop, T, y + T - shaftTop, bands);
 
-    // The cushion between the two scrolls, so they read as one carved block
-    // rather than two beads stuck to a post.
-    band(ctx, x, y + abacus, T, scroll, MARBLE.face);
-    band(ctx, x, y + abacus + scroll - 1, T, 1, MARBLE.groove);
+    // The cushion, flared out to give the scrolls corners to sit on. Without it
+    // they are two beads stuck to a post rather than one carved block.
+    band(ctx, left, y + abacus, wide, scroll, MARBLE.face);
+    band(ctx, left, y + abacus + scroll - 1, wide, 1, MARBLE.groove);
 
+    // On the corners of the flare rather than the corners of the shaft, which
+    // is the difference between a volute scrolling outward and a circle drawn
+    // inside a column.
     const r = scroll / 2;
-    volute(ctx, x + r, y + abacus + r, r);
-    volute(ctx, x + T - r, y + abacus + r, r);
+    volute(ctx, left + r, y + abacus + r, r);
+    volute(ctx, left + wide - r, y + abacus + r, r);
 
-    // The abacus: the slab the cornice actually sits on. Drawn last of the
-    // three so the scrolls tuck under it.
-    band(ctx, x, y, T, abacus, MARBLE.face);
-    band(ctx, x, y, T, 1, MARBLE.light);
-    band(ctx, x, y + abacus - 1, T, 1, MARBLE.outline);
+    // The abacus: the slab the cornice actually sits on, and the widest thing
+    // on the column. Drawn after the scrolls so they tuck under it.
+    band(ctx, left, y, wide, abacus, MARBLE.face);
+    band(ctx, left, y, wide, 1, MARBLE.light);
+    band(ctx, left, y + abacus - 1, wide, 1, MARBLE.outline);
 
-    // The neck, under the scrolls and above the flutes.
+    // And the neck, which comes back in to the shaft's own width — the step
+    // back in is what makes the flare above it read as a flare.
     band(ctx, x, y + abacus + scroll, T, neck, MARBLE.face);
     band(ctx, x, y + abacus + scroll + neck - 1, T, 1, MARBLE.groove);
   }
@@ -1482,21 +1503,32 @@
   // that. The roll is lit across its crown and turns to shade underneath, which
   // is the whole of what makes it read as round rather than as another band.
   function pillarBase(ctx, x, y, T, bands) {
+    const flare = flareOf(T);
     const plinth = Math.max(3, Math.round(T * 0.3));
     const torus = Math.max(3, Math.round(T * 0.26));
     const top = y + T - plinth - torus;
 
     flutedShaft(ctx, x, y, T, top - y, bands);
 
-    band(ctx, x, top, T, torus, MARBLE.face);
-    band(ctx, x, top, T, 1, MARBLE.groove);
-    band(ctx, x, top + 1, T, Math.max(1, Math.round(torus * 0.35)), MARBLE.light);
-    band(ctx, x, top + torus - Math.max(1, Math.round(torus * 0.3)), T,
+    // The roll takes half the overhang and the plinth all of it, so the foot
+    // steps out twice on the way down instead of once. One step is a bracket;
+    // two is a column arriving at the floor.
+    const half = Math.max(1, Math.round(flare / 2));
+    const roll = T + half * 2;
+    const rx = x - half;
+    band(ctx, rx, top, roll, torus, MARBLE.face);
+    band(ctx, rx, top, roll, 1, MARBLE.groove);
+    band(ctx, rx, top + 1, roll, Math.max(1, Math.round(torus * 0.35)), MARBLE.light);
+    band(ctx, rx, top + torus - Math.max(1, Math.round(torus * 0.3)), roll,
       Math.max(1, Math.round(torus * 0.3)), MARBLE.shade);
 
-    band(ctx, x, y + T - plinth, T, plinth, MARBLE.face);
-    band(ctx, x, y + T - plinth, T, 1, MARBLE.light);
-    band(ctx, x, y + T - 1, T, 1, MARBLE.outline);
+    // The plinth, matching the abacus above it and overhanging the floor it
+    // stands on — which is why the pillars are drawn after the floor.
+    const wide = T + flare * 2;
+    const left = x - flare;
+    band(ctx, left, y + T - plinth, wide, plinth, MARBLE.face);
+    band(ctx, left, y + T - plinth, wide, 1, MARBLE.light);
+    band(ctx, left, y + T - 1, wide, 1, MARBLE.outline);
   }
 
   // The lid, drawn only where the lid is actually there. Across an ordinary
@@ -1631,7 +1663,11 @@
   // only knows the four bits the simulation runs on, and a recording of a run
   // has no business carrying a cheat code in it.
   const COMBO = ["KeyK", "KeyC", "KeyR"];
-  const comboDown = new Set();
+
+  // Every key the menu currently has held down. Its own set, kept apart from
+  // input.js, which only knows the four bits the simulation runs on — a
+  // recording of a run has no business carrying a cheat code in it.
+  const menuHeldKeys = new Set();
 
   let playSky = false;
   // Set when a window turns out to have no room for the gauntlet, and cleared
@@ -1639,8 +1675,27 @@
   // level twice a frame for as long as it is held.
   let skyRefused = false;
 
+  // A key is remembered twice: by where it sits on the board, and by the letter
+  // it actually typed.
+  //
+  // event.code is the physical position, which never changes and is wrong for
+  // anyone not on QWERTY — a Dvorak keyboard's K sits where a QWERTY V does, so
+  // a code-only combo asks those players to press three letters they cannot
+  // see. event.key is the letter that came out, which is right for them and
+  // goes wrong the moment a modifier rewrites it. Holding both means the secret
+  // is the same three letters on every layout, and neither reading has to be
+  // the correct one on its own.
+  function keyTokens(event) {
+    const tokens = [event.code];
+    const typed = String(event.key || "").toLowerCase();
+    if (typed.length === 1 && typed >= "a" && typed <= "z") {
+      tokens.push("Key" + typed.toUpperCase());
+    }
+    return tokens;
+  }
+
   function comboHeld() {
-    return COMBO.every((code) => comboDown.has(code));
+    return COMBO.every((code) => menuHeldKeys.has(code));
   }
 
   // The top left corner of the level, in tiles — which is what it always meant,
@@ -1648,27 +1703,35 @@
   // them. A tile is the window's now, so a corner measured in pixels would be a
   // different corner on every monitor.
   //
-  // Twelve by fourteen rather than the narrow box it started as. The old zone
+  // Fourteen by sixteen rather than the narrow box it started as. The old zone
   // was a spot you had to be standing on rather than a place you had to reach,
   // and the reaching is the puzzle — a long climb up the left-hand wall, one
-  // kick at a time. Anywhere level with the title or the tabs counts now, so
-  // getting up there is the whole of it.
+  // kick at a time. Anywhere up in that corner counts now, so getting up there
+  // is the whole of it, and a combo held two tiles off the mark is not a combo
+  // that silently did nothing.
   function inSecretZone(body) {
-    return body.x < 12 && body.y < 14;
+    return body.x < 14 && body.y < 16;
   }
 
-  document.addEventListener("keydown", (event) => {
-    if (COMBO.indexOf(event.code) < 0 || typing()) return;
-    comboDown.add(event.code);
+  // On the window rather than the document, so a press is seen wherever it
+  // lands. Every key is remembered, not only the three: a set that holds one
+  // key while ignoring the rest cannot answer "are these three down together",
+  // which is the only question ever asked of it.
+  window.addEventListener("keydown", (event) => {
+    if (typing()) return;
+    keyTokens(event).forEach((token) => menuHeldKeys.add(token));
   });
 
-  document.addEventListener("keyup", (event) => {
-    comboDown.delete(event.code);
+  // Never guarded by typing(). A key pressed on the menu and released after the
+  // seed field takes focus is a key this set would otherwise believe is still
+  // down for the rest of the session.
+  window.addEventListener("keyup", (event) => {
+    keyTokens(event).forEach((token) => menuHeldKeys.delete(token));
     skyRefused = false;
   });
 
   // Alt-tabbing away with two of the three down otherwise leaves them down.
-  window.addEventListener("blur", () => comboDown.clear());
+  window.addEventListener("blur", () => menuHeldKeys.clear());
 
   // ---------------------------------------------------------------- the dust
   //

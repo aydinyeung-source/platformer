@@ -153,11 +153,35 @@ const Mainscreen = (() => {
     return { g, last, fits: last <= width - EDGE - 1 };
   }
 
-  // Wide enough for the gauntlet and tall enough for the chimney to have a
-  // floor of its own. Anything smaller and the secret is simply not there,
-  // which is better than a gauntlet with one of its obstacles folded flat.
+  // How deep the chimney can go in a window this tall.
+  //
+  // It used to be a flat twenty-five and the gate in front of it demanded four
+  // rows of slack, which is where the old "taller than twenty-nine rows" came
+  // from — and on any laptop that is no secret at all. The four rows were never
+  // padding, though: the chimney's two walls stand on their own floor, and if
+  // that floor is level with the menu's then the walls run down through the
+  // corridor along the bottom of the screen and stand in it. That corridor
+  // running the whole width of the window is the one promise this level makes.
+  //
+  // So the chimney is cut to fit instead of the secret being refused. It stops
+  // one row above the line cards are already cut off at, which keeps the
+  // corridor clear at any size, and it keeps its full depth wherever there is
+  // room for it.
+  function pitFloorFor(height) {
+    return Math.min(SKY.pitFloor, height - EDGE - CORRIDOR - 1);
+  }
+
+  // What it may not be cut down past. A chimney is only a chimney while it is
+  // taller than one wall can be climbed — Level.RULES.maxWallClimb is nine, so
+  // ten rows is the least that still forces the alternating kicks the whole
+  // obstacle exists to teach. Shorter than that it is a step, and a gauntlet
+  // with one of its obstacles folded flat is worse than no gauntlet: better to
+  // have no secret on a window this small than a hollow one.
+  const MIN_CHIMNEY = 10;
+
   function skyFits(width, height, cardsRight) {
-    return skyPlan(width, cardsRight).fits && height > SKY.pitFloor + 4;
+    return skyPlan(width, cardsRight).fits &&
+      pitFloorFor(height) - SKY.lower >= MIN_CHIMNEY;
   }
 
   function carveSky(put, get, width, height, cardsRight) {
@@ -229,10 +253,23 @@ const Mainscreen = (() => {
     // Entered by walking off the right-hand end of the upper deck, and run back
     // the other way: right to left, under a roof too low to jump beneath, over
     // a hole too wide to walk across.
-    const lowRight = upperEnd + 1;
+    //
+    // The deck runs all the way to the right-hand wall, so this storey visibly
+    // lands on the pillar there instead of stopping a column or two short of it
+    // and leaving the upper floor hanging in the air beside a column that is
+    // plainly not holding it up. The upper deck deliberately does not: walking
+    // off its right-hand end is how you get down here, and a deck against the
+    // wall has no end to walk off.
+    const lowRight = width - EDGE - 1;
     const lowLeft = g + SKY.shaft + 2;
+    // Where you land coming off the end of the upper deck. The roof stops four
+    // columns short of it and always did — that gap is the way in. It is
+    // measured from here rather than from the deck's right-hand end, because
+    // the deck now runs on to the wall and a roof that followed it would close
+    // over the very hole you drop through.
+    const dropIn = upperEnd + 1;
     row(SKY.lower, lowLeft, lowRight);
-    row(SKY.roof, lowLeft, lowRight - 4);
+    row(SKY.roof, lowLeft, dropIn - 4);
     const pitAt = lowLeft + 4;
     for (let x = pitAt; x < pitAt + SKY.skimPit; x++) clear(x, SKY.lower);
 
@@ -244,10 +281,11 @@ const Mainscreen = (() => {
     // left wall's top is the one tile that has the tower beside it.
     const left = g;
     const rightWall = g + SKY.shaft + 1;
-    column(left, SKY.lower, SKY.pitFloor);
-    column(rightWall, SKY.lower, SKY.pitFloor);
-    row(SKY.pitFloor, left, rightWall);
-    for (let y = SKY.lower; y < SKY.pitFloor; y++) {
+    const pit = pitFloorFor(height);
+    column(left, SKY.lower, pit);
+    column(rightWall, SKY.lower, pit);
+    row(pit, left, rightWall);
+    for (let y = SKY.lower; y < pit; y++) {
       for (let x = left + 1; x < rightWall; x++) clear(x, y);
     }
 
@@ -394,7 +432,9 @@ const Mainscreen = (() => {
     boxesFrom(root).forEach((box) => {
       cardsRight = Math.max(cardsRight, tileOf(box.rect.right, tile));
     });
-    return skyFits(Math.ceil(viewW / tile), Math.ceil(viewH / tile), cardsRight);
+    // Floored, the way build counts them. Rounding up here would answer yes to
+    // a window the carver then finds it has no room in.
+    return skyFits(Math.floor(viewW / tile), Math.floor(viewH / tile), cardsRight);
   }
 
   return {
