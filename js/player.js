@@ -42,6 +42,10 @@ const Player = (() => {
     crawlSpeed: 0.45, // of run speed, where it ends up
     slideDecay: 0.35, // seconds from one to the other
     slideCooldown: 0.2,
+    // How far below the lip a slide has to land before its decay starts over.
+    // Half a tile, so a one tile step down counts and the ordinary jitter of
+    // landing on the same level never does.
+    slideDrop: 0.5,
 
     // Two things fall out of a slide, and the game says nothing about either.
     //
@@ -106,6 +110,9 @@ const Player = (() => {
       slideTime: 0,
       slideDir: 1,
       slideCool: 0,
+      // Where the feet were when a slide last ran off a lip, or null while
+      // there is ground underneath. What the landing is measured against.
+      slideDropY: null,
       uncoil: 0,
       falls: 0,
       time: 0,
@@ -129,6 +136,7 @@ const Player = (() => {
     body.h = TUNING.height;
     player.sliding = false;
     player.skimming = false;
+    player.slideDropY = null;
     player.uncoil = 0;
     body.x = player.safe.x;
     body.y = player.safe.y;
@@ -256,9 +264,15 @@ const Player = (() => {
       // Momentum earned in a slide survives the jump. In the air, above running
       // pace and still going that way, nothing drags you back down to it — that
       // is what carries a skim across a gap and an uncoil beyond one.
+      //
+      // A slide still in progress counts too, and that was the hole. Off the
+      // ground the steering comes back, so a slide that ran off the edge of a
+      // step with no direction held was read as asking to stop and had the air
+      // brakes put on it all the way down. Sliding is a commitment made on the
+      // ground; falling off a lip does not undo it.
       const carrying = !body.onGround &&
         Math.abs(body.vx) > TUNING.runSpeed &&
-        (player.skimming || Math.sign(body.vx) === Math.sign(wanted));
+        (player.skimming || player.sliding || Math.sign(body.vx) === Math.sign(wanted));
       if (!carrying) {
         if (body.vx < target) body.vx = Math.min(target, body.vx + rate * dt);
         else if (body.vx > target) body.vx = Math.max(target, body.vx - rate * dt);
@@ -335,6 +349,34 @@ const Player = (() => {
     // Standing on the ground forgets which wall you came off, so the next climb
     // starts fresh and its first kick counts as an alternating one.
     if (body.onGround) player.lastWallKicked = 0;
+
+    // ------------------------------------------------------ sliding downhill
+    //
+    // A slide that runs off a step and lands lower has not spent anything. It
+    // fell, and falling is the one thing in this game that gives speed back —
+    // so the decay starts again on the step below. Without it a terraced
+    // passage is a series of shorter and shorter shoves: the clock runs the
+    // whole way down every drop, and three steps in you are crawling with a
+    // tunnel still ahead of you.
+    //
+    // Downwards only, and by half a tile at least. Landing level is a slide
+    // that simply carried on, and refreshing it there would make every seam in
+    // the floor a free reset — hold the key and never slow up again.
+    if (!body.onGround) {
+      if (player.sliding && player.slideDropY === null) {
+        player.slideDropY = body.y + body.h;
+      }
+    } else {
+      if (player.sliding && player.slideDropY !== null &&
+          body.y + body.h > player.slideDropY + TUNING.slideDrop) {
+        const boost = TUNING.runSpeed * TUNING.slideBoost;
+        player.slideTime = 0;
+        // Never a brake. Whatever the fall was worth, it keeps.
+        if (Math.abs(body.vx) < boost) body.vx = player.slideDir * boost;
+        player.dust++;
+      }
+      player.slideDropY = null;
+    }
 
     // -------------------------------------------------------------- contacts
     // Lava costs a recovery: it puts you back on your feet somewhere safe and
