@@ -1,10 +1,19 @@
 // mainscreen.js — the menu, read as a level you can stand on
 
 const Mainscreen = (() => {
-  // Small. The runner is 1.6 tiles tall, so twenty pixels makes a character
-  // about a thumbnail high — big enough to read the sprite on, small enough
-  // that a card is something you climb rather than something you step over.
-  const TILE = 20;
+  // The menu runner is the game runner, so the menu's tile is the game's tile:
+  // the same formula and the same clamp, which is about fourteen rows of world
+  // on the screen. Everything the body is measured in is tiles — 1.6 of them
+  // tall, nine of them a second at a run — so matching the tile is the only way
+  // to match the size. At twenty pixels the menu character stood a third the
+  // height of the one in the caves.
+  //
+  // It is a function of the window rather than a constant because the game's is
+  // too, and a level built at one tile size and drawn at another is a level
+  // where nothing is where it looks.
+  function tileFor(viewH) {
+    return Math.max(26, Math.min(52, Math.round(viewH / 14)));
+  }
 
   // A closed box: walls down both sides, a floor along the bottom, a lid across
   // the top.
@@ -35,10 +44,13 @@ const Mainscreen = (() => {
   const CORRIDOR = 3;
 
   // Which tile a page coordinate falls on. Rounded rather than floored, so a
-  // card whose edge sits two pixels into a tile does not get a whole tile of
-  // solid rock the player can see it does not fill.
-  function tileOf(px) {
-    return Math.round(px / TILE);
+  // card whose edge sits a little way into a tile does not get a whole tile of
+  // solid rock the player can see it does not fill. Rounding is also the
+  // smallest error available: with a tile this size a card edge can be half of
+  // one away from where it is drawn, and half a tile up is no better a lie than
+  // half a tile down.
+  function tileOf(px, tile) {
+    return Math.round(px / tile);
   }
 
   // Everything the page has offered up as standable. A hidden panel measures
@@ -245,6 +257,7 @@ const Mainscreen = (() => {
     // Whole tiles only. Rounded up, the right-hand wall and the floor ran off
     // the edge of the window; rounded down, both sit inside it with a sliver of
     // unplayable margin outside that nothing can reach.
+    const TILE = tileFor(viewH);
     const width = Math.max(12, Math.floor(viewW / TILE));
     const height = Math.max(10, Math.floor(viewH / TILE));
     const tiles = new Uint8Array(width * height);
@@ -285,10 +298,10 @@ const Mainscreen = (() => {
       .sort((a, b) => Number(a.platform) - Number(b.platform));
 
     solids.forEach((box) => {
-      const x0 = tileOf(box.rect.left);
-      const y0 = Math.max(roofLine, tileOf(box.rect.top));
-      const x1 = Math.max(x0 + 1, tileOf(box.rect.right));
-      const y1 = Math.min(floorLine, Math.max(y0 + 1, tileOf(box.rect.bottom)));
+      const x0 = tileOf(box.rect.left, TILE);
+      const y0 = Math.max(roofLine, tileOf(box.rect.top, TILE));
+      const x1 = Math.max(x0 + 1, tileOf(box.rect.right, TILE));
+      const y1 = Math.min(floorLine, Math.max(y0 + 1, tileOf(box.rect.bottom, TILE)));
       const tile = box.platform ? T.PLATFORM : T.GROUND;
       for (let y = y0; y < y1; y++) {
         for (let x = x0; x < x1; x++) {
@@ -305,7 +318,7 @@ const Mainscreen = (() => {
     // the floor is the row below it and the two rows the body actually occupies
     // are this one and the one above.
     const spawn = {
-      x: Math.min(width - EDGE - 2, Math.max(EDGE + 1, tileOf(30))),
+      x: Math.min(width - EDGE - 2, Math.max(EDGE + 1, tileOf(30, TILE))),
       y: height - EDGE - 1,
     };
     for (let y = spawn.y - 1; y <= spawn.y; y++) {
@@ -319,7 +332,7 @@ const Mainscreen = (() => {
     if (options && options.sky) {
       let cardsRight = EDGE;
       (boxes || []).forEach((box) => {
-        cardsRight = Math.max(cardsRight, tileOf(box.rect.right));
+        cardsRight = Math.max(cardsRight, tileOf(box.rect.right, TILE));
       });
       sky = carveSky(put, get, width, height, cardsRight);
     }
@@ -328,10 +341,10 @@ const Mainscreen = (() => {
     // thing on the screen that has to work.
     let door = null;
     if (doorRect) {
-      const x0 = tileOf(doorRect.left);
-      const y0 = tileOf(doorRect.top);
-      const x1 = Math.max(x0 + 1, tileOf(doorRect.right));
-      const y1 = Math.max(y0 + 1, tileOf(doorRect.bottom));
+      const x0 = tileOf(doorRect.left, TILE);
+      const y0 = tileOf(doorRect.top, TILE);
+      const x1 = Math.max(x0 + 1, tileOf(doorRect.right, TILE));
+      const y1 = Math.max(y0 + 1, tileOf(doorRect.bottom, TILE));
       for (let y = y0; y < y1; y++) {
         for (let x = x0; x < x1; x++) put(x, y, T.DOOR);
       }
@@ -345,6 +358,11 @@ const Mainscreen = (() => {
       spawn,
       door,
       sky,
+      // How many pixels a tile of this level is worth. Carried on the level
+      // rather than asked of the module, because it depends on the window the
+      // level was built for — and anything drawing this level has to use the
+      // same number the collision was laid out with or the two come apart.
+      tile: TILE,
       // Player.update reads these off the level it is given. A menu has no
       // seed, no length and no career: it is a place, not a run.
       meters: width,
@@ -363,15 +381,16 @@ const Mainscreen = (() => {
   // combo is allowed to do anything, so a window with no room for the gauntlet
   // simply has no secret rather than half of one.
   function skyRoom(root, viewW, viewH) {
+    const tile = tileFor(viewH);
     let cardsRight = EDGE;
     boxesFrom(root).forEach((box) => {
-      cardsRight = Math.max(cardsRight, tileOf(box.rect.right));
+      cardsRight = Math.max(cardsRight, tileOf(box.rect.right, tile));
     });
-    return skyFits(Math.ceil(viewW / TILE), Math.ceil(viewH / TILE), cardsRight);
+    return skyFits(Math.ceil(viewW / tile), Math.ceil(viewH / tile), cardsRight);
   }
 
   return {
-    TILE, EDGE, HEADROOM, CORRIDOR, SKY,
-    skyRoom, tileOf, boxesFrom, doorFrom, build, fromPage,
+    EDGE, HEADROOM, CORRIDOR, SKY,
+    tileFor, skyRoom, tileOf, boxesFrom, doorFrom, build, fromPage,
   };
 })();

@@ -1347,7 +1347,7 @@
     drawDust(playCtx);
 
     const body = playRunner.body;
-    const T = Mainscreen.TILE;
+    const T = playLevel.tile;
     const scale = (T * Player.TUNING.height) / SHEET.activeH;
     const flashing = playRunner.recovering > 0 && Math.floor(playRunner.recovering * 20) % 2 === 0;
     const alpha = playRunner.finished ? playRunner.entering : flashing ? 0.45 : 1;
@@ -1388,11 +1388,12 @@
     return COMBO.every((code) => comboDown.has(code));
   }
 
-  // The top left corner, in page pixels, which is what the zone was described
-  // in — the runner is measured in tiles, so it is converted rather than the
-  // other way round.
+  // The top left corner of the level, in tiles — which is what it always meant,
+  // and used to be written in pixels only because a tile was a fixed twenty of
+  // them. A tile is the window's now, so a corner measured in pixels would be a
+  // different corner on every monitor.
   function inSecretZone(body) {
-    return body.x * Mainscreen.TILE < 150 && body.y * Mainscreen.TILE < 140;
+    return body.x < 7.5 && body.y < 7;
   }
 
   document.addEventListener("keydown", (event) => {
@@ -1447,12 +1448,15 @@
   }
 
   function drawDust(ctx) {
-    const T = Mainscreen.TILE;
+    const T = playLevel.tile;
     playDust.forEach((mote) => {
       const left = 1 - mote.age / mote.life;
       ctx.globalAlpha = left * 0.7;
       ctx.fillStyle = mote.gold ? colours.goldLight : colours.inkMuted;
-      const size = Math.max(1, Math.round(left * 4));
+      // A fifth of a tile, which is the four pixels this used to be back when a
+      // tile was twenty of them. Written against the tile so the dust grows
+      // with the runner it comes off rather than staying a speck beside them.
+      const size = Math.max(1, Math.round(left * T * 0.2));
       ctx.fillRect(Math.round(mote.x * T), Math.round(mote.y * T), size, size);
     });
     ctx.globalAlpha = 1;
@@ -1528,7 +1532,7 @@
 
   function drawSky(ctx) {
     if (!playSky || !playLevel.sky) return;
-    const T = Mainscreen.TILE;
+    const T = playLevel.tile;
 
     ctx.fillStyle = colours.stone;
     playLevel.sky.tiles.forEach((tile) => {
