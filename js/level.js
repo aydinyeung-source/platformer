@@ -1491,7 +1491,7 @@ const Level = (() => {
         const cy = t.y * tilePx + tilePx / 2;
 
         const glow = ctx.createRadialGradient(cx, cy, 0, cx, cy, reach);
-        glow.addColorStop(0, "rgba(255, 175, 60, " + (0.22 + lick * 0.05).toFixed(3) + ")");
+        glow.addColorStop(0, "rgba(255, 175, 60, " + (0.44 + lick * 0.05).toFixed(3) + ")");
         glow.addColorStop(1, "rgba(255, 175, 60, 0)");
         ctx.fillStyle = glow;
         ctx.fillRect(cx - reach, cy - reach, reach * 2, reach * 2);
