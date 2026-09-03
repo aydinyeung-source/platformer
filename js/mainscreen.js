@@ -208,12 +208,12 @@ const Mainscreen = (() => {
     // level never builds. That leaves the bottom few rows open on both sides,
     // so the shaft is walked into rather than dropped into.
     //
-    // Its top tile is level with the deck, so the climb ends by landing on it
-    // and walking right onto the tunnel floor — the deck starts in the very
-    // next column. Nothing overhead to bonk on the way out either: the two rows
-    // above it were opened with the shaft's own headroom.
+    // It stops a row below the deck rather than level with it, so the tile at
+    // the top of the wall is open air and the shaft runs the whole way up into
+    // the tunnel's own headroom. The climb comes out beside the deck instead of
+    // onto it.
     const chimneyFoot = height - EDGE - CORRIDOR - 1;
-    for (let y = SKY.deck; y <= chimneyFoot; y++) stone(plan.wall, y);
+    for (let y = SKY.deck + 1; y <= chimneyFoot; y++) stone(plan.wall, y);
 
     // There is no exit box. The gap was one for a while — drop through it and
     // the sky came down with you — and it is not any more: once this is built

@@ -1243,7 +1243,11 @@
 
   function resetPlayground() {
     playRunner = null;
-    playSky = false;
+    // Coming back from a run rebuilds the menu from nothing, and an unlocked
+    // tunnel is part of the menu now — so it is asked for again here rather
+    // than cleared. Without this, finishing a run would take the secret away
+    // from somebody who had already earned it.
+    playSky = skyUnlocked();
     playDust.length = 0;
     playAcc = 0;
     playEntering = false;
@@ -1672,6 +1676,19 @@
   // only knows the four bits the simulation runs on, and a recording of a run
   // has no business carrying a cheat code in it.
   const COMBO = ["KeyK", "KeyC", "KeyR"];
+  const SKY_KEY = "platformer.sky_unlocked";
+
+  // Whether this machine has found the tunnel before. Asked rather than
+  // remembered in a variable, because the two places that want to know are the
+  // page opening and the menu being rebuilt after a run, and those are far
+  // enough apart that a stale copy between them is a bug waiting to happen.
+  function skyUnlocked() {
+    try {
+      return localStorage.getItem(SKY_KEY) === "yes";
+    } catch (err) {
+      return false; // storage blocked: it is a secret again, which is fair
+    }
+  }
 
   // Every key the menu currently has held down. Its own set, kept apart from
   // input.js, which only knows the four bits the simulation runs on — a
@@ -1824,6 +1841,16 @@
       skyRefused = true;
       rebuildPlayground();
       return;
+    }
+
+    // Found once, found for good. A secret is worth finding the first time and
+    // is only a chore on the second, so from here on the tunnel is simply part
+    // of the menu — and the combo goes on working as the way up to it.
+    try {
+      localStorage.setItem(SKY_KEY, "yes");
+    } catch (err) {
+      // Private window: they will have to find it again next time, which is no
+      // worse than it was before it was remembered at all.
     }
 
     const entry = playLevel.sky.entry;
@@ -2075,6 +2102,11 @@
   }
 
   function boot() {
+    // Anyone who has found the tunnel once opens the page with it already
+    // built. Set before the loop starts, because the first frame is the one
+    // that measures the page and carves the level from it.
+    playSky = skyUnlocked();
+
     showTotal();
     startLoop();
     seedInput.value = Rng.randomSeed();
