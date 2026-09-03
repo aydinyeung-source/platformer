@@ -1787,12 +1787,17 @@
       ctx.fillStyle = MARBLE.groove;
       ctx.fillRect(x, top, bleedX, 1);
       ctx.fillRect(x, bottom - 1, bleedX, 1);
-      // Hung against the pillar rather than centred on the wall: its inner edge
-      // touches the column, and whatever will not fit runs off the side of the
-      // window. A picture pinned to the middle of a strip of wall reads as
+      // Only the right-hand wall gets one. Two of them read as decoration —
+      // a matching pair either side of the room, which is what a border is.
+      // One, off in the corner of a room nobody was told about, reads as
+      // somebody's private joke, which is what it is.
+      //
+      // Hung against the pillar rather than centred across the wall: its inner
+      // edge touches the column and whatever will not fit runs off the side of
+      // the window. A picture in the middle of a strip of wall reads as
       // decoration on a leftover margin; one that starts where the colonnade
       // ends reads as being on the wall behind it.
-      hangPicture(ctx, x, top, bleedX, h, x < 0);
+      if (x > 0) hangPicture(ctx, x, top, bleedX, h);
     }
   }
 
@@ -1802,21 +1807,22 @@
   // painting on a fractional scale is a blurred one — so it lands a little over
   // or under the share it was aiming for.
   //
-  // Wider than the wall, and meant to be. `outward` says which way the overflow
-  // goes: on the left-hand wall the picture's inner edge is pinned to the pillar
-  // and it runs off the left of the screen, and on the right-hand wall the other
-  // way about. A canvas running past the frame reads as a big painting seen from
-  // inside the room, which is the thing a small one centred on a strip of wall
-  // never manages.
-  function hangPicture(ctx, x, y, w, h, outward) {
+  // Wider than the wall, and meant to be: it starts at the pillar and runs off
+  // the right of the window. A canvas past the frame reads as a big painting
+  // seen from inside the room, which is the thing a small one centred on a
+  // strip of wall never manages.
+  //
+  // Halfway down the wall, because that is where a picture hangs when there is
+  // nothing else on the wall to line it up with.
+  function hangPicture(ctx, x, y, w, h) {
     if (!pictureReady || !picture.paint) return;
 
     const cut = picture.paint;
     const px = Math.max(1, Math.round((h * PICTURE_SHARE) / cut.h));
     const dw = cut.w * px;
     const dh = cut.h * px;
-    const left = Math.round(outward ? x + w - dw : x);
-    const top = Math.round(y + h * 0.34 - dh / 2);
+    const left = Math.round(x);
+    const top = Math.round(y + (h - dh) / 2);
 
     ctx.save();
     ctx.imageSmoothingEnabled = false;
