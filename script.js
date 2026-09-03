@@ -490,7 +490,11 @@
   picture.addEventListener("error", () => {
     pictureReady = false;
   });
-  picture.src = "New Piskel (5).png";
+  // Renamed off its Piskel export name, which had spaces and brackets in it.
+  // The site is served by Cloudflare Workers, where an asset path and the key
+  // it is stored under can disagree about how to encode those — and the failure
+  // is a silent 404 that looks exactly like a drawing bug. Redraws go here.
+  picture.src = "assets/mona.png";
 
   // ------------------------------------------------------------ the gym map
   //

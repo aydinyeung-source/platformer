@@ -9,7 +9,7 @@
 // before the network, so a stale copy is served for ever until this string is
 // different. It is the same version the page shows in its corner and the same
 // one runs.js sends with a run, so all three move together or none of them do.
-const VERSION = "1.84.2";
+const VERSION = "1.84.3";
 const CACHE = "platformer-" + VERSION;
 
 // Every file index.html actually pulls in, plus the two things an installed app
@@ -51,7 +51,7 @@ const CORE = [
 // and the obvious thing to call a replacement is gym.png; only one of them will
 // exist. The painting is here for the same reason they are — it is artwork, and
 // artwork gets redrawn without a line of code moving.
-const LIVE = ["gym.png", "gym.png.png", "New Piskel (5).png"];
+const LIVE = ["gym.png", "gym.png.png", "assets/mona.png"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -113,10 +113,12 @@ function mine(request) {
 }
 
 function isLive(url) {
-  // Decoded first. A pathname arrives percent-encoded, so a file with a space
-  // in its name would never match the plain name written above — it would drop
-  // back to being served cache first and a redrawn picture would sit there
-  // looking unchanged, which is the exact trap this list exists to avoid.
+  // Decoded first. A pathname arrives percent-encoded, so anything with a space
+  // or a bracket in its name would never match the plain name written above —
+  // it would drop back to being served cache first and a redrawn picture would
+  // sit there looking unchanged, which is the trap this list exists to avoid.
+  // Nothing here needs that today; it is here so that adding a file with an
+  // awkward name later is not a bug nobody can see.
   let path = url.pathname;
   try {
     path = decodeURIComponent(path);
