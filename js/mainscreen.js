@@ -415,12 +415,22 @@ const Mainscreen = (() => {
     const width = map[0].length;
     const T = Level.TILE;
 
-    // The tile is the menu's wherever there is room for one that size, so a
-    // runner is the same height upstairs as down. It shrinks only on a window
-    // too small to hold the room otherwise, and whatever is left over becomes
-    // margin around a centred room.
+    // As big as the window will take it.
+    //
+    // This used to be held down to the menu's own tile so a runner was the same
+    // height in both rooms, which is a nice property and the wrong trade: the
+    // room is a fixed forty by twenty-five, so on any large screen it sat as a
+    // small box in the middle of a lot of empty page. Filling the window is
+    // what makes it read as a room rather than a diagram of one.
+    //
+    // Whichever axis runs out first decides, so the whole course is always on
+    // screen — and because the room's shape is the drawing's and the window's
+    // is the window's, the difference between the two is left over as margin.
+    // A forty by twenty-five room is 1.6 wide to 1 tall; the more oblong the
+    // screen, the more of that lands at the sides. Redrawing the picture wider
+    // is the only thing that closes it, and createGym reads its size from the
+    // image, so that costs nothing here.
     const TILE = Math.max(8, Math.min(
-      tileFor(viewH),
       Math.floor(viewW / width),
       Math.floor(viewH / height)
     ));
