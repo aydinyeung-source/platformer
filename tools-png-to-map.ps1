@@ -3,7 +3,7 @@
 # so every pixel maps to exactly one glyph and nothing has to be guessed at.
 Add-Type -AssemblyName System.Drawing
 
-$src = "c:\Users\aydin\OneDrive\Claude VS Code\Platformer\gym.png.png"
+$src = "c:\Users\aydin\OneDrive\Claude VS Code\Platformer\gym.png"
 $img = New-Object System.Drawing.Bitmap($src)
 
 $GLYPH = @{
