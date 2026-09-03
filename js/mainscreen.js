@@ -192,9 +192,18 @@ const Mainscreen = (() => {
     // standing beside it is not.
     const exit = { x: plan.gapFrom, y: SKY.deck + 1, w: SKY.gap, h: SKY.gap };
 
+    // The far end of the tunnel, standing on the deck with its back to the
+    // right-hand pillar. It is a place rather than a mechanism: two tiles of
+    // doorway in the two rows of headroom, which is the whole height there is
+    // up here. Nothing is carved for it — a door you can walk through is a door
+    // with no tile in the way — so this is only where it is, and what walks
+    // into it is decided by whoever is holding the box.
+    const door = { x: width - EDGE - 2, y: SKY.deck - 2, w: 2, h: 2 };
+
     return {
       tiles: laid,
       exit,
+      door,
       // Set down one column into the floor, with the gap at their back.
       entry: { x: plan.start + 1, y: SKY.deck - 1 },
     };

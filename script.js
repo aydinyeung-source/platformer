@@ -1247,6 +1247,7 @@
     playDust.length = 0;
     playAcc = 0;
     playEntering = false;
+    skyDoorHit = false;
     queuePlayground();
   }
 
@@ -1272,6 +1273,7 @@
     stepDust(dt);
     if (!playSky && comboHeld() && inSecretZone(playRunner.body)) armSky();
     checkVault();
+    checkSkyDoor();
 
     // Into the door. Player.update stops the runner dead in the doorway and
     // fades them into it over half a second; the run starts when there is
@@ -1805,6 +1807,7 @@
   function armSky() {
     if (playSky || skyRefused) return;
     playSky = true;
+    skyDoorHit = false; // a new tunnel has its own door to reach
     rebuildPlayground();
 
     // No room for the gauntlet on this window: put it back the way it was
@@ -1852,6 +1855,35 @@
     body.vy = 0;
   }
 
+  // Reaching the golden door. It does nothing yet but say so — a burst of gold
+  // the first time it is touched, and then nothing, because a doorway that
+  // fountains for as long as you stand in it is a doorway you stop believing.
+  //
+  // The hook is here rather than the effect: what this opens onto is the gym,
+  // and the gym is not built. When it is, it goes where the burst is — the
+  // touch test and the once-only flag are already the two things it will need.
+  let skyDoorHit = false;
+
+  function checkSkyDoor() {
+    const box = playSky && playLevel.sky && playLevel.sky.door;
+    if (!box) return;
+
+    const body = playRunner.body;
+    const touching = body.x < box.x + box.w && body.x + body.w > box.x &&
+      body.y < box.y + box.h && body.y + body.h > box.y;
+
+    if (!touching) {
+      // Stepping out of the doorway arms it again, so a second visit is worth
+      // as much as the first.
+      skyDoorHit = false;
+      return;
+    }
+    if (skyDoorHit) return;
+
+    skyDoorHit = true;
+    puffSky(body.x + body.w / 2, body.y + body.h / 2, 26, 4, true);
+  }
+
   // ------------------------------------------------------------ drawing it
   //
   // Every tile the carver laid, and nothing else: what is drawn and what is
@@ -1867,6 +1899,67 @@
     "..####..",
     "...##...",
   ];
+
+  // The door at the far end of the tunnel: an arch of gold with light coming
+  // out from under it, standing on the deck with its back to the right-hand
+  // pillar. Drawn the way the cave's own door is drawn — a round-topped frame
+  // with a lighter opening inside it — because it is meant to be recognised as
+  // the same kind of thing, which is to say a way through.
+  //
+  // Visible from the moment the tunnel is walked into. A target at the far end
+  // is the only thing making a corridor a corridor rather than a shelf.
+  function drawSkyDoor(ctx, box, T) {
+    const w = box.w * T;
+    const h = box.h * T;
+    const x = box.x * T;
+    const y = box.y * T;
+
+    // The glow first, and under everything. Written out in parts because a
+    // gradient needs the colour broken up and a token arrives as one string —
+    // this is --gold-light, and it has to be kept in step with it by hand.
+    const cx = x + w / 2;
+    const cy = y + h * 0.6;
+    const reach = w * 1.8;
+    const glow = ctx.createRadialGradient(cx, cy, 0, cx, cy, reach);
+    glow.addColorStop(0, "rgba(240, 217, 122, 0.45)");
+    glow.addColorStop(1, "rgba(240, 217, 122, 0)");
+    ctx.fillStyle = glow;
+    ctx.fillRect(cx - reach, cy - reach, reach * 2, reach * 2);
+
+    // The frame. Narrower than its two tiles and standing on the deck, so it
+    // reads as something in the doorway rather than as the doorway being the
+    // whole end of the tunnel.
+    const fw = w * 0.72;
+    const fh = h * 0.94;
+    const fx = x + (w - fw) / 2;
+    const fy = y + h - fh;
+    const r = fw / 2;
+
+    ctx.beginPath();
+    ctx.moveTo(fx, fy + fh);
+    ctx.lineTo(fx, fy + r);
+    ctx.arc(fx + r, fy + r, r, Math.PI, 0);
+    ctx.lineTo(fx + fw, fy + fh);
+    ctx.closePath();
+    ctx.fillStyle = colours.gold;
+    ctx.fill();
+
+    // And the opening: the same arch inset, in the lighter gold, so the door
+    // reads as a way through rather than a slab leaning on the wall.
+    const iw = fw * 0.58;
+    const ir = iw / 2;
+    const ix = fx + (fw - iw) / 2;
+    const iy = fy + Math.max(2, T * 0.16);
+
+    ctx.beginPath();
+    ctx.moveTo(ix, fy + fh);
+    ctx.lineTo(ix, iy + ir);
+    ctx.arc(ix + ir, iy + ir, ir, Math.PI, 0);
+    ctx.lineTo(ix + iw, fy + fh);
+    ctx.closePath();
+    ctx.fillStyle = colours.goldLight;
+    ctx.fill();
+  }
 
   function drawSky(ctx) {
     if (!playSky || !playLevel.sky) return;
@@ -1884,6 +1977,8 @@
       if (Level.at(playLevel, tile.x, tile.y - 1) === Level.TILE.GROUND) return;
       ctx.fillRect(tile.x * T, tile.y * T, T, 2);
     });
+
+    if (playLevel.sky.door) drawSkyDoor(ctx, playLevel.sky.door, T);
 
     const box = playLevel.sky.exit;
     const px = Math.max(1, Math.floor((box.w * T) / SCONCE[0].length));
