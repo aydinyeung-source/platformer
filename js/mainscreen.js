@@ -185,11 +185,32 @@ const Mainscreen = (() => {
       clear(x, SKY.deck - 2);
     }
 
+    // ------------------------------------------------------------ the chimney
+    //
+    // The way up, and the reason the gap is a gap. The far column of it is a
+    // wall from the deck all the way down, which leaves the columns between it
+    // and the left pillar as a shaft with a face on either side — and two faces
+    // is a climb. One is a scramble that runs out at nine tiles, which is
+    // nothing against the height of a window.
+    //
+    // It stops a row short of the line cards are cut off at, for the reason
+    // cards are cut off there: the corridor along the floor has to run the
+    // width of the window, and a wall standing in it is the one thing this
+    // level never builds. That leaves the bottom few rows open on both sides,
+    // so the shaft is walked into rather than dropped into.
+    //
+    // Its top tile is level with the deck, so the climb ends by landing on it
+    // and walking right onto the tunnel floor. Nothing overhead to bonk on the
+    // way out: the two rows above were opened with the rest of the gap's
+    // headroom, and the lid is a row above those.
+    const chimneyWall = plan.gapTo;
+    const chimneyFoot = height - EDGE - CORRIDOR - 1;
+    for (let y = SKY.deck; y <= chimneyFoot; y++) stone(chimneyWall, y);
+
     // There is no exit box. The gap was one for a while — drop through it and
     // the sky came down with you — and it is not any more: once this is built
-    // it stays built. Falling out of the tunnel puts the runner back on the
-    // menu with the tunnel still overhead, which is what a second storey is
-    // supposed to do.
+    // it stays built. Falling down the shaft puts the runner back on the menu
+    // with the tunnel still overhead, and the climb back up is the way in.
 
     // The far end of the tunnel, standing on the deck with its back to the
     // right-hand pillar. It is a place rather than a mechanism: two tiles of

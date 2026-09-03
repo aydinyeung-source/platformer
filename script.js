@@ -1271,7 +1271,7 @@
     if (taken === Game.MAX_CATCHUP) playAcc = 0;
 
     stepDust(dt);
-    if (!playSky && comboHeld() && inSecretZone(playRunner.body)) armSky();
+    if (comboHeld() && inSecretZone(playRunner.body)) armSky();
     checkSkyDoor();
 
     // Into the door. Player.update stops the runner dead in the doorway and
@@ -1803,10 +1803,18 @@
 
   // --------------------------------------------------------- arming the sky
 
+  // Holding the combo up in the corner puts the runner in the tunnel, whether
+  // or not the tunnel is already there. It used to build it once and never
+  // speak again, which was fine while dropping out of it took it down with you
+  // — now that it stays up, a one-shot would leave the only way back a climb
+  // the player might not have found yet. So it is a lift as well as a summons.
+  //
+  // It cannot repeat: the entry is past the sixth column and the zone stops at
+  // it, so the runner is out of the zone the instant they arrive.
   function armSky() {
-    if (playSky || skyRefused) return;
+    if (skyRefused) return;
+    if (!playSky) skyDoorHit = false; // a new tunnel has its own door to reach
     playSky = true;
-    skyDoorHit = false; // a new tunnel has its own door to reach
     rebuildPlayground();
 
     // No room for the gauntlet on this window: put it back the way it was
