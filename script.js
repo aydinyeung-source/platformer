@@ -1900,11 +1900,11 @@
   // origin. The menu is the window, so its origin is the window's; the gym is a
   // fixed forty by twenty-five room that the window is only a frame around, so
   // its origin is wherever centring put it.
-  function room(ctx, extraY) {
+  function room(ctx, extraY, withRunner) {
     ctx.save();
     ctx.translate(playLevel.originX || 0, (playLevel.originY || 0) + extraY);
     drawScene(ctx);
-    drawRunnerHere(ctx);
+    if (withRunner) drawRunnerHere(ctx);
     ctx.restore();
   }
 
@@ -1914,7 +1914,7 @@
     playCtx.clearRect(0, 0, viewW, viewH);
 
     if (!sliding) {
-      room(playCtx, 0);
+      room(playCtx, 0, true);
       return;
     }
 
@@ -1926,16 +1926,19 @@
     const menuY = shift;
     const gymY = shift - viewH;
 
-    // The room being left is a still picture taken as the slide began. It has
-    // no runner in it — the live one rides in with the room being entered, so
-    // there is one of them on screen rather than two.
+    // Neither room has anybody in it while they are moving. The two storeys
+    // can be at different scales — the gym takes the whole window and the menu
+    // is drawn at whatever tile the page needs — so a runner shown in both, or
+    // carried from one into the other, reads as the character changing size
+    // halfway down the screen. Nobody is drawn until the room has stopped.
+    //
     // The still is a picture of the whole window, so it moves as the window
     // moves — the centring is already baked into it.
     if (slideShot) {
       playCtx.drawImage(slideShot, 0, shotIsGym ? gymY : menuY, viewW, viewH);
     }
 
-    room(playCtx, inGym ? gymY : menuY);
+    room(playCtx, inGym ? gymY : menuY, false);
   }
 
   // ------------------------------------------------------------- the secret
