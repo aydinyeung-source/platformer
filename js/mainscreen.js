@@ -130,9 +130,14 @@ const Mainscreen = (() => {
     //
     // At one, the far face is a quarter of a tile away and a kick reaches it in
     // two frames. It cannot be missed, the sides alternate on their own, and
-    // every kick is the tall one. That makes this the easiest possible version
-    // of the climb rather than a test of it — which is a choice about what the
-    // shaft is for, not an accident of the number.
+    // every kick is the tall one.
+    //
+    // That is the point rather than a shortcoming. This route is a lift: it
+    // exists to put the runner on the tunnel quickly and every time, because
+    // the whole of it is a way up to the gym and none of it is the test. The
+    // combo teleports for the same reason and the tunnel has nothing in it for
+    // the same reason. Widening this would be making the stairs harder to climb
+    // on the way to the thing you came to do.
     shaft: 1,
   };
 
