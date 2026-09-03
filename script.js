@@ -1685,22 +1685,27 @@
   //
   // Run by run rather than column by column: a window is sixty-odd columns and
   // this is four rectangles either way.
-  function drawCornice(ctx, T, cols) {
+  // One stretch of it, from x for w pixels. `up` is how far above the ceiling's
+  // own row the stone carries on — nothing in the menu, where the room is the
+  // window, and the top margin in the gym, where it is not.
+  function corniceBand(ctx, x, w, T, up) {
+    band(ctx, x, -up, w, T + up, MARBLE.face);
+    band(ctx, x, -up, w, 1, MARBLE.light);
+    band(ctx, x, Math.round(T * 0.44), w, 1, MARBLE.groove);
+    band(ctx, x, Math.round(T * 0.68), w, T - Math.round(T * 0.68) - 1, MARBLE.shade);
+    // One pixel, and the only line in the room that says where the ceiling
+    // stops and the air begins. In slate it was the lit edge; in marble it
+    // has to be the dark one, because every other tone up here is brighter
+    // than the page and a white line on pale paper draws nothing at all.
+    band(ctx, x, T - 1, w, 1, MARBLE.outline);
+  }
+
+  function drawCornice(ctx, T, cols, bleedX, bleedY) {
     let start = -1;
 
     const close = (end) => {
       if (start < 0) return;
-      const x = start * T;
-      const w = (end - start + 1) * T;
-      band(ctx, x, 0, w, T, MARBLE.face);
-      band(ctx, x, 0, w, 1, MARBLE.light);
-      band(ctx, x, Math.round(T * 0.44), w, 1, MARBLE.groove);
-      band(ctx, x, Math.round(T * 0.68), w, T - Math.round(T * 0.68) - 1, MARBLE.shade);
-      // One pixel, and the only line in the room that says where the ceiling
-      // stops and the air begins. In slate it was the lit edge; in marble it
-      // has to be the dark one, because every other tone up here is brighter
-      // than the page and a white line on pale paper draws nothing at all.
-      band(ctx, x, T - 1, w, 1, MARBLE.outline);
+      corniceBand(ctx, start * T, (end - start + 1) * T, T, bleedY);
       start = -1;
     };
 
@@ -1710,6 +1715,15 @@
       if (!lidded) close(col - 1);
     }
     close(cols - 1);
+
+    // And out past the walls on both sides, where the room is narrower than
+    // the window. The pillars stay where the walls are, because they are the
+    // walls — what runs on behind them is the building carrying on, which is
+    // what a colonnade looks like and what a room stopping short of the screen
+    // does not.
+    if (bleedX <= 0) return;
+    corniceBand(ctx, -bleedX, bleedX, T, bleedY);
+    corniceBand(ctx, cols * T, bleedX, T, bleedY);
   }
 
   // The gym's own masonry: everything inside the frame that the picture said
@@ -1775,22 +1789,33 @@
     const cols = playLevel.width;
     const rows = playLevel.height;
 
-    drawCornice(ctx, T, cols);
+    // How far the window reaches past the room on each side. Nothing on the
+    // menu, whose level is the window; on the gym it is whatever the centring
+    // left over, and it is what the ceiling and the floor run out into.
+    const bleedX = playLevel.originX || 0;
+    const bleedY = playLevel.originY || 0;
+
+    drawCornice(ctx, T, cols, bleedX, bleedY);
 
     // The floor, between the two pillars and along the bottom row. It is the
     // row the carver has always laid as solid ground and the row the runner
     // spawns standing on — so this draws no new surface, it draws the one that
     // was already underfoot and unpainted. Cards can never reach it: they are
     // cut off three rows higher so the corridor to the door stays open.
+    // From one wall to the other, and on out past both of them into whatever
+    // the window has left over — same reasoning as the cornice. Down past the
+    // bottom of the room too, so there is no pale strip under it.
     const floorY = (rows - 1) * T;
-    const inner = (cols - 2) * T;
-    band(ctx, T, floorY, inner, T, MARBLE.face);
+    const from = T - bleedX;
+    const inner = (cols - 2) * T + bleedX * 2;
+    const deep = T + bleedY;
+    band(ctx, from, floorY, inner, deep, MARBLE.face);
     // The polished top surface, and directly under it the line that separates
     // it from the air. White alone is the right colour for a lit floor and the
     // wrong one for an edge on a pale page, so it gets both.
-    band(ctx, T, floorY, inner, 1, MARBLE.light);
-    band(ctx, T, floorY + 1, inner, 1, MARBLE.groove);
-    band(ctx, T, floorY + Math.round(T * 0.55), inner, T - Math.round(T * 0.55), MARBLE.shade);
+    band(ctx, from, floorY, inner, 1, MARBLE.light);
+    band(ctx, from, floorY + 1, inner, 1, MARBLE.groove);
+    band(ctx, from, floorY + Math.round(T * 0.55), inner, deep - Math.round(T * 0.55), MARBLE.shade);
 
     // And upstairs, everything the room is made of on the inside.
     //
@@ -1831,16 +1856,26 @@
   let roomArt = null;
 
   function paintRoom(dpr) {
-    const w = playLevel.width * playLevel.tile;
-    const h = playLevel.height * playLevel.tile;
+    // The picture is the whole window rather than just the room, so the cornice
+    // and the floor have somewhere to run to past the room's own walls. The
+    // room is drawn into it wherever the centring put it, and the offset is
+    // handed back so it can be taken off again at drawing time.
+    const w = document.documentElement.clientWidth;
+    const h = document.documentElement.clientHeight;
+    const offX = playLevel.originX || 0;
+    const offY = playLevel.originY || 0;
+
     roomArt = document.createElement("canvas");
     roomArt.width = Math.round(w * dpr);
     roomArt.height = Math.round(h * dpr);
     const ctx = roomArt.getContext("2d");
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.translate(offX, offY);
     drawRoom(ctx);
     roomArt.cssW = w;
     roomArt.cssH = h;
+    roomArt.offX = -offX;
+    roomArt.offY = -offY;
   }
 
   // Everything in the room except whoever is standing in it. Split out because
@@ -1849,7 +1884,7 @@
   function drawScene(ctx) {
     // The room first, behind everything: the door stands in it, and the runner
     // stands in front of it.
-    if (roomArt) ctx.drawImage(roomArt, 0, 0, roomArt.cssW, roomArt.cssH);
+    if (roomArt) ctx.drawImage(roomArt, roomArt.offX, roomArt.offY, roomArt.cssW, roomArt.cssH);
     // The room, its tunnel and both doorways are all in that one picture now.
     // What is left is the menu's own Play door, which is measured off the page
     // rather than the level, and the dust, which is the only thing up here that
