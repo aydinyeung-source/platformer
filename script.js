@@ -1738,14 +1738,25 @@
     }
   }
 
+  // Everything below draws in level space, with the top-left tile at the
+  // origin. The menu is the window, so its origin is the window's; the gym is a
+  // fixed forty by twenty-five room that the window is only a frame around, so
+  // its origin is wherever centring put it.
+  function room(ctx, extraY) {
+    ctx.save();
+    ctx.translate(playLevel.originX || 0, (playLevel.originY || 0) + extraY);
+    drawScene(ctx);
+    drawRunnerHere(ctx);
+    ctx.restore();
+  }
+
   function renderPlayground() {
     const viewW = document.documentElement.clientWidth;
     const viewH = document.documentElement.clientHeight;
     playCtx.clearRect(0, 0, viewW, viewH);
 
     if (!sliding) {
-      drawScene(playCtx);
-      drawRunnerHere(playCtx);
+      room(playCtx, 0);
       return;
     }
 
@@ -1760,15 +1771,13 @@
     // The room being left is a still picture taken as the slide began. It has
     // no runner in it — the live one rides in with the room being entered, so
     // there is one of them on screen rather than two.
+    // The still is a picture of the whole window, so it moves as the window
+    // moves — the centring is already baked into it.
     if (slideShot) {
       playCtx.drawImage(slideShot, 0, shotIsGym ? gymY : menuY, viewW, viewH);
     }
 
-    playCtx.save();
-    playCtx.translate(0, inGym ? gymY : menuY);
-    drawScene(playCtx);
-    drawRunnerHere(playCtx);
-    playCtx.restore();
+    room(playCtx, inGym ? gymY : menuY);
   }
 
   // ------------------------------------------------------------- the secret
@@ -2054,6 +2063,7 @@
     slideShot.height = Math.round(h * dpr);
     const ctx = slideShot.getContext("2d");
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.translate(playLevel.originX || 0, playLevel.originY || 0);
     drawScene(ctx);
     shotIsGym = inGym;
   }

@@ -350,20 +350,28 @@ const Mainscreen = (() => {
     };
   }
 
-  // ---------------------------------------------------------------- the gym
+  // The gym is a level somebody drew, not one the window happens to produce,
+  // and it is drawn on a fixed grid: forty columns by twenty-five rows. Every
+  // distance in it is measured against the movement envelope — three tiles of
+  // lava under a two-row roof is a skim and nothing else; a face that tall is a
+  // wall climb — so a grid that stretched with the window would leave the
+  // obstacles no longer being the obstacles they were drawn as.
   //
-  // The second storey, and the first level here with no page behind it. The
-  // menu is the page read as collision; this is a room of its own, and all it
-  // borrows is the grid — the same tile, worked out from the same window, so a
-  // runner who walks out of one and into the other is the same size in both.
-  //
-  // Empty on purpose. It is a box with a door in it and nothing else yet, and
-  // an empty room that is honestly empty is better than one furnished with
-  // guesses about what will go in it.
+  // The room keeps its shape and the window frames it. The tile is the menu's
+  // wherever there is room for one that size, so a runner is the same height
+  // upstairs as down; it shrinks only on a window too small to hold the room
+  // otherwise, and what is left over becomes margin around a centred room.
+  const GYM_W = 40;
+  const GYM_H = 25;
+
   function createGym(viewW, viewH) {
-    const TILE = tileFor(viewH);
-    const width = Math.max(12, Math.floor(viewW / TILE));
-    const height = Math.max(10, Math.floor(viewH / TILE));
+    const width = GYM_W;
+    const height = GYM_H;
+    const TILE = Math.max(8, Math.min(
+      tileFor(viewH),
+      Math.floor(viewW / width),
+      Math.floor(viewH / height)
+    ));
     const tiles = new Uint8Array(width * height);
     const T = Level.TILE;
 
@@ -371,35 +379,89 @@ const Mainscreen = (() => {
       if (x < 0 || x >= width || y < 0 || y >= height) return;
       tiles[y * width + x] = tile;
     };
+    const block = (x0, y0, x1, y1, tile) => {
+      for (let y = y0; y <= y1; y++) {
+        for (let x = x0; x <= x1; x++) put(x, y, tile === undefined ? T.GROUND : tile);
+      }
+    };
+    const row = (y, x0, x1, tile) => block(x0, y, x1, y, tile);
+    const column = (x, y0, y1, tile) => block(x, y0, x, y1, tile);
 
-    // The same closed box the menu is, and drawn by the same code — walls down
-    // both sides, a floor along the bottom, a lid across the top.
-    for (let y = 0; y < height; y++) {
-      for (let e = 0; e < EDGE; e++) {
-        put(e, y, T.GROUND);
-        put(width - 1 - e, y, T.GROUND);
-      }
-    }
-    for (let x = 0; x < width; x++) {
-      for (let e = 0; e < EDGE; e++) {
-        put(x, e, T.GROUND);
-        put(x, height - 1 - e, T.GROUND);
-      }
-    }
+    // ------------------------------------------------------------- the frame
+    // The same closed box the menu is, and drawn by the same code.
+    column(0, 0, height - 1);
+    column(width - 1, 0, height - 1);
+    row(0, 0, width - 1);
+    row(height - 1, 0, width - 1);
+
+    // ------------------------------------------------------ the right climber
+    // A wall down the middle of the right-hand end makes a chimney out of the
+    // space between it and the pillar, and the door sits at the bottom of it.
+    // The two ledges are what turn a face taller than one climb into three
+    // shorter ones: somewhere to stand, breathe, and start again.
+    column(34, 5, 21);
+    put(37, 14, T.GROUND);
+    put(35, 8, T.GROUND);
+
+    // Rows two and three stay open over the wall's head, so the climb ends by
+    // vaulting left out of the chimney instead of stopping under a ceiling.
+
+    // --------------------------------------- the upper runway and the skim
+    // The long floor across the top, running right to left, with three tiles of
+    // lava let into it and a roof brought down over them.
+    //
+    // Two open rows above that lava and no more. A slide is 0.8 of a tile tall
+    // and a skim rises 0.8 more, so two rows is exactly the height a skim needs
+    // and exactly the height a jump cannot use — which is what makes the lava a
+    // skim and not a hop. The solid course is laid at row 6 so that rows 7 and 8
+    // are the two that are open.
+    row(9, 18, 33);
+    row(9, 25, 27, T.LAVA);
+    row(6, 24, 28);
+
+    // Four tiles of flat deck before it, because a slide has to be carried into
+    // and there is nowhere else on this runway to pick up the speed.
+
+    // ------------------------------------------- the mid-left ledges and drop
+    // Where the runway stops, the room drops. A shelf below it with its own
+    // strip of lava, a single tile hanging in the air under that, and a wall
+    // dividing the whole middle from the left-hand end.
+    row(13, 15, 20);
+    row(13, 15, 16, T.LAVA);
+    put(19, 17, T.GROUND);
+    column(14, 8, 18);
+
+    // ------------------------------ the left platforms and the deep lava pit
+    // Two tiles to land on, an overhang to get under, and a pit in the floor
+    // with one block standing in it.
+    row(8, 4, 5);
+    row(6, 9, 11);
+    column(9, 6, 9);
+    block(2, 22, 7, height - 1, T.LAVA);
+    put(3, 22, T.GROUND);
+
+    // ------------------------------------------------------- the floor return
+    // Row 24 is already solid from the frame and the pit only takes the far
+    // left of it, so the run home from the bottom of the drop to the door is
+    // clear ground the whole way.
 
     return {
       width,
       height,
       tiles,
       tile: TILE,
-      spawn: { x: Math.max(EDGE + 1, width - EDGE - 3), y: height - EDGE - 1 },
-      // The way back down, in the same two columns as the tunnel's door one
-      // storey below and against the same right-hand pillar. That is the whole
-      // trick of the slide: the door you go up through and the door you arrive
-      // at are the same place on the screen, so the rooms read as stacked
-      // rather than swapped. A box rather than tiles, like the tunnel's own —
-      // a door you walk through is a door with nothing in the way.
-      door: { x: width - EDGE - 2, y: height - 3, w: 2, h: 2 },
+      // Whole pixels, so a centred room does not land on a half one and blur
+      // every hard edge in it.
+      originX: Math.round((viewW - width * TILE) / 2),
+      originY: Math.round((viewH - height * TILE) / 2),
+      spawn: { x: 35, y: height - 2 },
+      // The way back down, in the same columns as the tunnel's door one storey
+      // below and against the same right-hand pillar. That is the whole trick
+      // of the slide: the door you go up through and the door you arrive at are
+      // the same place on the screen, so the rooms read as stacked rather than
+      // swapped. A box rather than tiles, like the tunnel's own — a door you
+      // walk through is a door with nothing in the way.
+      door: { x: 37, y: 21, w: 2, h: 3 },
       gym: true,
       // Player.update reads these off whatever level it is given.
       meters: width,
