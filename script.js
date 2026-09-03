@@ -482,8 +482,52 @@
   const picture = new Image();
   let pictureReady = false;
 
+  // How much of the wall's height the picture is asked to take.
+  const PICTURE_SHARE = 0.4;
+
+  // Where the paint actually is inside the file.
+  //
+  // The frame occupies twenty by twenty-eight of a thirty-two square, and the
+  // rest is transparent. Sized by the square it hangs a third smaller than
+  // asked for with a band of nothing all round it, which reads as a small
+  // picture badly hung rather than a large one. Measured, it reads as what it
+  // is — and it stays right if the drawing is redone at another size.
+  function paintBounds(img) {
+    const scratch = document.createElement("canvas");
+    scratch.width = img.width;
+    scratch.height = img.height;
+    const ctx = scratch.getContext("2d");
+    ctx.drawImage(img, 0, 0);
+
+    let data;
+    try {
+      data = ctx.getImageData(0, 0, img.width, img.height).data;
+    } catch (err) {
+      return null; // a file:// page will not hand its pixels back
+    }
+
+    let x0 = img.width;
+    let y0 = img.height;
+    let x1 = -1;
+    let y1 = -1;
+    for (let y = 0; y < img.height; y++) {
+      for (let x = 0; x < img.width; x++) {
+        if (data[(y * img.width + x) * 4 + 3] === 0) continue;
+        if (x < x0) x0 = x;
+        if (y < y0) y0 = y;
+        if (x > x1) x1 = x;
+        if (y > y1) y1 = y;
+      }
+    }
+    if (x1 < 0) return null;
+    return { x: x0, y: y0, w: x1 - x0 + 1, h: y1 - y0 + 1 };
+  }
+
   picture.addEventListener("load", () => {
     pictureReady = true;
+    // Whole file if the pixels cannot be read: a little small, never wrong.
+    picture.paint = paintBounds(picture) ||
+      { x: 0, y: 0, w: picture.width, h: picture.height };
     queuePlayground();
   });
   // Missing or unreadable: bare wall, which is a wall and not a broken image.
@@ -1752,26 +1796,31 @@
     }
   }
 
-  // As near the wall's own width as a whole number of source pixels gets, so it
-  // is a picture on that wall rather than a stamp in the middle of it. Whole
-  // pixels only — a pixel-art painting on a fractional scale is a blurred one —
-  // which means it lands a little over or a little under the width it was aiming
-  // for, and over is fine: the edge of the window crops it.
+  // Sized off the wall's height rather than its width, because height is the
+  // dimension there is plenty of: the wall is as tall as the room and only as
+  // wide as the window had to spare. Whole source pixels only — a pixel-art
+  // painting on a fractional scale is a blurred one — so it lands a little over
+  // or under the share it was aiming for.
   //
-  // `outward` says which way the overflow goes. On the left-hand wall the
-  // picture's right edge is pinned to the pillar and it grows leftwards off the
-  // screen; on the right-hand wall it is the other way about.
+  // Wider than the wall, and meant to be. `outward` says which way the overflow
+  // goes: on the left-hand wall the picture's inner edge is pinned to the pillar
+  // and it runs off the left of the screen, and on the right-hand wall the other
+  // way about. A canvas running past the frame reads as a big painting seen from
+  // inside the room, which is the thing a small one centred on a strip of wall
+  // never manages.
   function hangPicture(ctx, x, y, w, h, outward) {
-    if (!pictureReady || !picture.width) return;
+    if (!pictureReady || !picture.paint) return;
 
-    const px = Math.max(2, Math.round(w / picture.width));
-    const size = picture.width * px;
-    const left = outward ? x + w - size : x;
-    const top = Math.round(y + h * 0.34 - size / 2);
+    const cut = picture.paint;
+    const px = Math.max(1, Math.round((h * PICTURE_SHARE) / cut.h));
+    const dw = cut.w * px;
+    const dh = cut.h * px;
+    const left = Math.round(outward ? x + w - dw : x);
+    const top = Math.round(y + h * 0.34 - dh / 2);
 
     ctx.save();
     ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(picture, Math.round(left), top, size, size);
+    ctx.drawImage(picture, cut.x, cut.y, cut.w, cut.h, left, top, dw, dh);
     ctx.restore();
   }
 
