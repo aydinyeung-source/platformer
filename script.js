@@ -1746,23 +1746,28 @@
           continue;
         }
 
-        ctx.fillStyle = MARBLE.face;
-        ctx.fillRect(px, py, T + 0.5, T + 0.5);
-        // Shaded underside and a seam down the right, so a run of blocks reads
-        // as blocks rather than as one poured slab.
-        ctx.fillStyle = MARBLE.shade;
-        ctx.fillRect(px, py + T - Math.max(1, Math.round(T * 0.12)), T + 0.5,
-          Math.max(1, Math.round(T * 0.12)));
-        ctx.fillStyle = MARBLE.groove;
-        ctx.fillRect(px + T - 1, py, 1, T + 0.5);
-        if (Level.at(playLevel, x, y - 1) !== Level.TILE.GROUND) {
-          ctx.fillStyle = MARBLE.light;
-          ctx.fillRect(px, py, T + 0.5, cap);
-          ctx.fillStyle = MARBLE.outline;
-          ctx.fillRect(px, py, T + 0.5, 1);
-        }
+        marbleBlock(ctx, px, py, T, Level.at(playLevel, x, y - 1) !== Level.TILE.GROUND);
       }
     }
+  }
+
+  // One block of it. Shaded underside and a seam down the right, so a run of
+  // them reads as blocks rather than as one poured slab — and a lit cap on any
+  // that has air above it, which is the whole of what says a thing can be
+  // landed on.
+  function marbleBlock(ctx, px, py, T, lit) {
+    const under = Math.max(1, Math.round(T * 0.12));
+    ctx.fillStyle = MARBLE.face;
+    ctx.fillRect(px, py, T + 0.5, T + 0.5);
+    ctx.fillStyle = MARBLE.shade;
+    ctx.fillRect(px, py + T - under, T + 0.5, under);
+    ctx.fillStyle = MARBLE.groove;
+    ctx.fillRect(px + T - 1, py, 1, T + 0.5);
+    if (!lit) return;
+    ctx.fillStyle = MARBLE.light;
+    ctx.fillRect(px, py, T + 0.5, Math.max(2, Math.round(T * 0.16)));
+    ctx.fillStyle = MARBLE.outline;
+    ctx.fillRect(px, py, T + 0.5, 1);
   }
 
   function drawRoom(ctx) {
@@ -1794,6 +1799,14 @@
     // own — they came out of a picture and nothing else was drawing them — so
     // the whole obstacle course was solid, collidable and invisible.
     if (playLevel.gym) drawGymTiles(ctx, T, cols, rows);
+
+    // The secret's tunnel, and the gym's way back down. Both are as fixed as
+    // the walls are, so they belong in the picture the room is painted into
+    // rather than in the frame loop — the tunnel alone is eighty-odd blocks,
+    // and eighty blocks of marble is four hundred rectangles a frame to say a
+    // thing that has not changed since the last rebuild.
+    drawSky(ctx);
+    if (playLevel.gym && playLevel.door) drawSkyDoor(ctx, playLevel.door, T);
 
     // Both walls run the full height of the level and always have: the carver
     // fills them for every row, and the gauntlet's own clearing refuses to cut
@@ -1837,11 +1850,11 @@
     // The room first, behind everything: the door stands in it, and the runner
     // stands in front of it.
     if (roomArt) ctx.drawImage(roomArt, 0, 0, roomArt.cssW, roomArt.cssH);
-    // The gym's way back down, drawn as the tunnel's door is drawn, because it
-    // is the same kind of thing and ought to be recognised without a label.
-    if (inGym && playLevel.door) drawSkyDoor(ctx, playLevel.door, playLevel.tile);
+    // The room, its tunnel and both doorways are all in that one picture now.
+    // What is left is the menu's own Play door, which is measured off the page
+    // rather than the level, and the dust, which is the only thing up here that
+    // moves.
     drawDoor(ctx);
-    drawSky(ctx);
     drawDust(ctx);
   }
 
@@ -2181,6 +2194,21 @@
   // Placed the way arming the sky places: feet on the floor, standing rather
   // than sliding, and the velocity zeroed, because whatever the runner was
   // doing in the other room is not something they are still doing in this one.
+  // The first solid row at or below a starting point.
+  //
+  // An arrival used to be put down at the bottom edge of the doorway it came
+  // through, which was the floor for as long as every door happened to be drawn
+  // sitting on one. The gym is a picture somebody edits, so that stopped being
+  // true the first time a door moved up a row — and the runner arrived hanging
+  // a tile in the air and fell. Asking the tiles costs nothing and cannot go
+  // out of date.
+  function groundUnder(level, tx, fromY) {
+    for (let y = fromY; y < level.height; y++) {
+      if (Level.at(level, tx, y) === Level.TILE.GROUND) return y;
+    }
+    return level.height - 1;
+  }
+
   function stand(level, at) {
     const body = playRunner.body;
     body.h = Player.TUNING.height;
@@ -2244,7 +2272,10 @@
     // because the room is the point and all of it is that way.
     const body = playRunner.body;
     const door = playLevel.door;
-    stand(playLevel, { x: door.x - 1.5, y: door.y + door.h - body.h });
+    stand(playLevel, {
+      x: door.x - 1.5,
+      y: groundUnder(playLevel, Math.floor(door.x - 1.5), door.y + door.h) - body.h,
+    });
     playRunner.facing = -1;
     gymDoorArmed = false;
     beginSlide();
@@ -2263,7 +2294,8 @@
     const body = playRunner.body;
     const door = playLevel.sky && playLevel.sky.door;
     stand(playLevel, door
-      ? { x: door.x - 1.5, y: door.y + door.h - body.h }
+      ? { x: door.x - 1.5,
+          y: groundUnder(playLevel, Math.floor(door.x - 1.5), door.y + door.h) - body.h }
       : { x: playLevel.spawn.x + (1 - body.w) / 2, y: playLevel.spawn.y + 1 - body.h });
     playRunner.facing = -1;
     skyDoorArmed = false;
@@ -2358,17 +2390,13 @@
     if (!playSky || !playLevel.sky) return;
     const T = playLevel.tile;
 
-    ctx.fillStyle = colours.stone;
+    // Marble, like everything else in this room. It was dark stone while the
+    // menu was dark stone; the walls went white and the secret's own tunnel
+    // stayed behind, reading as a slab of somewhere else laid over the top of
+    // the building rather than as another floor of it.
     playLevel.sky.tiles.forEach((tile) => {
-      ctx.fillRect(tile.x * T, tile.y * T, T, T);
-    });
-
-    // A lit top edge on any tile with sky above it, so a deck reads as
-    // something to land on rather than as a bar of shadow.
-    ctx.fillStyle = colours.stoneRim;
-    playLevel.sky.tiles.forEach((tile) => {
-      if (Level.at(playLevel, tile.x, tile.y - 1) === Level.TILE.GROUND) return;
-      ctx.fillRect(tile.x * T, tile.y * T, T, 2);
+      marbleBlock(ctx, tile.x * T, tile.y * T, T,
+        Level.at(playLevel, tile.x, tile.y - 1) !== Level.TILE.GROUND);
     });
 
     // Stone, and then the one gold thing up here. The sconce that used to burn
