@@ -185,12 +185,11 @@ const Mainscreen = (() => {
       clear(x, SKY.deck - 2);
     }
 
-    // The way home. With the gauntlet down to one tunnel there is nothing left
-    // to reach, so the gap is both the hole in the floor and the door out: walk
-    // off the end, drop through it, and the sky comes down with you. It sits
-    // below the deck rather than level with it, so falling is what trips it and
-    // standing beside it is not.
-    const exit = { x: plan.gapFrom, y: SKY.deck + 1, w: SKY.gap, h: SKY.gap };
+    // There is no exit box. The gap was one for a while — drop through it and
+    // the sky came down with you — and it is not any more: once this is built
+    // it stays built. Falling out of the tunnel puts the runner back on the
+    // menu with the tunnel still overhead, which is what a second storey is
+    // supposed to do.
 
     // The far end of the tunnel, standing on the deck with its back to the
     // right-hand pillar. It is a place rather than a mechanism: two tiles of
@@ -202,7 +201,6 @@ const Mainscreen = (() => {
 
     return {
       tiles: laid,
-      exit,
       door,
       // Set down one column into the floor, with the gap at their back.
       entry: { x: plan.start + 1, y: SKY.deck - 1 },

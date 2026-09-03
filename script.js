@@ -1272,7 +1272,6 @@
 
     stepDust(dt);
     if (!playSky && comboHeld() && inSecretZone(playRunner.body)) armSky();
-    checkVault();
     checkSkyDoor();
 
     // Into the door. Player.update stops the runner dead in the doorway and
@@ -1833,28 +1832,11 @@
     puffSky(body.x + body.w / 2, body.y + body.h, 22, 3.2);
   }
 
-  // The vault, and the way home. Reached only by climbing the eight tiles of
-  // blank face under the bridge, which is the last thing the gauntlet asks for.
-  function checkVault() {
-    const box = playSky && playLevel.sky && playLevel.sky.exit;
-    if (!box) return;
-
-    const body = playRunner.body;
-    if (!(body.x < box.x + box.w && body.x + body.w > box.x &&
-          body.y < box.y + box.h && body.y + body.h > box.y)) return;
-
-    puffSky(body.x + body.w / 2, body.y + body.h, 40, 5, true);
-    playSky = false;
-    rebuildPlayground();
-
-    // Home the long way: the sky is gone from under them and they fall the
-    // whole height of the menu to the floor they started on.
-    playRunner.safe.x = playLevel.spawn.x + (1 - body.w) / 2;
-    playRunner.safe.y = playLevel.spawn.y + 1 - body.h;
-    body.vx = 0;
-    body.vy = 0;
-  }
-
+  // There is no way home any more, and that is deliberate. Dropping through the
+  // gap used to take the tunnel down with the runner; now the tunnel stays put
+  // and they land on the menu underneath it, which is what a second storey
+  // ought to do. Nothing tears the sky back down once it is up.
+  //
   // Reaching the golden door. It does nothing yet but say so — a burst of gold
   // the first time it is touched, and then nothing, because a doorway that
   // fountains for as long as you stand in it is a doorway you stop believing.
@@ -1887,18 +1869,8 @@
   // ------------------------------------------------------------ drawing it
   //
   // Every tile the carver laid, and nothing else: what is drawn and what is
-  // solid come from the same list, so the bridge cannot grow a step that is
+  // solid come from the same list, so the tunnel cannot grow a step that is
   // only paint.
-  const SCONCE = [
-    "...##...",
-    "..####..",
-    ".##oo##.",
-    "##o..o##",
-    "##o..o##",
-    ".##oo##.",
-    "..####..",
-    "...##...",
-  ];
 
   // The door at the far end of the tunnel: an arch of gold with light coming
   // out from under it, standing on the deck with its back to the right-hand
@@ -1978,32 +1950,10 @@
       ctx.fillRect(tile.x * T, tile.y * T, T, 2);
     });
 
+    // Stone, and then the one gold thing up here. The sconce that used to burn
+    // over the gap is gone with the exit it marked: it was a sign pointing at a
+    // way out, and there is no way out to point at.
     if (playLevel.sky.door) drawSkyDoor(ctx, playLevel.sky.door, T);
-
-    const box = playLevel.sky.exit;
-    const px = Math.max(1, Math.floor((box.w * T) / SCONCE[0].length));
-    const artW = px * SCONCE[0].length;
-    const artH = px * SCONCE.length;
-    const left = box.x * T + (box.w * T - artW) / 2;
-    const top = box.y * T + (box.h * T - artH) / 2;
-
-    const cx = left + artW / 2;
-    const cy = top + artH / 2;
-    const reach = artW * 1.6;
-    const glow = ctx.createRadialGradient(cx, cy, 0, cx, cy, reach);
-    glow.addColorStop(0, "rgba(240, 217, 122, 0.5)");
-    glow.addColorStop(1, "rgba(240, 217, 122, 0)");
-    ctx.fillStyle = glow;
-    ctx.fillRect(cx - reach, cy - reach, reach * 2, reach * 2);
-
-    for (let row = 0; row < SCONCE.length; row++) {
-      for (let col = 0; col < SCONCE[row].length; col++) {
-        const mark = SCONCE[row][col];
-        if (mark === ".") continue;
-        ctx.fillStyle = mark === "o" ? colours.goldLight : colours.gold;
-        ctx.fillRect(left + col * px, top + row * px, px, px);
-      }
-    }
   }
 
   window.addEventListener("resize", () => {
