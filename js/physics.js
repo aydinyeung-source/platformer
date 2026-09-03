@@ -4,7 +4,18 @@ const Physics = (() => {
   const EPS = 1e-6;
 
   function solidAt(level, tx, ty) {
-    return Level.at(level, tx, ty) === Level.TILE.GROUND;
+    const tile = Level.at(level, tx, ty);
+    if (tile === Level.TILE.GROUND) return true;
+    if (tile !== Level.TILE.CRUMBLE) return false;
+
+    // Crumbling stone is solid until this run has broken it, and the set of
+    // what is broken belongs to the run rather than to the level. The same seed
+    // carves the same blocks every time; which of them are currently missing is
+    // a thing about the last few seconds, and the map should not remember it.
+    //
+    // A level with no set — the menu, the gym, a replay watched from a world
+    // where nobody has stood anywhere — has nothing broken in it.
+    return !(level.broken && level.broken.has(ty * level.width + tx));
   }
 
   function oneWayAt(level, tx, ty) {

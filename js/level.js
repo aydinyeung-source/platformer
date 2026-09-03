@@ -5,6 +5,11 @@ const Level = (() => {
     EMPTY: 0,
     GROUND: 1,
     PLATFORM: 2,
+    // Stone that will not take your weight twice. Solid until somebody stands
+    // on it, gone a moment later, back a moment after that — so it is ground
+    // for the purpose of getting somewhere and never ground for the purpose of
+    // standing about.
+    CRUMBLE: 3,
     DOOR: 4,
     LAVA: 5,
   };
@@ -609,6 +614,119 @@ const Level = (() => {
     }
 
 
+    // ------------------------------------------------------------ lava lakes
+    //
+    // A stretch of corridor with the floor taken out of it and fire underneath,
+    // crossed on stepping stones that will not take your weight twice. Stand
+    // still and the stone goes; keep moving and it is behind you before it
+    // does. There is no way across that is not a decision about pace.
+    //
+    // Cut into the floor rather than dug down from it, so it is a gap in a
+    // passage you were already walking rather than a shaft you fall into: the
+    // lip either side stays, the lava sits three rows down, and the stones hang
+    // level with the floor that was there.
+    //
+    // The pattern is generated first and measured afterwards. Stones and gaps
+    // are drawn in the order a runner meets them and the width falls out of
+    // them, which keeps every jump inside the envelope by construction — the
+    // alternative is picking a width and then trying to divide it into jumps
+    // that fit, which is the same arithmetic backwards and gets it wrong at the
+    // ends.
+    const LAKE_METRES = 700; // roughly one per this much run
+    const LAKE_DROP = 3; // rows of air between the stones and the fire
+    const LAKE_SPAN = [10, 14];
+    const LAKE_MARGIN = 3; // corridor left either side
+    let lavaLakes = 0;
+    const crumbleAt = [];
+
+    // Gap, stone, gap, stone … gap. Gaps of two or three are a step and a jump
+    // respectively and both are well inside a five tile reach; stones of one or
+    // two are a foothold and a place to turn round on.
+    function lakePattern() {
+      const stones = detail.int(3, 4);
+      const plan = [];
+      let span = 0;
+      for (let i = 0; i < stones; i++) {
+        const gap = detail.int(2, 3);
+        const stone = detail.int(1, 2);
+        plan.push({ gap, stone });
+        span += gap + stone;
+      }
+      const last = detail.int(2, 3);
+      span += last;
+      return { plan, last, span };
+    }
+
+    function lakeClear(at0, span, F) {
+      const bed = F + LAKE_DROP;
+
+      if (shafts.some((s) => at0 - 1 <= s.x1 + 1 && at0 + span >= s.x0 - 1)) return false;
+
+      // The lip either side and the floor being replaced.
+      for (let x = at0 - 1; x <= at0 + span; x++) {
+        if (peek(x, F) !== TILE.GROUND) return false;
+      }
+      // Rock for the fire to sit in and a crust under it, so the pool stays
+      // where it is put and the draining pass leaves it alone.
+      for (let x = at0; x < at0 + span; x++) {
+        for (let y = F + 1; y <= bed + 2 + CRUST; y++) {
+          if (peek(x, y) !== TILE.GROUND) return false;
+        }
+      }
+      return true;
+    }
+
+    function carveLake(at0, shape, F) {
+      const bed = F + LAKE_DROP;
+
+      for (let x = at0; x < at0 + shape.span; x++) {
+        for (let y = F; y < bed; y++) dig(x, y);
+        for (let y = bed; y <= bed + 2; y++) put(x, y, TILE.LAVA);
+      }
+
+      let x = at0;
+      for (const step of shape.plan) {
+        x += step.gap;
+        for (let i = 0; i < step.stone; i++) {
+          put(x + i, F, TILE.CRUMBLE);
+          crumbleAt.push({ x: x + i, y: F });
+        }
+        x += step.stone;
+      }
+
+      places.push({ type: "lake", x0: at0, x1: at0 + shape.span - 1, floorY: F, bed });
+      lavaLakes++;
+      return true;
+    }
+
+    for (let want = Math.max(1, Math.round(width / LAKE_METRES)); want > 0; want--) {
+      let placed = false;
+      for (let tries = 0; tries < 12 && !placed; tries++) {
+        const shape = lakePattern();
+        if (shape.span < LAKE_SPAN[0] || shape.span > LAKE_SPAN[1]) continue;
+
+        const roomy = places.filter((p) =>
+          (p.type === "corridor" || p.type === "chamber") &&
+          (p.head === undefined || p.head === HEADROOM) &&
+          p.x1 - p.x0 >= shape.span + LAKE_MARGIN * 2 &&
+          p.floorY + LAKE_DROP + 2 + CRUST <= FLOOR_LIMIT);
+        if (!roomy.length) continue;
+
+        const place = roomy[detail.int(0, roomy.length - 1)];
+        const from = place.x0 + LAKE_MARGIN;
+        const to = place.x1 - LAKE_MARGIN - shape.span;
+        if (to < from) continue;
+
+        for (let at0 = detail.int(from, to), n = 0; n <= to - from && !placed; n++) {
+          const spot = from + ((at0 - from + n) % (to - from + 1));
+          if (lakeClear(spot, shape.span, place.floorY)) {
+            placed = carveLake(spot, shape, place.floorY);
+          }
+        }
+      }
+    }
+
+
     // ---------------------------------------------------------------- ducts
     // A slit through the rock, one tile tall. Nothing can stand up in one, so
     // nothing can walk one, and verify() cannot see it at all: standing wants
@@ -1014,6 +1132,9 @@ const Level = (() => {
       rooms,
       torches,
       stalactites,
+      // Where the crumbling stones are. The session turns these into state; the
+      // level only says where they were carved.
+      crumbles: crumbleAt,
       links: Array.from(linked, (k) => k.split("|").map(Number)),
       rules: RULES,
       tally: {
@@ -1022,6 +1143,8 @@ const Level = (() => {
         stalactites: stalactites.length,
         crawlways: crawls.filter((s) => s.head < HEADROOM).length,
         blinds,
+        lavaLakes,
+        crumbles: crumbleAt.length,
         shallow,
         pools,
         loops,
@@ -1256,13 +1379,18 @@ const Level = (() => {
   function open(level, x, y) {
     if (x < 0 || x >= level.width || y < 0 || y >= level.height) return false;
     const tile = at(level, x, y);
-    return tile !== TILE.GROUND && tile !== TILE.LAVA;
+    // Crumbling stone counts as filled. It is solid when the room is drawn and
+    // solid whenever the route is checked; that it goes away under a foot is a
+    // thing that happens during a run, not a thing the map is shaped by.
+    return tile !== TILE.GROUND && tile !== TILE.LAVA && tile !== TILE.CRUMBLE;
   }
 
   // Can the player stand here: something solid underfoot, room for the body.
   function standable(level, x, y) {
     const under = at(level, x, y + 1);
-    if (under !== TILE.GROUND && under !== TILE.PLATFORM) return false;
+    if (under !== TILE.GROUND && under !== TILE.PLATFORM && under !== TILE.CRUMBLE) {
+      return false;
+    }
     return open(level, x, y) && open(level, x, y - 1);
   }
 
@@ -1632,6 +1760,41 @@ const Level = (() => {
           ctx.fillRect(px, py, tilePx + 0.5, lip);
           ctx.fillStyle = colours.ink;
           ctx.fillRect(px, py, tilePx + 0.5, Math.max(2, lip * 0.4));
+        } else if (tile === TILE.CRUMBLE) {
+          // Not drawn at all while it is away — the hole is the whole point,
+          // and a ghost of the block in it would be a lie about where the
+          // ground is.
+          const key = y * level.width + x;
+          if (level.broken && level.broken.has(key)) continue;
+
+          // A pixel either way while it is going. Off the clock rather than off
+          // a counter, so it shakes at the same rate whatever the frame rate is
+          // doing, and so nothing about the simulation depends on it.
+          const shake = level.shaking && level.shaking.has(key)
+            ? (Math.floor(now * 34) % 2 ? 1 : -1)
+            : 0;
+
+          ctx.fillStyle = rockShade[y];
+          ctx.fillRect(px + shake, py, tilePx + 0.5, tilePx + 0.5);
+
+          // The crack. Two strokes off a diagonal rather than one, because a
+          // single line reads as a seam between two blocks and a forked one
+          // reads as a block that is failing. Drawn in the void the cave is
+          // painted on, so it is a gap and not a marking.
+          ctx.strokeStyle = colours.voidBottom;
+          ctx.lineWidth = Math.max(1, Math.round(tilePx * 0.06));
+          ctx.beginPath();
+          ctx.moveTo(px + shake, py + tilePx * 0.34);
+          ctx.lineTo(px + shake + tilePx * 0.42, py + tilePx * 0.55);
+          ctx.lineTo(px + shake + tilePx, py + tilePx * 0.3);
+          ctx.moveTo(px + shake + tilePx * 0.42, py + tilePx * 0.55);
+          ctx.lineTo(px + shake + tilePx * 0.6, py + tilePx);
+          ctx.stroke();
+
+          if (at(level, x, y - 1) !== TILE.GROUND) {
+            ctx.fillStyle = colours.stoneRim;
+            ctx.fillRect(px + shake, py, tilePx + 0.5, cap);
+          }
         } else if (tile === TILE.LAVA) {
           ctx.fillStyle = colours.lava;
           ctx.fillRect(px, py, tilePx + 0.5, tilePx + 0.5);
@@ -1699,7 +1862,7 @@ const Level = (() => {
     ctx.restore();
   }
 
-  const GLYPHS = { 0: ".", 1: "#", 2: "=", 4: "D", 5: "L" };
+  const GLYPHS = { 0: ".", 1: "#", 2: "=", 3: "c", 4: "D", 5: "L" };
 
   function toText(level) {
     const rows = [];

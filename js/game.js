@@ -52,13 +52,97 @@ const Game = (() => {
     };
   }
 
+  // How long a block shakes before it goes, and how long it is away.
+  //
+  // The shake is a warning and has to be long enough to read and short enough
+  // that standing still is not a plan: four tenths is about a stride. The two
+  // and a half is longer than it takes to fall past where it was, so a block
+  // you broke is a block that is genuinely not there on the way back — and
+  // shorter than it takes to walk round, so nothing is ever permanently gone.
+  const CRUMBLE = { shake: 0.4, gone: 2.5 };
+
+  function crumbles(level) {
+    return (level.crumbles || []).map((c) => ({
+      x: c.x,
+      y: c.y,
+      state: "idle",
+      timer: 0,
+      // Counted up when the block comes back, and watched by the renderer. The
+      // simulation never reads it, so a run with the window closed plays out
+      // exactly the same.
+      reforms: 0,
+    }));
+  }
+
+  // One fixed step of them. Called from inside the simulation loop for the same
+  // reason the stalactites are: a seed and a tape have to reproduce exactly
+  // which blocks went and when.
+  function stepCrumbles(session, dt) {
+    const list = session.crumbles;
+    if (!list.length) return;
+
+    const level = session.level;
+    const body = session.player.body;
+    const feet = body.y + body.h;
+
+    for (const c of list) {
+      const key = c.y * level.width + c.x;
+
+      if (c.state === "idle") {
+        // Stood on: the feet are resting on this tile's own top surface and the
+        // body is over its column. Landing is what starts it, not passing
+        // through the space above it or brushing its side.
+        const on = body.onGround &&
+          Math.abs(feet - c.y) < 0.05 &&
+          body.x < c.x + 1 &&
+          body.x + body.w > c.x;
+        if (on) {
+          c.state = "shaking";
+          c.timer = CRUMBLE.shake;
+        }
+        continue;
+      }
+
+      c.timer -= dt;
+      if (c.timer > 0) continue;
+
+      if (c.state === "shaking") {
+        c.state = "broken";
+        c.timer = CRUMBLE.gone;
+        level.broken.add(key);
+        level.shaking.delete(key);
+      } else {
+        c.state = "idle";
+        c.timer = 0;
+        level.broken.delete(key);
+        c.reforms++;
+      }
+    }
+
+    // The shaking set is rebuilt rather than maintained, because it is only
+    // ever read by the renderer and a set that is written in two places is a
+    // set that ends up wrong in one of them.
+    level.shaking.clear();
+    for (const c of list) {
+      if (c.state === "shaking") level.shaking.add(c.y * level.width + c.x);
+    }
+  }
+
   function create(level, options = {}) {
+    // Which blocks are missing, and which are on their way out. Hung on the
+    // level because that is what the physics and the renderer are handed, and
+    // emptied here because they belong to the run rather than to the map — two
+    // runs on one seed start with everything standing.
+    level.broken = new Set();
+    level.shaking = new Set();
+
     const session = {
       level,
       player: Player.create(level),
       // Hazards that move are part of the run, not part of the scenery, so they
       // live in the session and tick with it.
       stalactites: Enemy.create(level.stalactites),
+      crumbles: crumbles(level),
       // Every button press, at a fixed 60 Hz. A seed plus this tape reproduces
       // the run exactly, which is what lets a claimed time be checked rather
       // than taken on trust.
@@ -80,6 +164,15 @@ const Game = (() => {
     if (options.ghostTape) {
       session.ghost = Player.create(level);
       session.ghostInput = decodeTape(options.ghostTape);
+      // The ghost runs in a world where nothing has been broken. Same tiles,
+      // same everything, one field different — a level object standing on the
+      // real one with no set of missing blocks in it.
+      //
+      // Without that, breaking a block underfoot would take it out from under a
+      // recording made when it was there, and the ghost would drop through the
+      // floor of its own run and into whatever is below. A ghost is a picture
+      // of a run that already happened; the present has no business editing it.
+      session.ghostLevel = Object.assign(Object.create(level), { broken: null });
     }
 
     return session;
@@ -122,11 +215,12 @@ const Game = (() => {
       record(session, input.mask || 0);
       Player.update(session.player, session.level, input, STEP);
       Enemy.update(session.stalactites, session.player, session.level, STEP);
+      stepCrumbles(session, STEP);
 
       // The ghost runs on the same clock and nothing else in common: it is a
       // recording being played, not a runner being simulated against.
       if (session.ghost && !session.ghost.finished) {
-        Player.update(session.ghost, session.level, session.ghostInput(), STEP);
+        Player.update(session.ghost, session.ghostLevel, session.ghostInput(), STEP);
       }
       session.accumulator -= STEP;
       session.steps++;
@@ -150,5 +244,5 @@ const Game = (() => {
     return session;
   }
 
-  return { STEP, MAX_CATCHUP, create, advance, resume, tape, decodeTape };
+  return { STEP, MAX_CATCHUP, CRUMBLE, create, advance, resume, tape, decodeTape };
 })();

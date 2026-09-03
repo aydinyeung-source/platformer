@@ -75,6 +75,17 @@ const Player = (() => {
     return true;
   }
 
+  // Whether either foot is resting on crumbling stone. Both columns, because a
+  // body straddling the edge of one has half its weight on rock and half on
+  // something that is leaving, and the half that is leaving decides.
+  function onCrumble(level, body) {
+    const footY = Math.floor(body.y + body.h + 0.001);
+    return (
+      Level.at(level, Math.floor(body.x + 0.001), footY) === Level.TILE.CRUMBLE ||
+      Level.at(level, Math.floor(body.x + body.w - 0.001), footY) === Level.TILE.CRUMBLE
+    );
+  }
+
   // Height changes keep the feet where they are, so ducking never posts you
   // through the floor and standing never leaves you hovering.
   function setHeight(body, h) {
@@ -396,7 +407,13 @@ const Player = (() => {
     // Standing still on solid ground is what makes a spot worth returning to.
     // Never mid-slide: that position is half a body high, and coming back to it
     // standing would post you into the ceiling that made you duck.
-    if (body.onGround && player.recovering === 0 && !player.sliding) {
+    // Never on crumbling stone. A safe spot is where you are put back when the
+    // ground gives out, so it has to be somewhere the ground does not — and a
+    // block that is about to go is the one place in the cave guaranteed not to
+    // be there when it is next needed. Recording one would put a runner back
+    // over the lava the block was suspended above.
+    if (body.onGround && player.recovering === 0 && !player.sliding &&
+        !onCrumble(level, body)) {
       player.safe.x = body.x;
       player.safe.y = body.y;
     }

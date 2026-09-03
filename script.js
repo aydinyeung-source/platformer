@@ -2686,6 +2686,20 @@
         puff(middle, feet, 5, 4);
         fallsSeen = runner.falls;
       }
+      // Crumbling stone. Grit while it is going, and a puff where it comes
+      // back — both watched off the simulation rather than driven by it, so a
+      // dropped frame costs dust and never a block.
+      for (const c of session.crumbles) {
+        if (c.state === "shaking" && Math.random() < 0.3) {
+          mote(c.x + Math.random(), c.y + 1, (Math.random() - 0.5) * 0.6, 0.6, FRAME.dust, 0.3);
+        }
+        if (c.puffed === c.reforms) continue;
+        // Nothing on the first pass: they start at zero, and a block that has
+        // never gone anywhere has not come back.
+        if (c.puffed !== undefined) puff(c.x + 0.5, c.y + 1, 4, 2.5);
+        c.puffed = c.reforms;
+      }
+
       if (runner.sliding && runner.body.onGround && Math.abs(runner.body.vx) > 7) {
         puff(middle - Math.sign(runner.body.vx) * 0.4, feet, 1, 1.5);
       }
