@@ -472,6 +472,26 @@
   });
   sheet.src = "assets/sprites/player.png";
 
+  // ---------------------------------------------------------- the painting
+  //
+  // Hung on the back wall either side of the gym. Loaded the way everything
+  // else drawn from a file is: started here, awaited nowhere, and asked for a
+  // repaint when it turns up, because the room is painted into a picture once
+  // per rebuild and a canvas drawn before the image loaded would keep the empty
+  // wall until something else happened to move.
+  const picture = new Image();
+  let pictureReady = false;
+
+  picture.addEventListener("load", () => {
+    pictureReady = true;
+    queuePlayground();
+  });
+  // Missing or unreadable: bare wall, which is a wall and not a broken image.
+  picture.addEventListener("error", () => {
+    pictureReady = false;
+  });
+  picture.src = "New Piskel (5).png";
+
   // ------------------------------------------------------------ the gym map
   //
   // The gym is a picture. Forty pixels by twenty-five in four flat colours —
@@ -1685,6 +1705,51 @@
   //
   // Run by run rather than column by column: a window is sixty-odd columns and
   // this is four rectangles either way.
+  // ------------------------------------------------------- the side walls
+  //
+  // Where the window is wider than the room there is space beyond the pillars,
+  // and the pillars cannot be moved out to cover it — they are the walls, and
+  // painting one anywhere but where the collision is means walking into
+  // something well before you reach it. So what goes out there is a back wall
+  // instead: the colonnade stands in front of it, which is what a colonnade is
+  // for, and there is somewhere to hang a picture.
+  //
+  // In shade rather than face, so it reads as being behind the room rather than
+  // as more of the same floor stood on end.
+  function drawSideWalls(ctx, T, cols, rows, bleedX) {
+    const top = T;
+    const bottom = (rows - 1) * T;
+    const h = bottom - top;
+
+    for (const x of [-bleedX, cols * T]) {
+      ctx.fillStyle = MARBLE.shade;
+      ctx.fillRect(x, top, bleedX, h);
+      // A seam top and bottom, so the wall meets the cornice and the floor
+      // rather than merging into them.
+      ctx.fillStyle = MARBLE.groove;
+      ctx.fillRect(x, top, bleedX, 1);
+      ctx.fillRect(x, bottom - 1, bleedX, 1);
+      hangPicture(ctx, x, top, bleedX, h, T);
+    }
+  }
+
+  // Two tiles square, whole pixels only, and only if the wall is wide enough to
+  // have wall left over around it — a painting that reaches both edges of the
+  // surface it is on is wallpaper.
+  function hangPicture(ctx, x, y, w, h, T) {
+    if (!pictureReady) return;
+    const px = Math.max(1, Math.round((T * 2) / picture.width));
+    const size = picture.width * px;
+    if (size + px * 4 > w) return;
+
+    const left = Math.round(x + (w - size) / 2);
+    const top = Math.round(y + h * 0.34 - size / 2);
+    ctx.save();
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(picture, left, top, size, size);
+    ctx.restore();
+  }
+
   // One stretch of it, from x for w pixels. `up` is how far above the ceiling's
   // own row the stone carries on — nothing in the menu, where the room is the
   // window, and the top margin in the gym, where it is not.
@@ -1795,6 +1860,10 @@
     const bleedX = playLevel.originX || 0;
     const bleedY = playLevel.originY || 0;
 
+    // The back wall first, behind everything, where the window is wider than
+    // the room. Then the cornice and the floor run across it.
+    if (bleedX > 0) drawSideWalls(ctx, T, cols, rows, bleedX);
+
     drawCornice(ctx, T, cols, bleedX, bleedY);
 
     // The floor, between the two pillars and along the bottom row. It is the
@@ -1802,12 +1871,14 @@
     // spawns standing on — so this draws no new surface, it draws the one that
     // was already underfoot and unpainted. Cards can never reach it: they are
     // cut off three rows higher so the corridor to the door stays open.
-    // From one wall to the other, and on out past both of them into whatever
-    // the window has left over — same reasoning as the cornice. Down past the
-    // bottom of the room too, so there is no pale strip under it.
+    // From one edge of the window to the other, and down past the bottom of the
+    // room, so there is no pale strip anywhere along it. It used to start
+    // inside the left pillar and stop inside the right one, which left a tile
+    // of bare page in each bottom corner once the room stopped filling the
+    // window. The pillars are drawn after this and cover their own feet.
     const floorY = (rows - 1) * T;
-    const from = T - bleedX;
-    const inner = (cols - 2) * T + bleedX * 2;
+    const from = -bleedX;
+    const inner = cols * T + bleedX * 2;
     const deep = T + bleedY;
     band(ctx, from, floorY, inner, deep, MARBLE.face);
     // The polished top surface, and directly under it the line that separates

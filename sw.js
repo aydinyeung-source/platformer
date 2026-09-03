@@ -9,7 +9,7 @@
 // before the network, so a stale copy is served for ever until this string is
 // different. It is the same version the page shows in its corner and the same
 // one runs.js sends with a run, so all three move together or none of them do.
-const VERSION = "1.83.3";
+const VERSION = "1.84.0";
 const CACHE = "platformer-" + VERSION;
 
 // Every file index.html actually pulls in, plus the two things an installed app
@@ -47,9 +47,11 @@ const CORE = [
 // the copy on disk: exactly what offline needs, and what redrawing needs, in
 // that order.
 //
-// Two names because the file came out of its editor as gym.png.png and the
-// obvious thing to call a replacement is gym.png. Only one of them will exist.
-const LIVE = ["gym.png", "gym.png.png"];
+// Two names for the gym because the file came out of its editor as gym.png.png
+// and the obvious thing to call a replacement is gym.png; only one of them will
+// exist. The painting is here for the same reason they are — it is artwork, and
+// artwork gets redrawn without a line of code moving.
+const LIVE = ["gym.png", "gym.png.png", "New Piskel (5).png"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -111,7 +113,17 @@ function mine(request) {
 }
 
 function isLive(url) {
-  return LIVE.some((name) => url.pathname.endsWith("/" + name));
+  // Decoded first. A pathname arrives percent-encoded, so a file with a space
+  // in its name would never match the plain name written above — it would drop
+  // back to being served cache first and a redrawn picture would sit there
+  // looking unchanged, which is the exact trap this list exists to avoid.
+  let path = url.pathname;
+  try {
+    path = decodeURIComponent(path);
+  } catch (err) {
+    // Malformed escape: compare what we were given.
+  }
+  return LIVE.some((name) => path.endsWith("/" + name));
 }
 
 async function networkFirst(request, cache) {
