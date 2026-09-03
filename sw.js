@@ -9,7 +9,7 @@
 // before the network, so a stale copy is served for ever until this string is
 // different. It is the same version the page shows in its corner and the same
 // one runs.js sends with a run, so all three move together or none of them do.
-const VERSION = "1.73.0";
+const VERSION = "1.74.0";
 const CACHE = "platformer-" + VERSION;
 
 // Every file index.html actually pulls in, plus the two things an installed app
@@ -94,8 +94,40 @@ function mine(request) {
   return new URL(request.url).origin === self.location.origin;
 }
 
+// One file is not like the others. The gym is a picture somebody draws, and it
+// changes without a line of code changing with it — so serving it from the
+// cache first would mean a redrawn room does not appear until the version
+// string above moves, which is a thing nobody will remember to do and no error
+// message will mention. It is asked of the network first and falls back to the
+// copy on disk: exactly what offline needs, and what redrawing needs, in that
+// order.
+const LIVE = ["gym.png.png"];
+
+function isLive(url) {
+  return LIVE.some((name) => url.pathname.endsWith("/" + name));
+}
+
+async function networkFirst(request, cache) {
+  try {
+    const response = await fetch(request);
+    if (response && response.ok && response.type === "basic") {
+      cache.put(request, response.clone());
+      return response;
+    }
+    // A 404 or a redirect is not an answer worth preferring over the copy that
+    // is already here and known to work.
+    const cached = await cache.match(request, { ignoreSearch: true });
+    return cached || response;
+  } catch (err) {
+    const cached = await cache.match(request, { ignoreSearch: true });
+    if (cached) return cached;
+    throw err;
+  }
+}
+
 async function cacheFirst(request) {
   const cache = await caches.open(CACHE);
+  if (isLive(new URL(request.url))) return networkFirst(request, cache);
 
   // ignoreSearch, so index.html?installed=1 is still index.html. Nothing this
   // app serves varies by query string.
