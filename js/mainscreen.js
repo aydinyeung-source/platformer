@@ -121,13 +121,19 @@ const Mainscreen = (() => {
     // The climbing shaft: open columns with the left pillar down one side and
     // the chimney wall down the other.
     //
-    // Two, and the width is the difficulty. A chimney is climbed by kicking
-    // from one face to the other, so a narrow one is the kinder one — the far
-    // wall arrives before the apex does and there is time in hand to take the
-    // next kick. Three across and the crossing takes as long as the rise: you
-    // land on the far face exactly as you stop going up, every time, which is a
-    // climb that only just works.
-    shaft: 2,
+    // One, which is as narrow as a shaft can be and still hold a body — 0.72 of
+    // a tile in a tile of space, with a quarter of one to spare. Width is the
+    // difficulty in a chimney, because the climb is kicking from one face to
+    // the other and a wide shaft can be missed: three across and the crossing
+    // takes as long as the rise, so you arrive at the far wall exactly as you
+    // stop going up, or you do not arrive at all.
+    //
+    // At one, the far face is a quarter of a tile away and a kick reaches it in
+    // two frames. It cannot be missed, the sides alternate on their own, and
+    // every kick is the tall one. That makes this the easiest possible version
+    // of the climb rather than a test of it — which is a choice about what the
+    // shaft is for, not an accident of the number.
+    shaft: 1,
   };
 
   // Every column the left-hand end is made of. The shaft, the wall that closes
@@ -208,12 +214,12 @@ const Mainscreen = (() => {
     // level never builds. That leaves the bottom few rows open on both sides,
     // so the shaft is walked into rather than dropped into.
     //
-    // It stops a row below the deck rather than level with it, so the tile at
-    // the top of the wall is open air and the shaft runs the whole way up into
-    // the tunnel's own headroom. The climb comes out beside the deck instead of
-    // onto it.
+    // Its top tile is level with the deck rather than a row under it, so the
+    // wall's head is the first tile of floor and the climb ends by standing on
+    // it and walking right. The two rows above are open with the rest of the
+    // shaft's headroom, so there is nothing to crack a head on coming out.
     const chimneyFoot = height - EDGE - CORRIDOR - 1;
-    for (let y = SKY.deck + 1; y <= chimneyFoot; y++) stone(plan.wall, y);
+    for (let y = SKY.deck; y <= chimneyFoot; y++) stone(plan.wall, y);
 
     // There is no exit box. The gap was one for a while — drop through it and
     // the sky came down with you — and it is not any more: once this is built
