@@ -113,26 +113,35 @@ const Mainscreen = (() => {
   //            jump at all — sprint it, do not hop it
   //   3        the tunnel floor
   //
-  // And one hole: the four columns at the left-hand end have no floor under
-  // them. That gap is what the tunnel starts beside and, for now, the only way
-  // out of it.
+  // And a hole at the left-hand end: the shaft, which is the way up to all of
+  // it and the only thing the tunnel does not floor over.
   const SKY = {
     lid: 0,
     deck: 3,
-    // Columns of missing floor at the left-hand end. Four, so it cannot be
-    // walked over and has to be dropped into deliberately.
-    gap: 4,
+    // The climbing shaft: open columns with the left pillar down one side and
+    // the chimney wall down the other.
+    //
+    // Two, and the width is the difficulty. A chimney is climbed by kicking
+    // from one face to the other, so a narrow one is the kinder one — the far
+    // wall arrives before the apex does and there is time in hand to take the
+    // next kick. Three across and the crossing takes as long as the rise: you
+    // land on the far face exactly as you stop going up, every time, which is a
+    // climb that only just works.
+    shaft: 2,
   };
 
-  // Where the tunnel begins, which is everything the plan has left to say.
+  // Every column the left-hand end is made of. The shaft, the wall that closes
+  // it, and the first column of tunnel floor past that.
   function skyPlan() {
-    const start = EDGE + SKY.gap; // first column with floor under it
-    return { start, gapFrom: EDGE, gapTo: EDGE + SKY.gap - 1 };
+    const shaftFrom = EDGE;
+    const shaftTo = shaftFrom + SKY.shaft - 1;
+    const wall = shaftTo + 1;
+    return { shaftFrom, shaftTo, wall, start: wall + 1 };
   }
 
-  // A gap, and enough tunnel past it to be worth walking down.
+  // The left-hand end, and enough tunnel past it to be worth walking down.
   const MIN_TUNNEL = 8;
-  const MIN_WIDTH = EDGE + SKY.gap + MIN_TUNNEL + EDGE;
+  const MIN_WIDTH = skyPlan().start + MIN_TUNNEL + EDGE;
 
   // Room for the ceiling, the headroom and the floor, and a row under it so the
   // deck is not sitting on the menu's own floor.
@@ -175,22 +184,22 @@ const Mainscreen = (() => {
       clear(x, SKY.deck - 2);
     }
 
-    // ---------------------------------------------------------------- the gap
+    // -------------------------------------------------------------- the shaft
     //
-    // Nothing is carved here — the point of it is the floor that is missing.
-    // The headroom is opened anyway, so the tunnel does not end in a wall of
-    // air you cannot see the edge of.
-    for (let x = plan.gapFrom; x <= plan.gapTo; x++) {
+    // No floor is laid across it — the point of it is the floor that is not
+    // there. The headroom is opened anyway, over the shaft and over the wall
+    // that closes it, so a climber stepping off the top of that wall has two
+    // clear rows to do it in rather than a ceiling to crack their head on.
+    for (let x = plan.shaftFrom; x <= plan.wall; x++) {
       clear(x, SKY.deck - 1);
       clear(x, SKY.deck - 2);
     }
 
     // ------------------------------------------------------------ the chimney
     //
-    // The way up, and the reason the gap is a gap. The far column of it is a
-    // wall from the deck all the way down, which leaves the columns between it
-    // and the left pillar as a shaft with a face on either side — and two faces
-    // is a climb. One is a scramble that runs out at nine tiles, which is
+    // The way up, and the reason the shaft is left open. This is the face
+    // opposite the pillar, run from the deck all the way down — and two faces
+    // is a climb, where one is a scramble that runs out at nine tiles, which is
     // nothing against the height of a window.
     //
     // It stops a row short of the line cards are cut off at, for the reason
@@ -200,12 +209,11 @@ const Mainscreen = (() => {
     // so the shaft is walked into rather than dropped into.
     //
     // Its top tile is level with the deck, so the climb ends by landing on it
-    // and walking right onto the tunnel floor. Nothing overhead to bonk on the
-    // way out: the two rows above were opened with the rest of the gap's
-    // headroom, and the lid is a row above those.
-    const chimneyWall = plan.gapTo;
+    // and walking right onto the tunnel floor — the deck starts in the very
+    // next column. Nothing overhead to bonk on the way out either: the two rows
+    // above it were opened with the shaft's own headroom.
     const chimneyFoot = height - EDGE - CORRIDOR - 1;
-    for (let y = SKY.deck; y <= chimneyFoot; y++) stone(chimneyWall, y);
+    for (let y = SKY.deck; y <= chimneyFoot; y++) stone(plan.wall, y);
 
     // There is no exit box. The gap was one for a while — drop through it and
     // the sky came down with you — and it is not any more: once this is built
