@@ -136,6 +136,25 @@ button {
   color: var(--ink-muted);
 }
 
+/* Upstairs, none of that belongs. A version, a name and a career total are the
+   menu's furniture, and the menu has left the window — left in place they float
+   over a different room with nothing to be attached to. They fade rather than
+   vanish, on the same clock as the slide that takes the menu away.
+
+   The fullscreen button stays. It is a control rather than a caption, and it is
+   more use in the gym than it is on the menu. */
+.corner__version,
+.corner__player,
+.corner__total {
+  transition: opacity 500ms var(--ease-soft);
+}
+
+.corner.is-upstairs .corner__version,
+.corner.is-upstairs .corner__player,
+.corner.is-upstairs .corner__total {
+  opacity: 0;
+}
+
 .corner__actions {
   display: flex;
   gap: 8px;

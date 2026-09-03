@@ -1242,6 +1242,9 @@
   const playLayer = document.querySelector("[data-playground-layer]");
   // The menu itself, which slides out of the window to make room for the gym.
   const stage = document.querySelector(".stage");
+  // The version, the name and the career total in the top corner: the menu's
+  // furniture, faded out while the runner is in a room the menu is not in.
+  const corner = document.querySelector(".corner");
   const playCanvas = document.querySelector("[data-playground]");
   const playCtx = playCanvas.getContext("2d");
   const doorButton = document.querySelector("[data-door]");
@@ -1377,6 +1380,7 @@
     slideShot = null;
     window.clearTimeout(slideTimer);
     stage.classList.remove("is-slid-down");
+    if (corner) corner.classList.remove("is-upstairs");
     // Coming back from a run rebuilds the menu from nothing, and an unlocked
     // tunnel is part of the menu now — so it is asked for again here rather
     // than cleared. Without this, finishing a run would take the secret away
@@ -2372,6 +2376,7 @@
     takeSnapshot(); // the menu, as the runner last saw it
     inGym = true;
     stage.classList.add("is-slid-down");
+    if (corner) corner.classList.add("is-upstairs");
     rebuildPlayground();
 
     // Beside the gym's own door, which is the same two columns as the tunnel's
@@ -2395,6 +2400,7 @@
     takeSnapshot(); // the gym, as the runner last saw it
     inGym = false;
     stage.classList.remove("is-slid-down");
+    if (corner) corner.classList.remove("is-upstairs");
     rebuildPlayground();
 
     // Back out onto the deck, a tile and a half clear of the door they came
