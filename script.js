@@ -490,11 +490,17 @@
   picture.addEventListener("error", () => {
     pictureReady = false;
   });
-  // Renamed off its Piskel export name, which had spaces and brackets in it.
-  // The site is served by Cloudflare Workers, where an asset path and the key
-  // it is stored under can disagree about how to encode those — and the failure
-  // is a silent 404 that looks exactly like a drawing bug. Redraws go here.
-  picture.src = "assets/ptng.png";
+  // The name is deliberately dull. It hangs in a room nobody is told about, and
+  // a file called mona.png sitting in an asset list is the whole secret given
+  // away by anyone who thinks to look at what the page loads. Leave it looking
+  // like furniture.
+  //
+  // It is also plain ASCII with no spaces in it, which is not decoration
+  // either: the site is served by Cloudflare Workers, where an asset path and
+  // the key it is stored under can disagree about how to encode a space or a
+  // bracket, and the failure is a silent 404 that looks exactly like a drawing
+  // bug. Redraws go here.
+  picture.src = "assets/ui_drop_shadow_03.png";
 
   // ------------------------------------------------------------ the gym map
   //
