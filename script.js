@@ -472,6 +472,82 @@
   });
   sheet.src = "assets/sprites/player.png";
 
+  // ------------------------------------------------------------ the gym map
+  //
+  // The gym is a picture. Forty pixels by twenty-five in four flat colours —
+  // black solid, green air, red lava, yellow the door — read here into one
+  // character per pixel and handed to the carver. Redraw the file, reload the
+  // page, and the room has changed: there is no step in between for the drawing
+  // and the level to disagree at.
+  //
+  // The double extension is not a typo. It is how the file is saved.
+  const GYM_SRC = "gym.png.png";
+
+  // Nearest of the four rather than an exact match. An editor that antialiases
+  // an edge, or writes 254 where it meant 255, should cost a pixel's worth of
+  // rounding and not the whole room.
+  const GYM_INK = [
+    { r: 0, g: 0, b: 0, mark: "#" },
+    { r: 0, g: 255, b: 0, mark: "." },
+    { r: 255, g: 0, b: 0, mark: "L" },
+    { r: 255, g: 255, b: 0, mark: "D" },
+  ];
+
+  let gymMap = null;
+
+  function nearestInk(r, g, b) {
+    let best = GYM_INK[0];
+    let closest = Infinity;
+    for (const ink of GYM_INK) {
+      const d = (r - ink.r) ** 2 + (g - ink.g) ** 2 + (b - ink.b) ** 2;
+      if (d < closest) {
+        closest = d;
+        best = ink;
+      }
+    }
+    return best.mark;
+  }
+
+  function loadGymMap() {
+    const art = new Image();
+
+    art.addEventListener("load", () => {
+      const scratch = document.createElement("canvas");
+      scratch.width = art.width;
+      scratch.height = art.height;
+      const ctx = scratch.getContext("2d");
+      ctx.drawImage(art, 0, 0);
+
+      let pixels;
+      try {
+        pixels = ctx.getImageData(0, 0, art.width, art.height).data;
+      } catch (err) {
+        // A page opened straight off the disk taints the canvas and the browser
+        // refuses to read it back. Nothing to be done about that from here, and
+        // the room baked into mainscreen.js is exactly this picture anyway.
+        return;
+      }
+
+      const rows = [];
+      for (let y = 0; y < art.height; y++) {
+        let line = "";
+        for (let x = 0; x < art.width; x++) {
+          const at = (y * art.width + x) * 4;
+          line += nearestInk(pixels[at], pixels[at + 1], pixels[at + 2]);
+        }
+        rows.push(line);
+      }
+      gymMap = rows;
+
+      // Only matters if somebody is already standing in the room it describes.
+      if (inGym) queuePlayground();
+    });
+
+    // Missing, or refused: the baked copy stands, and it is the same room.
+    art.addEventListener("error", () => {});
+    art.src = GYM_SRC;
+  }
+
   // Which of the ten runner frames this moment is. Order is precedence: being
   // hurt outranks being on a wall, which outranks being in the air.
   function poseOf(player) {
@@ -1230,7 +1306,7 @@
     // the gym there is no page to measure — the menu has slid out of the window
     // — so it is built from the window instead.
     playLevel = inGym
-      ? Mainscreen.createGym(w, h)
+      ? Mainscreen.createGym(w, h, gymMap)
       : Mainscreen.fromPage(document, w, h, { sky: playSky });
 
     // The walls, repainted with them. This is the only place the level changes,
@@ -2416,6 +2492,11 @@
     // built. Set before the loop starts, because the first frame is the one
     // that measures the page and carves the level from it.
     playSky = skyUnlocked();
+
+    // Started now and awaited nowhere. The gym is several doors away from
+    // anything a player can reach in the first second, and the room baked into
+    // mainscreen.js stands in until the picture arrives.
+    loadGymMap();
 
     showTotal();
     startLoop();

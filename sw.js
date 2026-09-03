@@ -9,7 +9,7 @@
 // before the network, so a stale copy is served for ever until this string is
 // different. It is the same version the page shows in its corner and the same
 // one runs.js sends with a run, so all three move together or none of them do.
-const VERSION = "1.72.0";
+const VERSION = "1.73.0";
 const CACHE = "platformer-" + VERSION;
 
 // Every file index.html actually pulls in, plus the two things an installed app
@@ -33,6 +33,9 @@ const CORE = [
   "./js/game.js",
   "./js/runs.js",
   "./js/auth.js",
+  // The gym is a picture the game reads at runtime, so offline it has to be one
+  // of the files that came along.
+  "./gym.png.png",
   "./assets/sprites/player.png",
   "./assets/icon-192.png",
   "./assets/icon-512.png",

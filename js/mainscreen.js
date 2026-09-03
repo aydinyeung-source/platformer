@@ -353,11 +353,16 @@ const Mainscreen = (() => {
   // The gym, drawn as a picture and read back as a level.
   //
   // gym.png is forty pixels by twenty-five in four flat colours — black solid,
-  // green air, red lava, yellow the door — and this is that image transcribed
-  // one pixel to one character. It is kept as text rather than loaded at
-  // runtime because a level the game cannot start without has no business
-  // depending on a fetch, and because a map you can read in the source is a map
-  // you can argue with.
+  // green air, red lava, yellow the door — and the game reads that file
+  // directly: redraw it, reload the page, and the room has changed. Nothing is
+  // transcribed by hand any more, so there is no step at which the level in the
+  // game and the level on the screen can drift apart.
+  //
+  // What follows is the same image baked in, and it is a fallback rather than
+  // the source. Reading pixels out of a file needs a canvas the browser is
+  // willing to hand back, which it is not for a page opened straight off the
+  // disk — so on a file:// URL, or if the image is simply missing, this is the
+  // room. tools-png-to-map.ps1 regenerates it from the picture.
   //
   // The room is fixed at the size it was drawn. Every distance in it is
   // measured against the movement envelope — three tiles of lava under a
@@ -392,9 +397,11 @@ const Mainscreen = (() => {
     "########################################",
   ];
 
-  function createGym(viewW, viewH) {
-    const height = GYM_MAP.length;
-    const width = GYM_MAP[0].length;
+  function createGym(viewW, viewH, drawn) {
+    // The picture if it arrived, the baked copy if it did not.
+    const map = drawn && drawn.length ? drawn : GYM_MAP;
+    const height = map.length;
+    const width = map[0].length;
     const T = Level.TILE;
 
     // The tile is the menu's wherever there is room for one that size, so a
@@ -417,7 +424,7 @@ const Mainscreen = (() => {
     let far = { x: -1, y: -1 };
 
     for (let y = 0; y < height; y++) {
-      const line = GYM_MAP[y];
+      const line = map[y];
       for (let x = 0; x < width; x++) {
         const mark = line.charAt(x);
         tiles[y * width + x] = ink[mark] === undefined ? T.EMPTY : ink[mark];
