@@ -1136,6 +1136,8 @@
   // being true.
 
   const playLayer = document.querySelector("[data-playground-layer]");
+  // The menu itself, which slides out of the window to make room for the gym.
+  const stage = document.querySelector(".stage");
   const playCanvas = document.querySelector("[data-playground]");
   const playCtx = playCanvas.getContext("2d");
   const doorButton = document.querySelector("[data-door]");
@@ -1146,6 +1148,10 @@
   let playDirty = true;
   let playEntering = false;
   let doorRect = null;
+  // Which of the two rooms the runner is standing in. The menu is the ground
+  // floor and the gym is the storey above it; everything that reads the page
+  // has to know which, because upstairs there is no page to read.
+  let inGym = false;
 
   // Anything that moves a card moves the ground under the runner's feet. The
   // rebuild is deferred to the next frame rather than done on the spot, because
@@ -1211,15 +1217,22 @@
     playCanvas.style.height = h + "px";
     playCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-    playLevel = Mainscreen.fromPage(document, w, h, { sky: playSky });
+    // Two rooms, one rebuild. Downstairs the level is the page measured; up in
+    // the gym there is no page to measure — the menu has slid out of the window
+    // — so it is built from the window instead.
+    playLevel = inGym
+      ? Mainscreen.createGym(w, h)
+      : Mainscreen.fromPage(document, w, h, { sky: playSky });
 
     // The walls, repainted with them. This is the only place the level changes,
     // so it is the only place the picture of it can go stale.
     paintRoom(dpr);
 
     // Measured in the same pass as the collision, so the art lands exactly
-    // where the tiles that finish the run are.
-    doorRect = doorButton ? doorButton.getBoundingClientRect() : null;
+    // where the tiles that finish the run are. Null upstairs: the menu is out
+    // of the window, and its Play door is not something anyone can be standing
+    // in front of.
+    doorRect = inGym || !doorButton ? null : doorButton.getBoundingClientRect();
 
     if (!playRunner) {
       playRunner = Player.create(playLevel);
@@ -1243,6 +1256,10 @@
 
   function resetPlayground() {
     playRunner = null;
+    // Back downstairs. A run always ends on the menu, so the menu has to be in
+    // the window when it does.
+    inGym = false;
+    stage.classList.remove("is-slid-down");
     // Coming back from a run rebuilds the menu from nothing, and an unlocked
     // tunnel is part of the menu now — so it is asked for again here rather
     // than cleared. Without this, finishing a run would take the secret away
@@ -1275,8 +1292,11 @@
     if (taken === Game.MAX_CATCHUP) playAcc = 0;
 
     stepDust(dt);
-    if (comboHeld() && inSecretZone(playRunner.body)) armSky();
+    // Not upstairs: the combo is about the tunnel, and the gym has no tunnel to
+    // summon or be lifted into.
+    if (!inGym && comboHeld() && inSecretZone(playRunner.body)) armSky();
     checkSkyDoor();
+    checkGymDoor();
 
     // Into the door. Player.update stops the runner dead in the doorway and
     // fades them into it over half a second; the run starts when there is
@@ -1642,6 +1662,9 @@
     // The room first, behind everything: the door stands in it, and the runner
     // stands in front of it.
     if (roomArt) playCtx.drawImage(roomArt, 0, 0, roomArt.cssW, roomArt.cssH);
+    // The gym's way back down, drawn as the tunnel's door is drawn, because it
+    // is the same kind of thing and ought to be recognised without a label.
+    if (inGym && playLevel.door) drawSkyDoor(playCtx, playLevel.door, playLevel.tile);
     drawDoor(playCtx);
     drawSky(playCtx);
     drawDust(playCtx);
@@ -1899,6 +1922,73 @@
 
     skyDoorHit = true;
     puffSky(body.x + body.w / 2, body.y + body.h / 2, 26, 4, true);
+    enterGym();
+  }
+
+  // ------------------------------------------------------------- the storeys
+  //
+  // Going up. The menu slides out of the bottom of the window and the gym is
+  // built in the space it leaves — one building with a floor between two rooms,
+  // rather than one screen being swapped for another.
+  //
+  // Placed the way arming the sky places: feet on the floor, standing rather
+  // than sliding, and the velocity zeroed, because whatever the runner was
+  // doing in the other room is not something they are still doing in this one.
+  function stand(level, at) {
+    const body = playRunner.body;
+    body.h = Player.TUNING.height;
+    playRunner.sliding = false;
+    playRunner.skimming = false;
+    playRunner.slideDropY = null;
+    body.x = at.x;
+    body.y = at.y;
+    body.vx = 0;
+    body.vy = 0;
+    playRunner.safe.x = body.x;
+    playRunner.safe.y = body.y;
+    puffSky(body.x + body.w / 2, body.y + body.h, 22, 3.2, true);
+  }
+
+  function enterGym() {
+    if (inGym) return;
+    inGym = true;
+    stage.classList.add("is-slid-down");
+    rebuildPlayground();
+
+    const body = playRunner.body;
+    stand(playLevel, {
+      x: playLevel.spawn.x + (1 - body.w) / 2,
+      y: playLevel.spawn.y + 1 - body.h,
+    });
+  }
+
+  function leaveGym() {
+    if (!inGym) return;
+    inGym = false;
+    stage.classList.remove("is-slid-down");
+    rebuildPlayground();
+
+    // Back out onto the deck, a couple of columns short of the door they came
+    // through, so walking on does not put them straight back into it. The
+    // fallback is the menu floor: a window that has no room for the tunnel has
+    // nowhere up there to put anybody.
+    const body = playRunner.body;
+    const door = playLevel.sky && playLevel.sky.door;
+    stand(playLevel, door
+      ? { x: door.x - 2 + (1 - body.w) / 2, y: door.y + door.h - body.h }
+      : { x: playLevel.spawn.x + (1 - body.w) / 2, y: playLevel.spawn.y + 1 - body.h });
+  }
+
+  // The gym's own door, in the bottom corner furthest from where you land.
+  function checkGymDoor() {
+    if (!inGym || !playLevel.door) return;
+
+    const box = playLevel.door;
+    const body = playRunner.body;
+    if (!(body.x < box.x + box.w && body.x + body.w > box.x &&
+          body.y < box.y + box.h && body.y + body.h > box.y)) return;
+
+    leaveGym();
   }
 
   // ------------------------------------------------------------ drawing it
@@ -2006,6 +2096,14 @@
   // cards were passing through rather than where they came to rest, so each one
   // asks for a rebuild as it settles.
   document.addEventListener("animationend", queuePlayground);
+
+  // And the same for the slide between storeys. getBoundingClientRect answers
+  // honestly all the way down, so a rebuild taken while the menu is still
+  // moving measures it somewhere it is not going to stay. The one that counts
+  // is the one after the transform has stopped.
+  stage.addEventListener("transitionend", (event) => {
+    if (event.propertyName === "transform") queuePlayground();
+  });
 
   document.addEventListener("click", (event) => {
     queuePlayground();

@@ -350,6 +350,63 @@ const Mainscreen = (() => {
     };
   }
 
+  // ---------------------------------------------------------------- the gym
+  //
+  // The second storey, and the first level here with no page behind it. The
+  // menu is the page read as collision; this is a room of its own, and all it
+  // borrows is the grid — the same tile, worked out from the same window, so a
+  // runner who walks out of one and into the other is the same size in both.
+  //
+  // Empty on purpose. It is a box with a door in it and nothing else yet, and
+  // an empty room that is honestly empty is better than one furnished with
+  // guesses about what will go in it.
+  function createGym(viewW, viewH) {
+    const TILE = tileFor(viewH);
+    const width = Math.max(12, Math.floor(viewW / TILE));
+    const height = Math.max(10, Math.floor(viewH / TILE));
+    const tiles = new Uint8Array(width * height);
+    const T = Level.TILE;
+
+    const put = (x, y, tile) => {
+      if (x < 0 || x >= width || y < 0 || y >= height) return;
+      tiles[y * width + x] = tile;
+    };
+
+    // The same closed box the menu is, and drawn by the same code — walls down
+    // both sides, a floor along the bottom, a lid across the top.
+    for (let y = 0; y < height; y++) {
+      for (let e = 0; e < EDGE; e++) {
+        put(e, y, T.GROUND);
+        put(width - 1 - e, y, T.GROUND);
+      }
+    }
+    for (let x = 0; x < width; x++) {
+      for (let e = 0; e < EDGE; e++) {
+        put(x, e, T.GROUND);
+        put(x, height - 1 - e, T.GROUND);
+      }
+    }
+
+    return {
+      width,
+      height,
+      tiles,
+      tile: TILE,
+      // Set down at the far end from the door, so the room is crossed rather
+      // than arrived in and left again.
+      spawn: { x: Math.max(EDGE + 1, width - EDGE - 3), y: height - EDGE - 1 },
+      // The way back up. A box rather than tiles, like the tunnel's own door:
+      // a door you walk through is a door with nothing in the way.
+      door: { x: 2, y: height - 3, w: 2, h: 2 },
+      gym: true,
+      // Player.update reads these off whatever level it is given.
+      meters: width,
+      mode: "gym",
+      seed: "gym",
+      menu: true,
+    };
+  }
+
   // The whole page, measured and turned into collision in one go.
   function fromPage(root, viewW, viewH, options) {
     return build(viewW, viewH, boxesFrom(root), doorFrom(root), options);
@@ -366,6 +423,6 @@ const Mainscreen = (() => {
 
   return {
     EDGE, HEADROOM, CORRIDOR, SKY,
-    tileFor, skyRoom, tileOf, boxesFrom, doorFrom, build, fromPage,
+    tileFor, skyRoom, tileOf, boxesFrom, doorFrom, build, fromPage, createGym,
   };
 })();
