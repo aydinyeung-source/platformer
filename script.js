@@ -1733,24 +1733,35 @@
       ctx.fillStyle = MARBLE.groove;
       ctx.fillRect(x, top, bleedX, 1);
       ctx.fillRect(x, bottom - 1, bleedX, 1);
-      hangPicture(ctx, x, top, bleedX, h, T);
+      // Hung against the pillar rather than centred on the wall: its inner edge
+      // touches the column, and whatever will not fit runs off the side of the
+      // window. A picture pinned to the middle of a strip of wall reads as
+      // decoration on a leftover margin; one that starts where the colonnade
+      // ends reads as being on the wall behind it.
+      hangPicture(ctx, x, top, bleedX, h, x < 0);
     }
   }
 
-  // Two tiles square, whole pixels only, and only if the wall is wide enough to
-  // have wall left over around it — a painting that reaches both edges of the
-  // surface it is on is wallpaper.
-  function hangPicture(ctx, x, y, w, h, T) {
-    if (!pictureReady) return;
-    const px = Math.max(1, Math.round((T * 2) / picture.width));
-    const size = picture.width * px;
-    if (size + px * 4 > w) return;
+  // As near the wall's own width as a whole number of source pixels gets, so it
+  // is a picture on that wall rather than a stamp in the middle of it. Whole
+  // pixels only — a pixel-art painting on a fractional scale is a blurred one —
+  // which means it lands a little over or a little under the width it was aiming
+  // for, and over is fine: the edge of the window crops it.
+  //
+  // `outward` says which way the overflow goes. On the left-hand wall the
+  // picture's right edge is pinned to the pillar and it grows leftwards off the
+  // screen; on the right-hand wall it is the other way about.
+  function hangPicture(ctx, x, y, w, h, outward) {
+    if (!pictureReady || !picture.width) return;
 
-    const left = Math.round(x + (w - size) / 2);
+    const px = Math.max(2, Math.round(w / picture.width));
+    const size = picture.width * px;
+    const left = outward ? x + w - size : x;
     const top = Math.round(y + h * 0.34 - size / 2);
+
     ctx.save();
     ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(picture, left, top, size, size);
+    ctx.drawImage(picture, Math.round(left), top, size, size);
     ctx.restore();
   }
 
