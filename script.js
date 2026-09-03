@@ -1153,6 +1153,15 @@
   // has to know which, because upstairs there is no page to read.
   let inGym = false;
 
+  // And whether we are between the two of them. The slide takes 1.1 seconds,
+  // both rooms are on screen for all of it, and the runner is a passenger:
+  // frozen, out of reach of the keyboard, and out of reach of gravity.
+  const SLIDE_MS = 1100;
+  let sliding = false;
+  let slideShot = null; // a still of the room being left
+  let shotIsGym = false;
+  let slideTimer = 0;
+
   // Anything that moves a card moves the ground under the runner's feet. The
   // rebuild is deferred to the next frame rather than done on the spot, because
   // one click can change three things and the layout is only worth measuring
@@ -1256,9 +1265,13 @@
 
   function resetPlayground() {
     playRunner = null;
-    // Back downstairs. A run always ends on the menu, so the menu has to be in
-    // the window when it does.
+    // Back downstairs, and not halfway between. A run always ends on the menu,
+    // so the menu has to be in the window when it does — and a slide left
+    // running would keep a still of a room nobody is in on top of it.
     inGym = false;
+    sliding = false;
+    slideShot = null;
+    window.clearTimeout(slideTimer);
     stage.classList.remove("is-slid-down");
     // Coming back from a run rebuilds the menu from nothing, and an unlocked
     // tunnel is part of the menu now — so it is asked for again here rather
@@ -1278,6 +1291,21 @@
 
   function stepPlayground(dt) {
     if (playDirty || !playLevel) rebuildPlayground();
+
+    // Between storeys the runner is cargo. No input, no gravity, no doors: they
+    // are standing exactly where the arrival put them and the camera is doing
+    // the moving.
+    //
+    // The poll still happens and is thrown away, for the same reason the typing
+    // guard polls — edges banked through a second of slide would all fire on
+    // the frame it ends, and a jump saved up for a second is a jump nobody
+    // asked for.
+    if (sliding) {
+      readInput();
+      playAcc = 0;
+      stepDust(dt);
+      return;
+    }
 
     playAcc += Math.min(dt, 0.25);
     let taken = 0;
@@ -1656,19 +1684,22 @@
     roomArt.cssH = h;
   }
 
-  function renderPlayground() {
-    playCtx.clearRect(0, 0, document.documentElement.clientWidth,
-      document.documentElement.clientHeight);
+  // Everything in the room except whoever is standing in it. Split out because
+  // it has to be drawn twice: once live, and once into a still picture of the
+  // room being left behind while the two of them slide past each other.
+  function drawScene(ctx) {
     // The room first, behind everything: the door stands in it, and the runner
     // stands in front of it.
-    if (roomArt) playCtx.drawImage(roomArt, 0, 0, roomArt.cssW, roomArt.cssH);
+    if (roomArt) ctx.drawImage(roomArt, 0, 0, roomArt.cssW, roomArt.cssH);
     // The gym's way back down, drawn as the tunnel's door is drawn, because it
     // is the same kind of thing and ought to be recognised without a label.
-    if (inGym && playLevel.door) drawSkyDoor(playCtx, playLevel.door, playLevel.tile);
-    drawDoor(playCtx);
-    drawSky(playCtx);
-    drawDust(playCtx);
+    if (inGym && playLevel.door) drawSkyDoor(ctx, playLevel.door, playLevel.tile);
+    drawDoor(ctx);
+    drawSky(ctx);
+    drawDust(ctx);
+  }
 
+  function drawRunnerHere(ctx) {
     const body = playRunner.body;
     const T = playLevel.tile;
     const scale = (T * Player.TUNING.height) / SHEET.activeH;
@@ -1677,14 +1708,66 @@
     const centreX = (body.x + body.w / 2) * T;
     const feetY = (body.y + body.h) * T;
 
-    if (drawFrame(playCtx, poseOf(playRunner), centreX, feetY, scale, playRunner.facing < 0, alpha)) return;
+    if (drawFrame(ctx, poseOf(playRunner), centreX, feetY, scale, playRunner.facing < 0, alpha)) return;
 
     // No sheet loaded: a shape rather than nothing, in the menu's own ink so it
     // reads as part of the page instead of as a broken image.
-    playCtx.globalAlpha = alpha;
-    playCtx.fillStyle = colours.ink;
-    playCtx.fillRect(centreX - (body.w * T) / 2, feetY - body.h * T, body.w * T, body.h * T);
-    playCtx.globalAlpha = 1;
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = colours.ink;
+    ctx.fillRect(centreX - (body.w * T) / 2, feetY - body.h * T, body.w * T, body.h * T);
+    ctx.globalAlpha = 1;
+  }
+
+  // How far down the window the menu currently sits, asked of the browser
+  // rather than worked out again here.
+  //
+  // The menu slides on a CSS transition and the canvas has to travel with it to
+  // the pixel — the marble pillars are painted here and the cards they frame are
+  // laid out there, and a curve reimplemented in JavaScript would agree with the
+  // browser's for about two frames. So the number comes from the element: this
+  // is exactly where the browser has put it this frame, whatever easing it is
+  // using and however it is scheduling the work.
+  function stageShift() {
+    const raw = stage ? getComputedStyle(stage).transform : "none";
+    if (!raw || raw === "none") return 0;
+    try {
+      return new DOMMatrix(raw).m42;
+    } catch (err) {
+      return inGym ? document.documentElement.clientHeight : 0;
+    }
+  }
+
+  function renderPlayground() {
+    const viewW = document.documentElement.clientWidth;
+    const viewH = document.documentElement.clientHeight;
+    playCtx.clearRect(0, 0, viewW, viewH);
+
+    if (!sliding) {
+      drawScene(playCtx);
+      drawRunnerHere(playCtx);
+      return;
+    }
+
+    // Mid-slide, and both storeys are on screen. The menu is wherever the
+    // browser has it; the gym is one window above that, because it is the room
+    // upstairs and this is the camera panning between them rather than one
+    // picture being swapped for another.
+    const shift = stageShift();
+    const menuY = shift;
+    const gymY = shift - viewH;
+
+    // The room being left is a still picture taken as the slide began. It has
+    // no runner in it — the live one rides in with the room being entered, so
+    // there is one of them on screen rather than two.
+    if (slideShot) {
+      playCtx.drawImage(slideShot, 0, shotIsGym ? gymY : menuY, viewW, viewH);
+    }
+
+    playCtx.save();
+    playCtx.translate(0, inGym ? gymY : menuY);
+    drawScene(playCtx);
+    drawRunnerHere(playCtx);
+    playCtx.restore();
   }
 
   // ------------------------------------------------------------- the secret
@@ -1949,21 +2032,63 @@
     puffSky(body.x + body.w / 2, body.y + body.h, 22, 3.2, true);
   }
 
+  // A still of the room as it stands, taken before the level under it changes.
+  // Kept at device resolution and drawn back at window size, so a slide is not
+  // a soft copy of the room sliding past a sharp one.
+  function takeSnapshot() {
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const w = document.documentElement.clientWidth;
+    const h = document.documentElement.clientHeight;
+    slideShot = document.createElement("canvas");
+    slideShot.width = Math.round(w * dpr);
+    slideShot.height = Math.round(h * dpr);
+    const ctx = slideShot.getContext("2d");
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    drawScene(ctx);
+    shotIsGym = inGym;
+  }
+
+  function beginSlide() {
+    sliding = true;
+    window.clearTimeout(slideTimer);
+    // transitionend is the signal. This is the backstop for when it never
+    // comes: an interrupted transition, a tab hidden for the whole of it, or
+    // reduced motion cutting the duration to nothing at all.
+    slideTimer = window.setTimeout(endSlide, SLIDE_MS + 200);
+  }
+
+  function endSlide() {
+    window.clearTimeout(slideTimer);
+    sliding = false;
+    slideShot = null;
+    // The menu has stopped moving, so now it can be measured.
+    queuePlayground();
+  }
+
   function enterGym() {
-    if (inGym) return;
+    if (inGym || sliding) return;
+    takeSnapshot(); // the menu, as the runner last saw it
     inGym = true;
     stage.classList.add("is-slid-down");
     rebuildPlayground();
 
+    // At the gym's own door, which is the same two columns as the tunnel's and
+    // one storey down — so going up through one puts the runner at the foot of
+    // the other, in the same place on the screen. Facing left, into the room,
+    // because the room is the point and it is all to their left.
     const body = playRunner.body;
+    const door = playLevel.door;
     stand(playLevel, {
-      x: playLevel.spawn.x + (1 - body.w) / 2,
-      y: playLevel.spawn.y + 1 - body.h,
+      x: door.x + door.w / 2 - body.w / 2,
+      y: door.y + door.h - body.h,
     });
+    playRunner.facing = -1;
+    beginSlide();
   }
 
   function leaveGym() {
-    if (!inGym) return;
+    if (!inGym || sliding) return;
+    takeSnapshot(); // the gym, as the runner last saw it
     inGym = false;
     stage.classList.remove("is-slid-down");
     rebuildPlayground();
@@ -1977,6 +2102,8 @@
     stand(playLevel, door
       ? { x: door.x - 2 + (1 - body.w) / 2, y: door.y + door.h - body.h }
       : { x: playLevel.spawn.x + (1 - body.w) / 2, y: playLevel.spawn.y + 1 - body.h });
+    playRunner.facing = -1;
+    beginSlide();
   }
 
   // The gym's own door, in the bottom corner furthest from where you land.
@@ -2102,7 +2229,7 @@
   // moving measures it somewhere it is not going to stay. The one that counts
   // is the one after the transform has stopped.
   stage.addEventListener("transitionend", (event) => {
-    if (event.propertyName === "transform") queuePlayground();
+    if (event.propertyName === "transform") endSlide();
   });
 
   document.addEventListener("click", (event) => {

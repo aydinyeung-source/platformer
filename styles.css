@@ -177,10 +177,16 @@ button {
   /* The way up to the second storey. The menu leaves the window rather than
      switching off, so the two rooms read as one building with a floor between
      them: go through the door at the end of the tunnel and the whole menu
-     slides down out of sight, taking six hundred milliseconds about it. The
-     reduced-motion block below cuts that to nothing, which is the same journey
-     without the travel. */
-  transition: transform 600ms var(--ease-soft);
+     slides down out of sight.
+
+     Eased at both ends rather than only the far one — a room the height of the
+     window has a long way to travel, and starting it at speed reads as a cut
+     rather than a journey. The canvas takes its offset from this element every
+     frame instead of repeating the curve in JavaScript, so the painted pillars
+     and the laid-out cards move as one thing. The reduced-motion block below
+     cuts the duration to nothing, which is the same journey without the
+     travelling. */
+  transition: transform 1100ms cubic-bezier(0.65, 0, 0.35, 1);
   /* Centred, but never at the cost of the top. On a window too short for the
      menu, ordinary centring pushes the title and the door off the top edge —
      and with the page locked, off the top edge is gone rather than scrolled to.

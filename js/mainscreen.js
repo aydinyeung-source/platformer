@@ -392,12 +392,14 @@ const Mainscreen = (() => {
       height,
       tiles,
       tile: TILE,
-      // Set down at the far end from the door, so the room is crossed rather
-      // than arrived in and left again.
       spawn: { x: Math.max(EDGE + 1, width - EDGE - 3), y: height - EDGE - 1 },
-      // The way back up. A box rather than tiles, like the tunnel's own door:
+      // The way back down, in the same two columns as the tunnel's door one
+      // storey below and against the same right-hand pillar. That is the whole
+      // trick of the slide: the door you go up through and the door you arrive
+      // at are the same place on the screen, so the rooms read as stacked
+      // rather than swapped. A box rather than tiles, like the tunnel's own —
       // a door you walk through is a door with nothing in the way.
-      door: { x: 2, y: height - 3, w: 2, h: 2 },
+      door: { x: width - EDGE - 2, y: height - 3, w: 2, h: 2 },
       gym: true,
       // Player.update reads these off whatever level it is given.
       meters: width,
