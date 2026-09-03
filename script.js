@@ -1281,7 +1281,8 @@
     playDust.length = 0;
     playAcc = 0;
     playEntering = false;
-    skyDoorHit = false;
+    skyDoorArmed = true;
+    gymDoorArmed = true;
     queuePlayground();
   }
 
@@ -1936,7 +1937,7 @@
   // it, so the runner is out of the zone the instant they arrive.
   function armSky() {
     if (skyRefused) return;
-    if (!playSky) skyDoorHit = false; // a new tunnel has its own door to reach
+    if (!playSky) skyDoorArmed = true; // a new tunnel has its door to be reached
     playSky = true;
     rebuildPlayground();
 
@@ -1978,32 +1979,41 @@
   // and they land on the menu underneath it, which is what a second storey
   // ought to do. Nothing tears the sky back down once it is up.
   //
-  // Reaching the golden door. It does nothing yet but say so — a burst of gold
-  // the first time it is touched, and then nothing, because a doorway that
-  // fountains for as long as you stand in it is a doorway you stop believing.
+  // The two doors, and the latch that keeps them from arguing.
   //
-  // The hook is here rather than the effect: what this opens onto is the gym,
-  // and the gym is not built. When it is, it goes where the burst is — the
-  // touch test and the once-only flag are already the two things it will need.
-  let skyDoorHit = false;
+  // A door fires on the edge of being touched, not for as long as it is being
+  // touched: it disarms as it triggers and arms again once the runner is
+  // clear of it. Without that, arriving is indistinguishable from knocking.
+  // These two doors are the same place on the screen a storey apart, so coming
+  // up through one lands you at the foot of the other — and a door that reads
+  // an arrival as a fresh touch sends you straight back where you came from,
+  // which the two rooms will happily do to each other all afternoon.
+  //
+  // Arriving disarms the destination outright, on top of standing the runner
+  // clear of the frame. Either alone would do it; both means the placement can
+  // move later without the loop quietly coming back.
+  let skyDoorArmed = true;
+  let gymDoorArmed = true;
+
+  function inBox(body, box) {
+    return body.x < box.x + box.w && body.x + body.w > box.x &&
+      body.y < box.y + box.h && body.y + body.h > box.y;
+  }
 
   function checkSkyDoor() {
     const box = playSky && playLevel.sky && playLevel.sky.door;
     if (!box) return;
 
     const body = playRunner.body;
-    const touching = body.x < box.x + box.w && body.x + body.w > box.x &&
-      body.y < box.y + box.h && body.y + body.h > box.y;
-
-    if (!touching) {
+    if (!inBox(body, box)) {
       // Stepping out of the doorway arms it again, so a second visit is worth
       // as much as the first.
-      skyDoorHit = false;
+      skyDoorArmed = true;
       return;
     }
-    if (skyDoorHit) return;
+    if (!skyDoorArmed) return;
 
-    skyDoorHit = true;
+    skyDoorArmed = false;
     puffSky(body.x + body.w / 2, body.y + body.h / 2, 26, 4, true);
     enterGym();
   }
@@ -2072,17 +2082,16 @@
     stage.classList.add("is-slid-down");
     rebuildPlayground();
 
-    // At the gym's own door, which is the same two columns as the tunnel's and
-    // one storey down — so going up through one puts the runner at the foot of
-    // the other, in the same place on the screen. Facing left, into the room,
-    // because the room is the point and it is all to their left.
+    // Beside the gym's own door, which is the same two columns as the tunnel's
+    // and one storey down — so going up through one puts the runner at the foot
+    // of the other, in the same place on the screen. A tile and a half clear of
+    // the frame rather than standing in it, and facing left, into the room,
+    // because the room is the point and all of it is that way.
     const body = playRunner.body;
     const door = playLevel.door;
-    stand(playLevel, {
-      x: door.x + door.w / 2 - body.w / 2,
-      y: door.y + door.h - body.h,
-    });
+    stand(playLevel, { x: door.x - 1.5, y: door.y + door.h - body.h });
     playRunner.facing = -1;
+    gymDoorArmed = false;
     beginSlide();
   }
 
@@ -2093,16 +2102,16 @@
     stage.classList.remove("is-slid-down");
     rebuildPlayground();
 
-    // Back out onto the deck, a couple of columns short of the door they came
-    // through, so walking on does not put them straight back into it. The
-    // fallback is the menu floor: a window that has no room for the tunnel has
-    // nowhere up there to put anybody.
+    // Back out onto the deck, a tile and a half clear of the door they came
+    // through, facing away down the tunnel. The fallback is the menu floor: a
+    // window with no room for the tunnel has nowhere up there to put anybody.
     const body = playRunner.body;
     const door = playLevel.sky && playLevel.sky.door;
     stand(playLevel, door
-      ? { x: door.x - 2 + (1 - body.w) / 2, y: door.y + door.h - body.h }
+      ? { x: door.x - 1.5, y: door.y + door.h - body.h }
       : { x: playLevel.spawn.x + (1 - body.w) / 2, y: playLevel.spawn.y + 1 - body.h });
     playRunner.facing = -1;
+    skyDoorArmed = false;
     beginSlide();
   }
 
@@ -2112,9 +2121,14 @@
 
     const box = playLevel.door;
     const body = playRunner.body;
-    if (!(body.x < box.x + box.w && body.x + body.w > box.x &&
-          body.y < box.y + box.h && body.y + body.h > box.y)) return;
+    if (!inBox(body, box)) {
+      gymDoorArmed = true;
+      return;
+    }
+    if (!gymDoorArmed) return;
 
+    gymDoorArmed = false;
+    puffSky(body.x + body.w / 2, body.y + body.h / 2, 26, 4, true);
     leaveGym();
   }
 
