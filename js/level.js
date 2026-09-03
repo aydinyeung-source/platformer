@@ -507,6 +507,136 @@ const Level = (() => {
       }
     }
 
+    // ----------------------------------------------------------- blind drops
+    //
+    // The tutorial's third chamber, made procedural: the floor stops, and what
+    // is under it is a long fall onto lava with one shelf to land on. Walk off
+    // at running pace and you cross four columns before you have dropped nine,
+    // which lands you past the shelf and in the fire. Stop at the lip and go
+    // down instead of forward, and you land on it. The only way to know that
+    // beforehand is to point the camera down the hole, which is what the free
+    // camera is for and what nothing else in a generated cave insists on.
+    //
+    // Two things about the shape of it are the verifier's doing rather than the
+    // design's, and both are worth writing down because they look like timidity.
+    //
+    // The shelf sits directly beneath the lip, not tucked behind it. movesFrom
+    // models a fall as stepping sideways into a column and dropping straight
+    // down it — there is no way in that model to leave a ledge and steer back
+    // underneath the floor you left. A shelf placed where the tutorial's is
+    // would be invisible to verify(), the drop would read as a severed corridor
+    // with no way across, and every attempt at the level would be thrown out.
+    // Directly below is the tuck this generator can prove you can reach.
+    //
+    // And the far wall carries a ladder back up to the corridor. The pit is
+    // wider than a jump by construction, so it cuts the corridor in two; the
+    // route has to go down through it and come back up, and every rung of that
+    // is a step the verifier can see.
+    //
+    // The whole thing is carved into virgin rock and put back if the shape does
+    // not come out standable. Whatever else is wrong with a blind drop, it can
+    // never be the reason a cave is unfinishable — it is either right or it was
+    // never there.
+    const BLIND_METRES = 500; // roughly one set-piece per this much run
+    const BLIND_MARGIN = 8; // corridor left either side of the pit
+    let blinds = 0;
+
+    function blindDrop() {
+      const wide = detail.int(6, 8);
+      const deep = detail.int(12, 14);
+
+      // Somewhere with room for it, and nothing already dug underneath.
+      const roomy = places.filter((p) =>
+        p.type === "corridor" &&
+        p.head === HEADROOM &&
+        p.x1 - p.x0 >= wide + BLIND_MARGIN * 2 &&
+        p.floorY + deep + 3 + CRUST <= FLOOR_LIMIT);
+      if (!roomy.length) return false;
+
+      const place = roomy[detail.int(0, roomy.length - 1)];
+      const at0 = detail.int(place.x0 + BLIND_MARGIN, place.x1 - BLIND_MARGIN - wide);
+      const F = place.floorY;
+      const bottom = F + deep; // the pit's own floor
+      const shelfY = bottom - 3; // three rows above the lava's surface
+
+      // Virgin rock only, a column either side included, or the pit opens into
+      // something already carved and takes its floor away.
+      if (shafts.some((s) => at0 - 1 <= s.x1 + 1 && at0 + wide >= s.x0 - 1)) return false;
+      for (let x = at0 - 1; x <= at0 + wide; x++) {
+        for (let y = F; y <= bottom + 2 + CRUST; y++) {
+          if (peek(x, y) !== TILE.GROUND) return false;
+        }
+      }
+
+      const keep = [];
+      for (let x = at0 - 1; x <= at0 + wide; x++) {
+        for (let y = F; y <= bottom + 2; y++) keep.push(peek(x, y));
+      }
+      const undo = () => {
+        let i = 0;
+        for (let x = at0 - 1; x <= at0 + wide; x++) {
+          for (let y = F; y <= bottom + 2; y++) put(x, y, keep[i++]);
+        }
+      };
+
+      // The hole.
+      for (let x = at0; x < at0 + wide; x++) {
+        for (let y = F; y < bottom; y++) dig(x, y);
+      }
+
+      // The fire at the bottom of it, everywhere except the two columns the
+      // shelf hangs over — a pool with a dry edge is a pool you can stand
+      // beside and think about, which is not what this is.
+      for (let x = at0 + 2; x < at0 + wide; x++) {
+        for (let y = bottom; y <= bottom + 2; y++) put(x, y, TILE.LAVA);
+      }
+
+      // The shelf: two columns under the lip, and the drop that reaches it is
+      // the one taken from a standstill.
+      put(at0, shelfY, TILE.GROUND);
+      put(at0 + 1, shelfY, TILE.GROUND);
+
+      // And the way out, up the far wall. Level with the shelf first, so the
+      // crossing is a jump rather than a climb, then a rung every LEDGE_RISE
+      // until the corridor is back in reach.
+      //
+      // One-way planks, for the reason the shaft ladders are: a climb reads a
+      // plank as air and a solid nub as something to crack your head on. A rung
+      // of rock directly above another is a ceiling as far as movesFrom is
+      // concerned — it refuses the jump, the ladder is a ladder nobody can
+      // climb, and the pit becomes a corridor cut in half. Planks let a body up
+      // through them and still catch one falling.
+      for (let y = shelfY; y > F; y -= LEDGE_RISE) {
+        put(at0 + wide - 2, y, TILE.PLATFORM);
+        put(at0 + wide - 1, y, TILE.PLATFORM);
+      }
+
+      // Does it hold up? The lip, the shelf, the first rung across from it and
+      // the far lip all have to be places a body can stand, or this was a hole
+      // with a story about it rather than a route.
+      const probe = { width, height, tiles };
+      const sound =
+        standable(probe, at0 - 1, F - 1) &&
+        standable(probe, at0, shelfY - 1) &&
+        standable(probe, at0 + wide - 2, shelfY - 1) &&
+        standable(probe, at0 + wide, F - 1);
+      if (!sound) {
+        undo();
+        return false;
+      }
+
+      places.push({ type: "drop", x0: at0, x1: at0 + wide - 1, floorY: F, bottom });
+      blinds++;
+      return true;
+    }
+
+    for (let want = Math.max(1, Math.round(width / BLIND_METRES)); want > 0; want--) {
+      // Eight goes at finding somewhere for each one. A cave that has nowhere
+      // to put one simply does not get one.
+      for (let tries = 0; tries < 8 && !blindDrop(); tries++);
+    }
+
+
 
     // ---------------------------------------------------------------- ducts
     // A slit through the rock, one tile tall. Nothing can stand up in one, so
@@ -916,6 +1046,7 @@ const Level = (() => {
         torches: torches.length,
         stalactites: stalactites.length,
         crawlways: crawls.filter((s) => s.head < HEADROOM).length,
+        blinds,
         shallow,
         pools,
         loops,
