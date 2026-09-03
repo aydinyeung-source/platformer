@@ -9,7 +9,7 @@
 // before the network, so a stale copy is served for ever until this string is
 // different. It is the same version the page shows in its corner and the same
 // one runs.js sends with a run, so all three move together or none of them do.
-const VERSION = "1.74.0";
+const VERSION = "1.75.0";
 const CACHE = "platformer-" + VERSION;
 
 // Every file index.html actually pulls in, plus the two things an installed app
@@ -33,14 +33,23 @@ const CORE = [
   "./js/game.js",
   "./js/runs.js",
   "./js/auth.js",
-  // The gym is a picture the game reads at runtime, so offline it has to be one
-  // of the files that came along.
-  "./gym.png.png",
   "./assets/sprites/player.png",
   "./assets/icon-192.png",
   "./assets/icon-512.png",
   "./assets/icon-maskable-512.png",
 ];
+
+// One file is not like the others. The gym is a picture somebody draws, and it
+// changes without a line of code changing with it — so serving it from the
+// cache first would mean a redrawn room does not appear until the version
+// string above moves, which is a thing nobody will remember to do and no error
+// message will mention. These are asked of the network first and fall back to
+// the copy on disk: exactly what offline needs, and what redrawing needs, in
+// that order.
+//
+// Two names because the file came out of its editor as gym.png.png and the
+// obvious thing to call a replacement is gym.png. Only one of them will exist.
+const LIVE = ["gym.png", "gym.png.png"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -54,6 +63,13 @@ self.addEventListener("install", (event) => {
       // 404 on a few. Asked for on its own so that a host which does not serve
       // it costs one navigation fallback rather than the entire install.
       await cache.add("./").catch(() => {});
+
+      // The gym's picture, under either name it might be saved as. Only one of
+      // them exists, so these cannot go in the list above — addAll is all or
+      // nothing, and one 404 there would cost the entire install.
+      for (const name of LIVE) {
+        await cache.add("./" + name).catch(() => {});
+      }
 
       // Take over without waiting for every tab to close. The cache is named
       // after the version, so a worker that activates early cannot mix a new
@@ -93,15 +109,6 @@ function mine(request) {
   if (request.method !== "GET") return false;
   return new URL(request.url).origin === self.location.origin;
 }
-
-// One file is not like the others. The gym is a picture somebody draws, and it
-// changes without a line of code changing with it — so serving it from the
-// cache first would mean a redrawn room does not appear until the version
-// string above moves, which is a thing nobody will remember to do and no error
-// message will mention. It is asked of the network first and falls back to the
-// copy on disk: exactly what offline needs, and what redrawing needs, in that
-// order.
-const LIVE = ["gym.png.png"];
 
 function isLive(url) {
   return LIVE.some((name) => url.pathname.endsWith("/" + name));

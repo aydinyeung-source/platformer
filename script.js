@@ -480,8 +480,13 @@
   // page, and the room has changed: there is no step in between for the drawing
   // and the level to disagree at.
   //
-  // The double extension is not a typo. It is how the file is saved.
-  const GYM_SRC = "gym.png.png";
+  // Either name, first one that answers. The file on disk is gym.png.png —
+  // a double extension, which is how it came out of the editor — but the
+  // obvious thing to call a replacement is gym.png, and a room that silently
+  // ignores the picture you just saved because of an extension is a bad
+  // afternoon. So the plain name is tried first and the double one is the
+  // fallback, and either works.
+  const GYM_SRC = ["gym.png", "gym.png.png"];
 
   // Nearest of the four rather than an exact match. An editor that antialiases
   // an edge, or writes 254 where it meant 255, should cost a pixel's worth of
@@ -508,7 +513,9 @@
     return best.mark;
   }
 
-  function loadGymMap() {
+  function loadGymMap(which) {
+    const at = which || 0;
+    if (at >= GYM_SRC.length) return; // no picture under either name
     const art = new Image();
 
     art.addEventListener("load", () => {
@@ -543,9 +550,10 @@
       if (inGym) queuePlayground();
     });
 
-    // Missing, or refused: the baked copy stands, and it is the same room.
-    art.addEventListener("error", () => {});
-    art.src = GYM_SRC;
+    // Not under that name: try the next. When both are gone the baked copy
+    // stands, and it is the same room.
+    art.addEventListener("error", () => loadGymMap(at + 1));
+    art.src = GYM_SRC[at];
   }
 
   // Which of the ten runner frames this moment is. Order is precedence: being
