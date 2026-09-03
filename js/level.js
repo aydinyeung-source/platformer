@@ -533,51 +533,89 @@ const Level = (() => {
     // route has to go down through it and come back up, and every rung of that
     // is a step the verifier can see.
     //
-    // The whole thing is carved into virgin rock and put back if the shape does
-    // not come out standable. Whatever else is wrong with a blind drop, it can
-    // never be the reason a cave is unfinishable — it is either right or it was
-    // never there.
+    // It is put back if the shape does not come out standable once it is dug,
+    // so whatever else is wrong with a blind drop it can never be the reason a
+    // cave is unfinishable — it is either right or it was never there.
     const BLIND_METRES = 500; // roughly one set-piece per this much run
-    const BLIND_MARGIN = 8; // corridor left either side of the pit
+    const BLIND_MARGIN = 4; // corridor left either side of the pit
+    const BLIND_WIDE = [6, 7, 8];
+    const BLIND_DEEP = [12, 13, 14];
     let blinds = 0;
 
-    function blindDrop() {
-      const wide = detail.int(6, 8);
-      const deep = detail.int(12, 14);
+    // Whether a hole of this size can go here.
+    //
+    // The first version of this asked for a solid block of untouched rock ten
+    // columns by eighteen rows, which is more virgin stone than exists under a
+    // corridor by the time the links have been carved: the room below is
+    // fourteen rows down and its neighbours' passages wander through everything
+    // in between. Every candidate failed, the safety net put every one back, and
+    // the tally read zero for ever without a word about it.
+    //
+    // What actually has to be true is smaller. The hole may pass through rock
+    // and it may pass through open air — falling through somebody else's
+    // headroom costs nothing. What it may not do is take away a floor: rock
+    // with air above it is a surface somebody walks on, and punching six
+    // columns out of one severs the passage it belongs to. That is the test,
+    // and it is the only part of the old one worth keeping.
+    function blindClear(at0, wide, deep, F) {
+      const bottom = F + deep;
 
-      // Somewhere with room for it, and nothing already dug underneath.
-      const roomy = places.filter((p) =>
-        p.type === "corridor" &&
-        p.head === HEADROOM &&
-        p.x1 - p.x0 >= wide + BLIND_MARGIN * 2 &&
-        p.floorY + deep + 3 + CRUST <= FLOOR_LIMIT);
-      if (!roomy.length) return false;
-
-      const place = roomy[detail.int(0, roomy.length - 1)];
-      const at0 = detail.int(place.x0 + BLIND_MARGIN, place.x1 - BLIND_MARGIN - wide);
-      const F = place.floorY;
-      const bottom = F + deep; // the pit's own floor
-      const shelfY = bottom - 3; // three rows above the lava's surface
-
-      // Virgin rock only, a column either side included, or the pit opens into
-      // something already carved and takes its floor away.
+      // Not where a shaft is. Those have ladders laid up them at the end, and a
+      // ladder down the middle of a blind drop is a handrail.
       if (shafts.some((s) => at0 - 1 <= s.x1 + 1 && at0 + wide >= s.x0 - 1)) return false;
+
+      // The lip either side, and the floor the hole is punched through.
       for (let x = at0 - 1; x <= at0 + wide; x++) {
-        for (let y = F; y <= bottom + 2 + CRUST; y++) {
-          if (peek(x, y) !== TILE.GROUND) return false;
+        if (peek(x, F) !== TILE.GROUND) return false;
+      }
+
+      // Nothing underfoot on the way down.
+      for (let x = at0; x < at0 + wide; x++) {
+        for (let y = F + 1; y < bottom; y++) {
+          if (peek(x, y) === TILE.GROUND && peek(x, y - 1) === TILE.EMPTY) return false;
         }
       }
 
+      // And a bed for the fire: rock through the pool and the crust beneath it,
+      // so it has something to sit in and the draining pass leaves it alone.
+      for (let x = at0; x < at0 + wide; x++) {
+        for (let y = bottom; y <= bottom + 2 + CRUST; y++) {
+          if (peek(x, y) !== TILE.GROUND) return false;
+        }
+      }
+      return true;
+    }
+
+    // Every column of every corridor that would take one. Scanned rather than
+    // guessed at eight times: a cave has a few thousand columns and only some
+    // of them have the room, so looking at all of them is both cheaper and far
+    // more likely to find the one that does.
+    function blindSites(wide, deep) {
+      const found = [];
+      for (const place of places) {
+        if (place.type !== "corridor" || place.head !== HEADROOM) continue;
+        if (place.x1 - place.x0 < wide + BLIND_MARGIN * 2) continue;
+        if (place.floorY + deep + 2 + CRUST > FLOOR_LIMIT) continue;
+        for (let at0 = place.x0 + BLIND_MARGIN; at0 <= place.x1 - BLIND_MARGIN - wide; at0++) {
+          if (blindClear(at0, wide, deep, place.floorY)) found.push({ at0, F: place.floorY });
+        }
+      }
+      return found;
+    }
+
+    function carveBlind(at0, wide, deep, F) {
+      const bottom = F + deep; // the pit's own floor
+      const shelfY = bottom - 3; // three rows above the lava's surface
+
+      // Everything about to be written over, so it can be written back. The
+      // site test says the hole may go here; this says the hole came out as a
+      // route once it was dug. Whatever else is wrong with a blind drop it can
+      // never be why a cave is unfinishable — it is either right or it was
+      // never there.
       const keep = [];
       for (let x = at0 - 1; x <= at0 + wide; x++) {
         for (let y = F; y <= bottom + 2; y++) keep.push(peek(x, y));
       }
-      const undo = () => {
-        let i = 0;
-        for (let x = at0 - 1; x <= at0 + wide; x++) {
-          for (let y = F; y <= bottom + 2; y++) put(x, y, keep[i++]);
-        }
-      };
 
       // The hole.
       for (let x = at0; x < at0 + wide; x++) {
@@ -611,17 +649,21 @@ const Level = (() => {
         put(at0 + wide - 1, y, TILE.PLATFORM);
       }
 
-      // Does it hold up? The lip, the shelf, the first rung across from it and
-      // the far lip all have to be places a body can stand, or this was a hole
-      // with a story about it rather than a route.
+      // Does it hold up? The lip, the shelf, the rung across from it and the
+      // far lip all have to be places a body can stand, or this was a hole with
+      // a story about it rather than a route.
       const probe = { width, height, tiles };
       const sound =
         standable(probe, at0 - 1, F - 1) &&
         standable(probe, at0, shelfY - 1) &&
         standable(probe, at0 + wide - 2, shelfY - 1) &&
         standable(probe, at0 + wide, F - 1);
+
       if (!sound) {
-        undo();
+        let i = 0;
+        for (let x = at0 - 1; x <= at0 + wide; x++) {
+          for (let y = F; y <= bottom + 2; y++) put(x, y, keep[i++]);
+        }
         return false;
       }
 
@@ -630,12 +672,22 @@ const Level = (() => {
       return true;
     }
 
+    // One per five hundred metres, near enough. Sizes are tried in an order the
+    // seed decides, and the first size with anywhere to go gets the set-piece —
+    // so a cave with room for only the narrowest still gets one.
     for (let want = Math.max(1, Math.round(width / BLIND_METRES)); want > 0; want--) {
-      // Eight goes at finding somewhere for each one. A cave that has nowhere
-      // to put one simply does not get one.
-      for (let tries = 0; tries < 8 && !blindDrop(); tries++);
+      let placed = false;
+      for (let i = 0; i < BLIND_WIDE.length && !placed; i++) {
+        for (let j = 0; j < BLIND_DEEP.length && !placed; j++) {
+          const wide = BLIND_WIDE[(i + detail.int(0, 2)) % BLIND_WIDE.length];
+          const deep = BLIND_DEEP[(j + detail.int(0, 2)) % BLIND_DEEP.length];
+          const sites = blindSites(wide, deep);
+          if (!sites.length) continue;
+          const pick = sites[detail.int(0, sites.length - 1)];
+          placed = carveBlind(pick.at0, wide, deep, pick.F);
+        }
+      }
     }
-
 
 
     // ---------------------------------------------------------------- ducts
