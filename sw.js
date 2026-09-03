@@ -9,7 +9,7 @@
 // before the network, so a stale copy is served for ever until this string is
 // different. It is the same version the page shows in its corner and the same
 // one runs.js sends with a run, so all three move together or none of them do.
-const VERSION = "1.76.0";
+const VERSION = "1.77.0";
 const CACHE = "platformer-" + VERSION;
 
 // Every file index.html actually pulls in, plus the two things an installed app
