@@ -1628,6 +1628,59 @@
     close(cols - 1);
   }
 
+  // The gym's own masonry: everything inside the frame that the picture said
+  // was solid, plus the lava it said was lava.
+  //
+  // Marble, like the room it stands in, with a lit edge wherever a block has
+  // air above it — that edge is the whole of what says "you can land here", and
+  // without it a course of white blocks on a white floor is a puzzle about
+  // where the ledges are rather than about reaching them.
+  function drawGymTiles(ctx, T, cols, rows) {
+    const cap = Math.max(2, Math.round(T * 0.16));
+    const lip = Math.max(2, Math.round(T * 0.22));
+
+    for (let y = 1; y < rows; y++) {
+      for (let x = 1; x < cols - 1; x++) {
+        const tile = Level.at(playLevel, x, y);
+        if (tile === Level.TILE.EMPTY) continue;
+        // The bottom row is the floor, and the floor is already drawn above
+        // with a nicer edge than a plain block would get.
+        if (y === rows - 1 && tile === Level.TILE.GROUND) continue;
+
+        const px = x * T;
+        const py = y * T;
+
+        if (tile === Level.TILE.LAVA) {
+          ctx.fillStyle = colours.lava;
+          ctx.fillRect(px, py, T + 0.5, T + 0.5);
+          // A brighter lip only where it meets air, so a pool reads as having a
+          // surface rather than as a block of orange.
+          if (Level.at(playLevel, x, y - 1) !== Level.TILE.LAVA) {
+            ctx.fillStyle = colours.lavaTop;
+            ctx.fillRect(px, py, T + 0.5, lip);
+          }
+          continue;
+        }
+
+        ctx.fillStyle = MARBLE.face;
+        ctx.fillRect(px, py, T + 0.5, T + 0.5);
+        // Shaded underside and a seam down the right, so a run of blocks reads
+        // as blocks rather than as one poured slab.
+        ctx.fillStyle = MARBLE.shade;
+        ctx.fillRect(px, py + T - Math.max(1, Math.round(T * 0.12)), T + 0.5,
+          Math.max(1, Math.round(T * 0.12)));
+        ctx.fillStyle = MARBLE.groove;
+        ctx.fillRect(px + T - 1, py, 1, T + 0.5);
+        if (Level.at(playLevel, x, y - 1) !== Level.TILE.GROUND) {
+          ctx.fillStyle = MARBLE.light;
+          ctx.fillRect(px, py, T + 0.5, cap);
+          ctx.fillStyle = MARBLE.outline;
+          ctx.fillRect(px, py, T + 0.5, 1);
+        }
+      }
+    }
+  }
+
   function drawRoom(ctx) {
     const T = playLevel.tile;
     const cols = playLevel.width;
@@ -1649,6 +1702,14 @@
     band(ctx, T, floorY, inner, 1, MARBLE.light);
     band(ctx, T, floorY + 1, inner, 1, MARBLE.groove);
     band(ctx, T, floorY + Math.round(T * 0.55), inner, T - Math.round(T * 0.55), MARBLE.shade);
+
+    // And upstairs, everything the room is made of on the inside.
+    //
+    // Downstairs the tiles are cards and the browser draws them, so the canvas
+    // only ever had to paint the shell around them. The gym's tiles are its
+    // own — they came out of a picture and nothing else was drawing them — so
+    // the whole obstacle course was solid, collidable and invisible.
+    if (playLevel.gym) drawGymTiles(ctx, T, cols, rows);
 
     // Both walls run the full height of the level and always have: the carver
     // fills them for every row, and the gauntlet's own clearing refuses to cut
