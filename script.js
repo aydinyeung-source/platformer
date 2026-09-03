@@ -494,7 +494,7 @@
   // The site is served by Cloudflare Workers, where an asset path and the key
   // it is stored under can disagree about how to encode those — and the failure
   // is a silent 404 that looks exactly like a drawing bug. Redraws go here.
-  picture.src = "assets/mona.png";
+  picture.src = "assets/ptng.png";
 
   // ------------------------------------------------------------ the gym map
   //
