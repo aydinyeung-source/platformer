@@ -114,7 +114,7 @@ const Level = (() => {
 
     // One hash lands on a fault, and the carver steps around it.
     if (Rng.numberFor(seedText) === FAULT_HASH) {
-      return carveFaultFormation(seed, mode, width);
+      return carveFaultFormation(seed);
     }
 
     let level = null;
@@ -1205,27 +1205,46 @@ const Level = (() => {
   // Most of the rock is carved. One hash of one seed lands somewhere the rock
   // has already taken a shape of its own, and that shape is left alone.
   //
-  // What it is does not matter to this file. What matters is that it obeys the
-  // same promise everything else here obeys: the way through is provable. The
-  // formations stand nine rows tall on the floor of one long hall and they
-  // block that floor wherever they stand — there is no way round any of them,
-  // only over. Nine rows is exactly one wall climb under RULES, so every one of
-  // them can be taken from the ground beside it in a single run up the face;
-  // coming off the far side is a fall onto floor, so none of them can strand
-  // you. Anything hollow enough to fall inside is either open at the bottom or
-  // sealed with no way in at all, which is the same thing to a route.
+  // What it is does not matter to this file. How it is built does.
   //
-  // That is not an argument to take on trust — verify walks it like any other
-  // level, and the floor comes out in fourteen separate stretches, which is the
-  // measurement that says you really do have to climb.
+  // The shapes used to stand in the way, nine rows of stone apiece with the
+  // only route over the top of each one. That was provable and it was slow: a
+  // climb between every pair of them, and gaps wide enough that no two could be
+  // taken in at once. What is here now is the other arrangement — the shapes
+  // are underneath, sealed in a case beneath the floor, close enough together
+  // to read as what they are, and the running is done on a flat two-row track
+  // over the top of them at whatever speed you can hold.
+  //
+  // Sealed is the load-bearing word. Nothing can get into the case, so nothing
+  // in it can strand you and nothing in it needs to be climbable; it is scenery
+  // with a floor over it, and the route is the corridor above, which is flat
+  // from the top of the chimney to the door. The chimney is the only part that
+  // goes anywhere vertically, and it is a ladder rather than a bare shaft
+  // because movesFrom will not climb a wall with nothing to land on.
+  //
+  // verify walks it like any other level rather than taking that on trust.
   const FAULT_HASH = 0x8de3fcd5;
 
-  const FAULT_W = 11; // columns across one formation
-  const FAULT_H = 9; // rows tall — one wall climb, and not a row more
-  const FAULT_FLOOR = 40;
-  const FAULT_CEIL = 20; // eleven rows of air above the tallest of them
-  const FAULT_LEAD = 24; // ground to land on before the first
-  const FAULT_TAIL = 20; // and after the last, for the door
+  const FAULT_W = 11; // columns across one shape
+  const FAULT_H = 9; // rows tall
+  const FAULT_LETTER_GAP = 4;
+  const FAULT_WORD_GAP = 9;
+
+  // Always this long, whatever length the menu was asking for. The track is a
+  // fixed thing and stretching it to five kilometres would put a quarter mile
+  // of blank corridor between one shape and the next.
+  const FAULT_WIDTH = 500;
+
+  const RUN_ROOF = 27; // solid, and low enough to feel
+  const RUN_Y = 29; // where you stand
+  const RUN_FLOOR = 30; // solid, and the lid of the gallery
+  const CASE_TOP = 32; // the gallery: sealed, lit, and under the whole run
+  const CASE_BOTTOM = 42;
+  const CASE_INK = 33; // first row of the shapes inside it
+
+  const SPAWN_FLOOR = 52;
+  const CHIMNEY_X = 12;
+  const RUNG_RISE = 3; // one plain jump between rungs
 
   // The shapes, a row of bits each. Numbers rather than pictures: reading them
   // out of the source is not how this is meant to be found.
@@ -1241,51 +1260,106 @@ const Level = (() => {
     "070070070070070070000000070",
   ];
 
-  // Which shape stands where. A negative is a stretch of bare floor.
-  const FAULT_ORDER = [0, 1, 2, -1, 3, 1, 2, 4, 5, -1, 6, 7, 8];
+  // Which shape stands where, grouped the way it is meant to be read. The
+  // grouping is the only reason the runs are separate arrays: shapes inside one
+  // sit close together, and the space between two of them is wider.
+  const FAULT_WORDS = [
+    [0, 1, 2],
+    [3, 1, 2, 4, 5],
+    [6, 7, 8],
+  ];
 
-  function carveFaultFormation(seed, mode, width) {
+  function carveFaultFormation(seed) {
+    const mode = resolveMode("500m");
+    const width = FAULT_WIDTH;
     const height = HEIGHT;
     const tiles = new Uint8Array(width * height).fill(TILE.GROUND);
 
     const put = (x, y, tile) => {
       if (x >= 0 && x < width && y >= 0 && y < height) tiles[y * width + x] = tile;
     };
+    const clear = (x0, x1, y0, y1) => {
+      for (let x = x0; x <= x1; x++) {
+        for (let y = y0; y <= y1; y++) put(x, y, TILE.EMPTY);
+      }
+    };
 
-    // One hall, one floor, end to end.
-    for (let x = 0; x < width; x++) {
-      for (let y = FAULT_CEIL; y < FAULT_FLOOR; y++) put(x, y, TILE.EMPTY);
+    const torches = [];
+
+    // How long the whole thing reads as: every shape, the tight gaps inside a
+    // run, the wide ones between them.
+    let count = 0;
+    let inner = 0;
+    for (const word of FAULT_WORDS) {
+      count += word.length;
+      inner += word.length - 1;
+    }
+    const trackSpan =
+      count * FAULT_W +
+      inner * FAULT_LETTER_GAP +
+      (FAULT_WORDS.length - 1) * FAULT_WORD_GAP;
+
+    // The door sits near the end of the run and the track backs up to meet it,
+    // so what is in front of you is a long flat and then the thing you came to
+    // see — arriving at it already at full speed, which is the whole point of
+    // laying it out flat.
+    const doorX = width - 22;
+    const inkX = doorX - 6 - trackSpan;
+
+    // The runway: two rows, and a roof you will hit if you try to jump. A step
+    // up needs a row of air above your head and there is none, so this is a
+    // corridor you run and nothing else.
+    clear(CHIMNEY_X + 3, width - 1, RUN_ROOF + 1, RUN_Y);
+
+    // Down at the start, where you begin: a pocket with one way out of it.
+    clear(4, CHIMNEY_X + 2, SPAWN_FLOOR - 4, SPAWN_FLOOR - 1);
+
+    // And the way out. Three wide with rock down both sides, from the pocket
+    // to the runway, opening sideways into it at the top.
+    clear(CHIMNEY_X, CHIMNEY_X + 2, RUN_ROOF + 1, SPAWN_FLOOR - 1);
+
+    // Rungs, alternating sides. Planks and not stone: a stack of solid rungs is
+    // a ceiling over the one below it, and a climb needs air above each step
+    // more than it needs something to hold. The top one lands level with the
+    // runway floor, a stride from it.
+    let side = 2;
+    for (let y = SPAWN_FLOOR - RUNG_RISE; y > RUN_FLOOR; y -= RUNG_RISE) {
+      put(CHIMNEY_X + side, y, TILE.PLATFORM);
+      side = side === 2 ? 0 : 2;
     }
 
-    // Spread across whatever length was asked for, so the last one always
-    // finishes in the same place relative to the door however long the run is.
-    const room = width - FAULT_LEAD - FAULT_TAIL;
-    const advance = Math.max(
-      FAULT_W + 8,
-      Math.floor((room - FAULT_W) / (FAULT_ORDER.length - 1))
-    );
+    // The gallery: a lit case under the floor, sealed on every side. Nothing
+    // can get into it, which is exactly why it is safe to hang anything at all
+    // in there — and you read it through the floor as it goes past underneath.
+    clear(inkX - 4, inkX + trackSpan + 3, CASE_TOP, CASE_BOTTOM);
 
-    for (let i = 0; i < FAULT_ORDER.length; i++) {
-      const which = FAULT_ORDER[i];
-      if (which < 0) continue;
-      const bits = STRATA[which];
-      const x0 = FAULT_LEAD + i * advance;
-      for (let r = 0; r < FAULT_H; r++) {
-        const row = parseInt(bits.slice(r * 3, r * 3 + 3), 16);
-        for (let c = 0; c < FAULT_W; c++) {
-          if ((row >> (FAULT_W - 1 - c)) & 1) {
-            put(x0 + c, FAULT_FLOOR - FAULT_H + r, TILE.GROUND);
+    let x0 = inkX;
+    for (let w = 0; w < FAULT_WORDS.length; w++) {
+      const word = FAULT_WORDS[w];
+      for (let i = 0; i < word.length; i++) {
+        const bits = STRATA[word[i]];
+        for (let r = 0; r < FAULT_H; r++) {
+          const row = parseInt(bits.slice(r * 3, r * 3 + 3), 16);
+          for (let c = 0; c < FAULT_W; c++) {
+            if ((row >> (FAULT_W - 1 - c)) & 1) put(x0 + c, CASE_INK + r, TILE.GROUND);
           }
         }
+        x0 += FAULT_W + (i === word.length - 1 ? FAULT_WORD_GAP : FAULT_LETTER_GAP);
       }
     }
 
-    const doorX = Math.min(
-      width - 6,
-      FAULT_LEAD + (FAULT_ORDER.length - 1) * advance + FAULT_W + 6
-    );
-    put(doorX, FAULT_FLOOR - 1, TILE.DOOR);
-    put(doorX, FAULT_FLOOR - 2, TILE.DOOR);
+    // Light, and only in the case. A torch hangs most of the way down its own
+    // tile from the rock above it, and the runway is two rows: one of them is
+    // your head. A line of them along the track would be a line of them through
+    // the runner, in the one corridor built to be taken at full speed and read
+    // while you do it. Down here there is room, the rock above is solid to hang
+    // from, and the light is on the thing it is meant to be on.
+    for (let x = inkX - 2; x < inkX + trackSpan + 2; x += 12) {
+      torches.push({ x, y: CASE_TOP });
+    }
+
+    put(doorX, RUN_Y, TILE.DOOR);
+    put(doorX, RUN_Y - 1, TILE.DOOR);
 
     const level = {
       seed,
@@ -1294,11 +1368,11 @@ const Level = (() => {
       width,
       height,
       tiles,
-      spawn: { x: 6, y: FAULT_FLOOR - 1 },
-      goal: { x: doorX, y: FAULT_FLOOR - 1 },
+      spawn: { x: 6, y: SPAWN_FLOOR - 1 },
+      goal: { x: doorX, y: RUN_Y },
       places: [],
       rooms: [],
-      torches: [],
+      torches,
       stalactites: [],
       crumbles: [],
       links: [],
@@ -1310,7 +1384,7 @@ const Level = (() => {
         pools: 0,
         stubs: 0,
         loops: 0,
-        rooms: FAULT_ORDER.filter((n) => n >= 0).length,
+        rooms: count,
         links: 0,
         places: 0,
       },
