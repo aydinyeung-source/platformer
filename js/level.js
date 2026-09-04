@@ -614,6 +614,7 @@ const Level = (() => {
     }
 
 
+
     // ------------------------------------------------------------ lava lakes
     //
     // A stretch of corridor with the floor taken out of it and fire underneath,
@@ -623,53 +624,94 @@ const Level = (() => {
     //
     // Cut into the floor rather than dug down from it, so it is a gap in a
     // passage you were already walking rather than a shaft you fall into: the
-    // lip either side stays, the lava sits three rows down, and the stones hang
+    // lip either side stays, the fire sits two rows down, and the stones hang
     // level with the floor that was there.
-    //
-    // The pattern is generated first and measured afterwards. Stones and gaps
-    // are drawn in the order a runner meets them and the width falls out of
-    // them, which keeps every jump inside the envelope by construction — the
-    // alternative is picking a width and then trying to divide it into jumps
-    // that fit, which is the same arithmetic backwards and gets it wrong at the
-    // ends.
     const LAKE_METRES = 700; // roughly one per this much run
-    const LAKE_DROP = 3; // rows of air between the stones and the fire
-    const LAKE_SPAN = [10, 14];
-    const LAKE_MARGIN = 3; // corridor left either side
+    const LAKE_DROP = 2; // rows of air between the stones and the fire
+    const LAKE_DEEP = 2; // rows of fire
+    const LAKE_STONES = 3;
     let lavaLakes = 0;
     const crumbleAt = [];
 
-    // Gap, stone, gap, stone … gap. Gaps of two or three are a step and a jump
-    // respectively and both are well inside a five tile reach; stones of one or
-    // two are a foothold and a place to turn round on.
+    // Gap, stone, gap, stone … gap, built to a width rather than measured after
+    // one. Everything starts at its smallest — gaps of two, stones of one, which
+    // comes to eleven — and the slack up to the width asked for is spent on the
+    // gaps first and the stones after.
+    //
+    // Built to fit rather than generated and filtered because the first version
+    // did the latter and threw three quarters of its patterns away, which cost
+    // three quarters of its attempts at finding anywhere to put one. Every jump
+    // is inside the envelope by construction either way: from any stone the next
+    // is its own width plus a gap along, so three or four tiles against a reach
+    // of five, and the two ends are the same.
     function lakePattern() {
-      const stones = detail.int(3, 4);
+      const span = detail.int(11, 14);
+      const gaps = new Array(LAKE_STONES + 1).fill(2);
+      const stones = new Array(LAKE_STONES).fill(1);
+
+      // Stones widened before gaps, and that ordering is the difference between
+      // stones that are always one tile and stones that are sometimes two. Four
+      // gaps and three stones out of a span of at most fourteen leaves at most
+      // three tiles of slack; spent on the gaps it all goes there and every
+      // stone stays a single tile, which is one foothold repeated four times
+      // rather than a crossing with a shape to it.
+      let spare = span - (2 * (LAKE_STONES + 1) + LAKE_STONES);
+      for (let i = 0; i < stones.length && spare > 0; i++, spare--) stones[i] = 2;
+      for (let i = 0; i < gaps.length && spare > 0; i++, spare--) gaps[i] = 3;
+
       const plan = [];
-      let span = 0;
-      for (let i = 0; i < stones; i++) {
-        const gap = detail.int(2, 3);
-        const stone = detail.int(1, 2);
-        plan.push({ gap, stone });
-        span += gap + stone;
+      for (let i = 0; i < LAKE_STONES; i++) plan.push({ gap: gaps[i], stone: stones[i] });
+      return { plan, last: gaps[LAKE_STONES], span };
+    }
+
+    // Every run of flat, walkable floor in the cave, read off the tiles rather
+    // than off the list of places.
+    //
+    // The places are the wrong thing to ask. A chamber is seven columns and a
+    // corridor segment closes every time the floor steps, which is every three
+    // to five — so almost nothing in that list is as long as a lake, and the
+    // first version of this found somewhere to build about one time in ten. The
+    // rock does not care which bookkeeping entry a column belongs to: a chamber
+    // and the passage leaving it at the same height are one flat run, and that
+    // is what a lake needs.
+    function flatRuns(least) {
+      const found = [];
+      for (let y = CEIL_LIMIT; y <= FLOOR_LIMIT; y++) {
+        let start = -1;
+        for (let x = 0; x <= width; x++) {
+          const walkable = x < width &&
+            peek(x, y) === TILE.GROUND &&
+            peek(x, y - 1) === TILE.EMPTY &&
+            peek(x, y - 2) === TILE.EMPTY;
+          if (walkable) {
+            if (start < 0) start = x;
+            continue;
+          }
+          if (start >= 0 && x - start >= least) found.push({ y, x0: start, x1: x - 1 });
+          start = -1;
+        }
       }
-      const last = detail.int(2, 3);
-      span += last;
-      return { plan, last, span };
+      return found;
     }
 
     function lakeClear(at0, span, F) {
       const bed = F + LAKE_DROP;
 
+      // Not where a shaft is: those are dug from the floor down, which is
+      // exactly where the fire wants to sit.
       if (shafts.some((s) => at0 - 1 <= s.x1 + 1 && at0 + span >= s.x0 - 1)) return false;
 
-      // The lip either side and the floor being replaced.
+      // The lip either side, and the floor being replaced.
       for (let x = at0 - 1; x <= at0 + span; x++) {
         if (peek(x, F) !== TILE.GROUND) return false;
       }
-      // Rock for the fire to sit in and a crust under it, so the pool stays
-      // where it is put and the draining pass leaves it alone.
+
+      // Rock from under the floor down through the fire and the crust that
+      // holds it. Two rows of crust and not one, because that is what the
+      // draining pass asks of every pool: a tile with less than CRUST of stone
+      // beneath it is lava hanging over somewhere, and it gets emptied.
       for (let x = at0; x < at0 + span; x++) {
-        for (let y = F + 1; y <= bed + 2 + CRUST; y++) {
+        for (let y = F + 1; y < bed + LAKE_DEEP + CRUST; y++) {
           if (peek(x, y) !== TILE.GROUND) return false;
         }
       }
@@ -681,7 +723,7 @@ const Level = (() => {
 
       for (let x = at0; x < at0 + shape.span; x++) {
         for (let y = F; y < bed; y++) dig(x, y);
-        for (let y = bed; y <= bed + 2; y++) put(x, y, TILE.LAVA);
+        for (let y = bed; y < bed + LAKE_DEEP; y++) put(x, y, TILE.LAVA);
       }
 
       let x = at0;
@@ -696,36 +738,33 @@ const Level = (() => {
 
       places.push({ type: "lake", x0: at0, x1: at0 + shape.span - 1, floorY: F, bed });
       lavaLakes++;
-      return true;
     }
 
     for (let want = Math.max(1, Math.round(width / LAKE_METRES)); want > 0; want--) {
+      const shape = lakePattern();
+      // Two columns of lip either side of the hole, so a lake never starts in
+      // the doorway of whatever it is cut into.
+      const runs = flatRuns(shape.span + 4);
       let placed = false;
-      for (let tries = 0; tries < 12 && !placed; tries++) {
-        const shape = lakePattern();
-        if (shape.span < LAKE_SPAN[0] || shape.span > LAKE_SPAN[1]) continue;
 
-        const roomy = places.filter((p) =>
-          (p.type === "corridor" || p.type === "chamber") &&
-          (p.head === undefined || p.head === HEADROOM) &&
-          p.x1 - p.x0 >= shape.span + LAKE_MARGIN * 2 &&
-          p.floorY + LAKE_DROP + 2 + CRUST <= FLOOR_LIMIT);
-        if (!roomy.length) continue;
-
-        const place = roomy[detail.int(0, roomy.length - 1)];
-        const from = place.x0 + LAKE_MARGIN;
-        const to = place.x1 - LAKE_MARGIN - shape.span;
+      while (runs.length && !placed) {
+        const run = runs.splice(detail.int(0, runs.length - 1), 1)[0];
+        const from = run.x0 + 2;
+        const to = run.x1 - 1 - shape.span;
         if (to < from) continue;
+        if (run.y + LAKE_DROP + LAKE_DEEP + CRUST > FLOOR_LIMIT) continue;
 
-        for (let at0 = detail.int(from, to), n = 0; n <= to - from && !placed; n++) {
-          const spot = from + ((at0 - from + n) % (to - from + 1));
-          if (lakeClear(spot, shape.span, place.floorY)) {
-            placed = carveLake(spot, shape, place.floorY);
-          }
+        // Every position along the run, starting somewhere the seed chose, so
+        // one awkward column does not cost the whole stretch.
+        const offset = detail.int(0, to - from);
+        for (let n = 0; n <= to - from && !placed; n++) {
+          const at0 = from + ((offset + n) % (to - from + 1));
+          if (!lakeClear(at0, shape.span, run.y)) continue;
+          carveLake(at0, shape, run.y);
+          placed = true;
         }
       }
     }
-
 
     // ---------------------------------------------------------------- ducts
     // A slit through the rock, one tile tall. Nothing can stand up in one, so
