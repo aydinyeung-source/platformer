@@ -112,6 +112,11 @@ const Level = (() => {
     const mode = resolveMode(options.mode);
     const width = Math.max(120, options.width || Math.round(mode.meters / METERS_PER_TILE));
 
+    // One hash lands on a fault, and the carver steps around it.
+    if (Rng.numberFor(seedText) === FAULT_HASH) {
+      return carveFaultFormation(seed, mode, width);
+    }
+
     let level = null;
     for (let attempt = 0; attempt < 8; attempt++) {
       level = carveLevel(seed, mode, width, attempt);
@@ -1195,6 +1200,125 @@ const Level = (() => {
     level.checksum = checksum(tiles);
     return level;
   }
+  // ---------------------------------------------------------------- the fault
+  //
+  // Most of the rock is carved. One hash of one seed lands somewhere the rock
+  // has already taken a shape of its own, and that shape is left alone.
+  //
+  // What it is does not matter to this file. What matters is that it obeys the
+  // same promise everything else here obeys: the way through is provable. The
+  // formations stand nine rows tall on the floor of one long hall and they
+  // block that floor wherever they stand — there is no way round any of them,
+  // only over. Nine rows is exactly one wall climb under RULES, so every one of
+  // them can be taken from the ground beside it in a single run up the face;
+  // coming off the far side is a fall onto floor, so none of them can strand
+  // you. Anything hollow enough to fall inside is either open at the bottom or
+  // sealed with no way in at all, which is the same thing to a route.
+  //
+  // That is not an argument to take on trust — verify walks it like any other
+  // level, and the floor comes out in fourteen separate stretches, which is the
+  // measurement that says you really do have to climb.
+  const FAULT_HASH = 0x8de3fcd5;
+
+  const FAULT_W = 11; // columns across one formation
+  const FAULT_H = 9; // rows tall — one wall climb, and not a row more
+  const FAULT_FLOOR = 40;
+  const FAULT_CEIL = 20; // eleven rows of air above the tallest of them
+  const FAULT_LEAD = 24; // ground to land on before the first
+  const FAULT_TAIL = 20; // and after the last, for the door
+
+  // The shapes, a row of bits each. Numbers rather than pictures: reading them
+  // out of the source is not how this is meant to be found.
+  const STRATA = [
+    "60330618c0d8070070070070070",
+    "0f818c30660360360330618c0f8",
+    "6036036036036036037073061fc",
+    "7ff7ff6006007fc7fc600600600",
+    "6037037836c366363361b60f603",
+    "7fc60c60660360360360660c7fc",
+    "60378f6db673603603603603603",
+    "7ff7ff6006007fc7fc6006007ff",
+    "070070070070070070000000070",
+  ];
+
+  // Which shape stands where. A negative is a stretch of bare floor.
+  const FAULT_ORDER = [0, 1, 2, -1, 3, 1, 2, 4, 5, -1, 6, 7, 8];
+
+  function carveFaultFormation(seed, mode, width) {
+    const height = HEIGHT;
+    const tiles = new Uint8Array(width * height).fill(TILE.GROUND);
+
+    const put = (x, y, tile) => {
+      if (x >= 0 && x < width && y >= 0 && y < height) tiles[y * width + x] = tile;
+    };
+
+    // One hall, one floor, end to end.
+    for (let x = 0; x < width; x++) {
+      for (let y = FAULT_CEIL; y < FAULT_FLOOR; y++) put(x, y, TILE.EMPTY);
+    }
+
+    // Spread across whatever length was asked for, so the last one always
+    // finishes in the same place relative to the door however long the run is.
+    const room = width - FAULT_LEAD - FAULT_TAIL;
+    const advance = Math.max(
+      FAULT_W + 8,
+      Math.floor((room - FAULT_W) / (FAULT_ORDER.length - 1))
+    );
+
+    for (let i = 0; i < FAULT_ORDER.length; i++) {
+      const which = FAULT_ORDER[i];
+      if (which < 0) continue;
+      const bits = STRATA[which];
+      const x0 = FAULT_LEAD + i * advance;
+      for (let r = 0; r < FAULT_H; r++) {
+        const row = parseInt(bits.slice(r * 3, r * 3 + 3), 16);
+        for (let c = 0; c < FAULT_W; c++) {
+          if ((row >> (FAULT_W - 1 - c)) & 1) {
+            put(x0 + c, FAULT_FLOOR - FAULT_H + r, TILE.GROUND);
+          }
+        }
+      }
+    }
+
+    const doorX = Math.min(
+      width - 6,
+      FAULT_LEAD + (FAULT_ORDER.length - 1) * advance + FAULT_W + 6
+    );
+    put(doorX, FAULT_FLOOR - 1, TILE.DOOR);
+    put(doorX, FAULT_FLOOR - 2, TILE.DOOR);
+
+    const level = {
+      seed,
+      mode: mode.id,
+      meters: width * METERS_PER_TILE,
+      width,
+      height,
+      tiles,
+      spawn: { x: 6, y: FAULT_FLOOR - 1 },
+      goal: { x: doorX, y: FAULT_FLOOR - 1 },
+      places: [],
+      rooms: [],
+      torches: [],
+      stalactites: [],
+      crumbles: [],
+      links: [],
+      rules: RULES,
+      tally: {
+        crawlways: 0,
+        ducts: 0,
+        shallow: 0,
+        pools: 0,
+        stubs: 0,
+        loops: 0,
+        rooms: FAULT_ORDER.filter((n) => n >= 0).length,
+        links: 0,
+        places: 0,
+      },
+    };
+    level.checksum = checksum(tiles);
+    return level;
+  }
+
   // ------------------------------------------------------------- the tutorial
   //
   // Handcrafted, because teaching is the one thing the generator cannot do. A

@@ -111,13 +111,26 @@ const Rng = (() => {
   // the button reach only a fortieth of them.
   const RANDOM_DIGITS = 10;
 
+  // One number the button does not hand out. Something else in this game keys
+  // off it, and a thing you are supposed to go looking for stops being one the
+  // moment it can be dealt to you by accident. Ten digits cannot spell the seed
+  // it belongs to — that one is shorter — but they can still land on its hash,
+  // and a hash is all anything downstream compares, so the guard is on the
+  // number rather than on the text.
+  const RESERVED = 0x8de3fcd5;
+
   function randomSeed() {
-    let out = "";
-    for (let i = 0; i < RANDOM_DIGITS; i++) {
-      if (i === RANDOM_DIGITS / 2) out += "-";
-      out += Math.floor(Math.random() * 10);
+    for (let tries = 0; tries < 8; tries++) {
+      let out = "";
+      for (let i = 0; i < RANDOM_DIGITS; i++) {
+        if (i === RANDOM_DIGITS / 2) out += "-";
+        out += Math.floor(Math.random() * 10);
+      }
+      if (numberFor(out) !== RESERVED) return out;
     }
-    return out;
+    // Eight collisions in a row is not luck, it is a broken Math.random. Take
+    // the deterministic way out rather than looping for ever.
+    return "1" + "0".repeat(RANDOM_DIGITS - 1);
   }
 
   return { normalize, keyFor, numberFor, hash, stream, forSeed, randomSeed, dailySeed, dailyISO, ALPHABET };
