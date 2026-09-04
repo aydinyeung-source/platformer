@@ -1258,6 +1258,7 @@ const Level = (() => {
     "60378f6db673603603603603603",
     "7ff7ff6006007fc7fc6006007ff",
     "070070070070070070000000070",
+    "3fe6036036033fe0030036033fe",
   ];
 
   // Which shape stands where, grouped the way it is meant to be read. The
@@ -1268,6 +1269,10 @@ const Level = (() => {
     [3, 1, 2, 4, 5],
     [6, 7, 8],
   ];
+
+  // And the one at the far end, for whoever is still running when they get
+  // there. Two of the same shape, which is the whole of it.
+  const FAULT_SIGNOFF = [[9, 9]];
 
   function carveFaultFormation(seed) {
     const mode = resolveMode("500m");
@@ -1286,25 +1291,23 @@ const Level = (() => {
 
     const torches = [];
 
-    // How long the whole thing reads as: every shape, the tight gaps inside a
-    // run, the wide ones between them.
-    let count = 0;
-    let inner = 0;
-    for (const word of FAULT_WORDS) {
-      count += word.length;
-      inner += word.length - 1;
-    }
-    const trackSpan =
-      count * FAULT_W +
-      inner * FAULT_LETTER_GAP +
-      (FAULT_WORDS.length - 1) * FAULT_WORD_GAP;
+    // How long a thing reads as: every shape, the tight gaps inside a run, the
+    // wide ones between them.
+    const spanOf = (words) => {
+      let count = 0;
+      let inner = 0;
+      for (const word of words) {
+        count += word.length;
+        inner += word.length - 1;
+      }
+      return (
+        count * FAULT_W +
+        inner * FAULT_LETTER_GAP +
+        (words.length - 1) * FAULT_WORD_GAP
+      );
+    };
 
-    // The door sits near the end of the run and the track backs up to meet it,
-    // so what is in front of you is a long flat and then the thing you came to
-    // see — arriving at it already at full speed, which is the whole point of
-    // laying it out flat.
     const doorX = width - 22;
-    const inkX = doorX - 6 - trackSpan;
 
     // The runway: two rows, and a roof you will hit if you try to jump. A step
     // up needs a row of air above your head and there is none, so this is a
@@ -1328,35 +1331,48 @@ const Level = (() => {
       side = side === 2 ? 0 : 2;
     }
 
-    // The gallery: a lit case under the floor, sealed on every side. Nothing
-    // can get into it, which is exactly why it is safe to hang anything at all
-    // in there — and you read it through the floor as it goes past underneath.
-    clear(inkX - 4, inkX + trackSpan + 3, CASE_TOP, CASE_BOTTOM);
+    // A gallery: a lit case under the floor, sealed on every side. Nothing can
+    // get into one, which is exactly why it is safe to hang anything at all in
+    // there — and you read it through the floor as it goes past underneath.
+    //
+    // Lit from its own ceiling, and lit only down here. A torch hangs most of
+    // the way down its own tile from the rock above it, and the runway is two
+    // rows: one of them is your head. A line of them along the track would be a
+    // line of them through the runner, in the one corridor built to be taken at
+    // full speed and read while you do it.
+    const inscribe = (words, atX) => {
+      const span = spanOf(words);
+      clear(atX - 4, atX + span + 3, CASE_TOP, CASE_BOTTOM);
 
-    let x0 = inkX;
-    for (let w = 0; w < FAULT_WORDS.length; w++) {
-      const word = FAULT_WORDS[w];
-      for (let i = 0; i < word.length; i++) {
-        const bits = STRATA[word[i]];
-        for (let r = 0; r < FAULT_H; r++) {
-          const row = parseInt(bits.slice(r * 3, r * 3 + 3), 16);
-          for (let c = 0; c < FAULT_W; c++) {
-            if ((row >> (FAULT_W - 1 - c)) & 1) put(x0 + c, CASE_INK + r, TILE.GROUND);
+      let x0 = atX;
+      for (const word of words) {
+        for (let i = 0; i < word.length; i++) {
+          const bits = STRATA[word[i]];
+          for (let r = 0; r < FAULT_H; r++) {
+            const row = parseInt(bits.slice(r * 3, r * 3 + 3), 16);
+            for (let c = 0; c < FAULT_W; c++) {
+              if ((row >> (FAULT_W - 1 - c)) & 1) put(x0 + c, CASE_INK + r, TILE.GROUND);
+            }
           }
+          x0 += FAULT_W + (i === word.length - 1 ? FAULT_WORD_GAP : FAULT_LETTER_GAP);
         }
-        x0 += FAULT_W + (i === word.length - 1 ? FAULT_WORD_GAP : FAULT_LETTER_GAP);
       }
-    }
 
-    // Light, and only in the case. A torch hangs most of the way down its own
-    // tile from the rock above it, and the runway is two rows: one of them is
-    // your head. A line of them along the track would be a line of them through
-    // the runner, in the one corridor built to be taken at full speed and read
-    // while you do it. Down here there is room, the rock above is solid to hang
-    // from, and the light is on the thing it is meant to be on.
-    for (let x = inkX - 2; x < inkX + trackSpan + 2; x += 12) {
-      torches.push({ x, y: CASE_TOP });
-    }
+      for (let x = atX - 2; x < atX + span + 2; x += 12) {
+        torches.push({ x, y: CASE_TOP });
+      }
+      return span;
+    };
+
+    // The first thing under the track, not the last. It used to sit against the
+    // door with the whole run in front of it, which meant a very long way with
+    // nothing to look at and then everything at once; this way it starts under
+    // your feet a stride off the ladder and you have read it before you are up
+    // to speed. What the rest of the run is for is the running.
+    inscribe(FAULT_WORDS, CHIMNEY_X + 9);
+
+    // And the far end, hard against the door.
+    inscribe(FAULT_SIGNOFF, doorX - 6 - spanOf(FAULT_SIGNOFF));
 
     put(doorX, RUN_Y, TILE.DOOR);
     put(doorX, RUN_Y - 1, TILE.DOOR);
@@ -1384,7 +1400,7 @@ const Level = (() => {
         pools: 0,
         stubs: 0,
         loops: 0,
-        rooms: count,
+        rooms: torches.length,
         links: 0,
         places: 0,
       },
