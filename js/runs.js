@@ -53,6 +53,25 @@ const Runs = (() => {
   // stored: replaying it was worth the bytes for a public leaderboard, and this
   // is a personal history where nobody is competing to fake anything.
   //
+  // What the table will accept, written down because getting it wrong is
+  // invisible from here and cost a week of runs going nowhere:
+  //
+  //   runs_finished_means_finished  a finished run must have reached at least
+  //                                 its mode's full length, so reached is the
+  //                                 length of the run and not the tile the door
+  //                                 landed on
+  //   runs_time_possible            seconds >= reached / 12.5, the fastest
+  //                                 sustained pace the physics allows — a
+  //                                 slide-fed run tops out there, and ordinary
+  //                                 running tops out at 10
+  //   runs_distance_sane            0 <= reached <= 10000, falls >= 0
+  //   runs_mode_known               mode is one of the ids in level.js
+  //
+  // A row that breaks any of them is refused whole, and the refusal arrives as
+  // a 400 that this function used to discard. If the physics ever gets faster
+  // than 12.5, that constraint has to move with it or the best runs in the game
+  // become the ones the leaderboard rejects.
+  //
   // Always resolves. The local write is the part that matters and it has
   // already happened by the time the upload is attempted, so a rejected upload
   // is not a failure worth telling anyone about.
