@@ -287,9 +287,41 @@
     unlock(null, "Guest");
   }
 
+  // The notice, and the form behind it.
+  //
+  // Two separate panels rather than one panel with a banner across it: a banner
+  // is something to look past, and the fields underneath it are still there to
+  // be typed into. Swapping the panel means there is nothing to type into until
+  // the notice has been answered, which is the difference between telling
+  // somebody and being sure they were told.
+  //
+  // Both ways in are behind it. Guest is the safer choice and it is still
+  // behind the notice, because the notice is what explains that guest exists.
+  const gatePanel = document.getElementById("auth-gate");
+  const understandButton = document.getElementById("auth-understand");
+
+  function showGate() {
+    if (!gatePanel) return;
+    gatePanel.hidden = false;
+    form.hidden = true;
+  }
+
+  function passGate() {
+    if (gatePanel) gatePanel.hidden = true;
+    form.hidden = false;
+    if (usernameInput) usernameInput.focus();
+  }
+
+  if (understandButton) understandButton.addEventListener("click", passGate);
+
   function lock() {
     appSection.hidden = true;
     authSection.hidden = false;
+    // Every arrival at this screen reads it again. It is only ever reached by
+    // somebody with no session and no guest flag, so this is not a thing anyone
+    // sees twice in a row — and a sign-out is exactly the moment the next
+    // person at the keyboard might be somebody else.
+    showGate();
     window.dispatchEvent(new CustomEvent("platformer:locked"));
   }
 

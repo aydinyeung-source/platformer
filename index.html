@@ -18,13 +18,22 @@
 </head>
 <body>
   <section class="auth" id="auth" hidden>
-    <form class="auth__panel" id="auth-form" novalidate>
+    <!-- Read before anything else can be reached. Both ways in — an account and
+         guest — are behind this, so nobody types a password without having been
+         told first whose password it is not. auth.js fills in the portal's name
+         when it can work out which one it is on. -->
+    <div class="auth__panel auth__panel--gate" id="auth-gate">
+      <h1 class="auth__title">Platformer</h1>
+      <p class="auth__note" id="auth-host"></p>
+      <p class="auth__aside">You can play without an account. A login only adds
+        cross-device saves and the daily leaderboard.</p>
+      <button class="auth__button is-primary" id="auth-understand"
+              type="button">I understand</button>
+    </div>
+
+    <form class="auth__panel" id="auth-form" novalidate hidden>
       <h1 class="auth__title">Platformer</h1>
       <p class="auth__mode">Log in or sign up</p>
-      <!-- Filled in by auth.js, which names the portal this is embedded on if
-           it can tell. Above the fields on purpose: it answers "whose password
-           is this asking for" before anybody types one. -->
-      <p class="auth__note" id="auth-host"></p>
       <label class="auth__field">
         <span class="auth__label">Username</span>
         <input class="auth__input" id="auth-username" type="text"
