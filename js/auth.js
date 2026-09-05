@@ -236,6 +236,21 @@
     return null;
   }
 
+  // Portals where the game does not offer accounts at all.
+  //
+  // Everything the gate exists to warn about is simply absent here: no login,
+  // no password, no request to anywhere. So there is nothing to warn about and
+  // no reason to make anybody click past a notice describing a door that is not
+  // in the building — the game just starts.
+  //
+  // One name in this list is the whole switch. Move it and the two builds swap
+  // over; the code does not care which portal is which.
+  const NO_ACCOUNT_HOSTS = ["Newgrounds"];
+
+  function portal() {
+    return NO_ACCOUNT_HOSTS.indexOf(hostSite()) >= 0;
+  }
+
   function sayWhoseAccount() {
     const line = document.getElementById("auth-host");
     if (!line) return;
@@ -450,6 +465,13 @@
   }
 
   async function restore() {
+    // Straight in. No card, no gate, no session, no request — the game on a
+    // portal is the game, and the first thing anybody sees is a cave.
+    if (portal()) {
+      setGuest(true);
+      return unlock(null, "Guest");
+    }
+
     const session = loadSession();
     if (!session || !session.access_token) {
       // A guest who chose this last time is not asked again.
@@ -489,6 +511,6 @@
   }
 
   sayWhoseAccount();
-  window.Auth = { authed, loadSession, logOut, isGuest };
+  window.Auth = { authed, loadSession, logOut, isGuest, portal };
   restore();
 })();

@@ -2921,14 +2921,33 @@
     setSource("random");
     refresh();
 
+    // On a portal there is no account, so everything that leads to one goes.
+    // The leaderboard is the account's whole purpose and would otherwise sit
+    // there offering to sign somebody in through a door that is not there, and
+    // Log out is a way back to a card this build never shows.
+    const onPortal = Boolean(window.Auth && window.Auth.portal && window.Auth.portal());
+    if (onPortal) {
+      const boardTab = document.querySelector('[data-tab="board"]');
+      const boardPanel = document.querySelector('[data-panel="board"]');
+      if (boardTab) boardTab.remove();
+      if (boardPanel) boardPanel.remove();
+      if (logoutButton) logoutButton.remove();
+      queuePlayground(); // the chip row is narrower now, and it is standable
+    }
+
     // Nobody's first run should be a 1000 metre cave they have not been told
     // the rules of. Offered once, remembered once finished, and always there on
     // the menu afterwards for anyone who wants it again.
-    let taught = false;
+    //
+    // Except on a portal, where somebody clicked a thumbnail thirty seconds ago
+    // and is deciding right now whether this is worth their time. Opening on a
+    // lesson answers that badly. The button is still on the menu for anyone who
+    // wants teaching, which is the same offer made in the other order.
+    let taught = onPortal;
     try {
-      taught = localStorage.getItem(TUTORIAL_KEY) === "yes";
+      taught = taught || localStorage.getItem(TUTORIAL_KEY) === "yes";
     } catch (err) {
-      taught = false; // storage blocked: offer it, which is the safer mistake
+      // storage blocked: offer it, which is the safer mistake off a portal
     }
     if (!taught) startTutorial();
   }
