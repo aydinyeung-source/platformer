@@ -172,8 +172,21 @@ const Runs = (() => {
   function dailyLeaderboard(seed, limit = 10) {
     const count = Math.max(1, limit || 10);
 
+    // Normalised before it is asked for, and this is the whole reason the board
+    // was empty. A seed is written down twice in different shapes: the daily is
+    // generated as four characters, a dash and four more, but what a run is
+    // filed under is the key — separators stripped, so that a seed retyped with
+    // spaces or lowercase is understood to be the same cave. Asking for the
+    // dashed spelling asks for a seed no row has ever been saved with, and the
+    // answer is an empty list rather than an error, which is the kind of wrong
+    // that looks like nobody has played yet.
+    //
+    // keyFor survives being applied to its own output, so a caller that has
+    // already normalised is not punished for it.
+    const filed = Rng.keyFor(seed);
+
     const query = (select) =>
-      "/rest/v1/runs?seed=eq." + encodeURIComponent(seed) +
+      "/rest/v1/runs?seed=eq." + encodeURIComponent(filed) +
       "&finished=eq.true&select=" + select +
       "&order=seconds.asc&limit=" + count * 4;
 
