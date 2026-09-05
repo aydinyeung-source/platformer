@@ -82,7 +82,19 @@ const Runs = (() => {
         // anywhere along that path.
         hidden: false,
       },
-    }).then(() => saved, () => saved);
+    }).then(
+      () => saved,
+      (error) => {
+        // Swallowed for the player, not for whoever is trying to work out why
+        // the cloud is empty. Nothing here interrupts a finished run — that
+        // rule stands — but a rejected upload used to leave no trace at all:
+        // the local copy saved, the history looked right, and the only symptom
+        // was a leaderboard nobody appeared on. A silent failure that lies
+        // about succeeding is worse than a noisy one.
+        console.warn("Run not uploaded:", error && error.message);
+        return saved;
+      }
+    );
   }
 
   // A run is its result on a cave: the same seed, mode, distance and time is
