@@ -272,12 +272,66 @@
     });
   }
 
+  // ----------------------------------------------------- the daily leaderboard
+
+  const boardList = document.querySelector("[data-board-list]");
+  const boardNote = document.querySelector("[data-board-note]");
+
+  // Time, and what it cost. A clean run says so by not mentioning it: printing
+  // "0 falls" on every row makes the number furniture, and the whole reason it
+  // is there is that it is the difference between two runs of the same length.
+  function result(row) {
+    const time = Runs.clock(row.seconds);
+    if (!row.falls) return time;
+    return time + " · " + row.falls + (row.falls === 1 ? " fall" : " falls");
+  }
+
+  function renderBoard(rows, empty) {
+    boardList.textContent = "";
+
+    if (!rows || !rows.length) {
+      boardNote.hidden = false;
+      boardNote.textContent = empty;
+    } else {
+      boardNote.hidden = true;
+      rows.forEach((row, i) => {
+        const item = document.createElement("li");
+        item.className = "board__row";
+        cell(item, "board__place", "#" + (i + 1));
+        cell(item, "board__who", row.who);
+        cell(item, "board__time", result(row));
+        boardList.append(item);
+      });
+    }
+
+    // The shelf just changed height, and the shelf is something the runner
+    // stands on. Collision is read off the page, so the page has to be measured
+    // again or there is a card here with nothing underneath it.
+    queuePlayground();
+  }
+
+  function loadBoard() {
+    // The board is everyone's runs, which means it is the one thing here that
+    // cannot be answered from this machine. Say so rather than showing an empty
+    // list, which reads as "nobody has run today" and is a different claim.
+    if (!Runs.signedIn()) {
+      renderBoard([], "Sign in to see today's leaderboard");
+      return;
+    }
+
+    renderBoard([], "Loading today's runs…");
+    Runs.dailyLeaderboard(Rng.dailySeed(), 10).then((rows) => {
+      renderBoard(rows, "No runs yet today — be the first!");
+    });
+  }
+
   function showPanel(name) {
     tabs.forEach((tab) => tab.classList.toggle("is-active", tab.dataset.tab === name));
     panels.forEach((panel) => {
       panel.hidden = panel.dataset.panel !== name;
     });
     if (name === "runs") loadRuns();
+    if (name === "board") loadBoard();
   }
 
   tabs.forEach((tab) => tab.addEventListener("click", () => showPanel(tab.dataset.tab)));

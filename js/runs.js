@@ -125,6 +125,71 @@ const Runs = (() => {
     );
   }
 
+  // ---------------------------------------------------------- the leaderboard
+
+  // Whose run it was. PostgREST hands an embedded row back as an object when
+  // the relationship is many-to-one and as an array when it is one-to-many, and
+  // which of those this is depends on how the foreign key was declared rather
+  // than on anything visible from here — so both are unwrapped. A run with no
+  // name attached is still a run worth showing, so it gets a placeholder rather
+  // than being dropped.
+  function nameOf(row) {
+    const joined = row && row.profiles;
+    const one = Array.isArray(joined) ? joined[0] : joined;
+    return (one && one.username) || "Player";
+  }
+
+  // One line per player, their best. Ordered by time already, so the first of
+  // anybody's runs to arrive is the one that counts and the rest are the same
+  // person having another go — which is worth exactly nothing on a board of ten
+  // and would push nine other people off it.
+  function best(rows, limit) {
+    const seen = new Set();
+    const out = [];
+    for (const row of rows) {
+      const who = row.player_id || nameOf(row);
+      if (seen.has(who)) continue;
+      seen.add(who);
+      out.push({
+        who: nameOf(row),
+        seconds: Number(row.seconds),
+        falls: Math.max(0, row.falls | 0),
+        created_at: row.created_at,
+      });
+      if (out.length >= limit) break;
+    }
+    return out;
+  }
+
+  // Today's cave, fastest first. Finished runs only — a leaderboard of people
+  // who did not get there is a different list.
+  //
+  // Asked twice if it has to be. The username lives on a related table and this
+  // file cannot see how that relationship was declared, so the join is tried and
+  // a query without it is the fallback: names are worth having and are not worth
+  // an empty board. Always resolves; signed out, the request never had a chance
+  // and an empty list is the honest answer.
+  function dailyLeaderboard(seed, limit = 10) {
+    const count = Math.max(1, limit || 10);
+
+    const query = (select) =>
+      "/rest/v1/runs?seed=eq." + encodeURIComponent(seed) +
+      "&finished=eq.true&select=" + select +
+      "&order=seconds.asc&limit=" + count * 4;
+
+    const shape = (rows) => best(Array.isArray(rows) ? rows : [], count);
+
+    return window.Auth.authed(
+      query("player_id,seconds,falls,created_at,profiles(username)")
+    ).then(shape, () =>
+      window.Auth.authed(query("player_id,seconds,falls,created_at")).then(shape, () => [])
+    );
+  }
+
+  function signedIn() {
+    return Boolean(playerId());
+  }
+
   function clock(seconds) {
     const total = Math.floor(seconds);
     const rest = Math.round((seconds - total) * 100);
@@ -135,5 +200,14 @@ const Runs = (() => {
     );
   }
 
-  return { VERSION, submit, mine, clock, saveLocalRun, getLocalRuns };
+  return {
+    VERSION,
+    submit,
+    mine,
+    dailyLeaderboard,
+    signedIn,
+    clock,
+    saveLocalRun,
+    getLocalRuns,
+  };
 })();

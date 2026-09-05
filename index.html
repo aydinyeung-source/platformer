@@ -77,6 +77,7 @@
       <div class="chips tabs" role="group" aria-label="Sections" data-solid="platform">
         <button class="chip is-active" type="button" data-tab="play">Play</button>
         <button class="chip" type="button" data-tab="runs">Recent runs</button>
+        <button class="chip" type="button" data-tab="board">Leaderboard</button>
       </div>
 
       <div data-panel="play">
@@ -130,6 +131,14 @@
           <p class="runs__career"><span class="label">Career</span> <span data-total-meters hidden></span></p>
           <ol class="runs" data-runs-list></ol>
           <p class="runs__note" data-runs-note>No runs yet</p>
+        </div>
+      </div>
+
+      <div data-panel="board" hidden>
+        <div class="shelf" data-solid>
+          <p class="runs__career"><span class="label">Today's Daily Leaderboard</span></p>
+          <ol class="board__list" data-board-list></ol>
+          <p class="board__note" data-board-note hidden>No runs yet today — be the first!</p>
         </div>
       </div>
     </section>
