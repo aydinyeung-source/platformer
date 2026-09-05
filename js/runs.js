@@ -73,6 +73,14 @@ const Runs = (() => {
         finished: saved.finished,
         checksum: run.checksum || null,
         client: VERSION,
+        // Said out loud rather than left to a column default, because the read
+        // policy on this table is "NOT hidden" and SQL's NOT of NULL is NULL,
+        // not true — and a row-level security check that comes back NULL hides
+        // the row. A run inserted without this lands in the table, returns a
+        // perfectly happy 201, and is then invisible to every query the game
+        // makes, including the one that just wrote it. Nothing reports an error
+        // anywhere along that path.
+        hidden: false,
       },
     }).then(() => saved, () => saved);
   }
