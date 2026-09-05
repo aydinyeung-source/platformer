@@ -477,12 +477,24 @@ const Level = (() => {
       put(p0, shelfY, TILE.GROUND);
       put(p0 + 1, shelfY, TILE.GROUND);
 
-      // A notch in the pocket wall beside the shelf, so there is somewhere to
-      // step off it into the room. movesFrom wants two open rows at head height
-      // before it will walk off a ledge, and a pocket only three or four rows
-      // tall does not reach that high on its own — without this the shelf is
-      // somewhere the verifier can arrive and never leave.
-      for (let y = shelfY - 2; y < bottom; y++) dig(p0 - 1, y);
+      // A notch in the pocket wall beside the shelf: headroom at the shelf's own
+      // level, and stopping there.
+      //
+      // It used to be cut down to the floor of the pit, and that was a trap with
+      // a lid on it. The two columns under the shelf are hollow and have rock
+      // rather than fire beneath them, so the notch was a way down into them —
+      // step off the shelf, fall four rows, land, and then the only way back up
+      // is a jump onto the shelf itself, which is directly overhead. movesFrom
+      // will not take it: a rise needs clear air above the body and the shelf is
+      // the ceiling. Everything that got down there could be reached from the
+      // spawn and could reach nothing, which is precisely what verify calls a
+      // dead end, and at these depths it reported it at y of 59 every time.
+      //
+      // Cut to the shelf and no further, the pocket underneath goes back to
+      // being sealed. It cannot be stood in, so it cannot stand anybody up in
+      // it. The way off the shelf was never this anyway: it is the planks
+      // opposite, three columns across, which is inside a standing jump.
+      for (let y = shelfY - 2; y < shelfY; y++) dig(p0 - 1, y);
 
       // And the way back up, one-way planks up the far wall. A rung of rock
       // directly above another is a ceiling as far as movesFrom is concerned:
