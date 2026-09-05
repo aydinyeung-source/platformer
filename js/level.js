@@ -530,8 +530,18 @@ const Level = (() => {
       // And never into rock. A place remembers where its floor was, not whether
       // anything is still standing on it; poured under a roof that closed up
       // since, the pool is lava sealed inside stone.
+      //
+      // Three rows of it, which is one more than a body and the reason for the
+      // extra row. Two rows is a passage you can walk down and cannot jump in:
+      // movesFrom wants a clear row above the head before it allows a hop, so
+      // in a two-row crawlway the only move it will make is a step onto the
+      // tile in front. A pool there is a two-tile gap with no way over, and it
+      // does not read as a hazard — it reads as the corridor ending, with
+      // whatever was past it cut off from the rest of the cave.
       for (let cx = x; cx < x + w; cx++) {
-        if (peek(cx, floorY - 1) !== TILE.EMPTY) return false;
+        for (let y = floorY - 3; y < floorY; y++) {
+          if (peek(cx, y) !== TILE.EMPTY) return false;
+        }
       }
       // The pool itself, plus CRUST rows of rock to hold it: a passage may run
       // under a pool, but never close enough that the floor between them is one
@@ -696,10 +706,18 @@ const Level = (() => {
       for (let y = CEIL_LIMIT; y <= FLOOR_LIMIT; y++) {
         let start = -1;
         for (let x = 0; x <= width; x++) {
+          // Three rows of air, not two. Two is a body: standing on this floor
+          // fills y-1 and y-2, and a passage that tall is one somebody can walk
+          // along. It is not one they can jump in — movesFrom asks for a clear
+          // row above the head before it will allow any hop at all, so in a
+          // two-row crawlway the only move left is a step onto the next tile
+          // along. A lake in a passage like that is a hole with no way over it,
+          // and verify reports the route stopping dead at its lip.
           const walkable = x < width &&
             peek(x, y) === TILE.GROUND &&
             peek(x, y - 1) === TILE.EMPTY &&
-            peek(x, y - 2) === TILE.EMPTY;
+            peek(x, y - 2) === TILE.EMPTY &&
+            peek(x, y - 3) === TILE.EMPTY;
           if (walkable) {
             if (start < 0) start = x;
             continue;
