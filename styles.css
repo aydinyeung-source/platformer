@@ -1200,7 +1200,7 @@ button {
 /* The way in, standing in the slot the Play button used to have: directly
    under the seed card, on top of the controls shelf below it. The art is
    painted on the canvas above, so the button itself is only a box to aim at
-   and a target for the mouse â but it keeps a focus ring, because a control
+   and a target for the mouse — but it keeps a focus ring, because a control
    you can reach with the keyboard has to show that you have. */
 .door {
   position: relative;

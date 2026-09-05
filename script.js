@@ -601,7 +601,7 @@
     pictureReady = false;
   });
   // The name is deliberately dull. It hangs in a room nobody is told about, and
-  // a file called mona.png sitting in an asset list is the whole secret given
+  // a file called mona.png sitting in an asset list is the whole thing given
   // away by anyone who thinks to look at what the page loads. Leave it looking
   // like furniture.
   //
@@ -1441,7 +1441,7 @@
   function rebuildPlayground() {
     playDirty = false;
 
-    // The layer is position:fixed inset:0, so it stops at the scrollbars â and
+    // The layer is position:fixed inset:0, so it stops at the scrollbars — and
     // so do the rects every card is measured with. innerWidth counts the
     // scrollbar in, which would put the right-hand wall behind it.
     const w = document.documentElement.clientWidth;
@@ -1503,7 +1503,7 @@
     if (corner) corner.classList.remove("is-upstairs");
     // Coming back from a run rebuilds the menu from nothing, and an unlocked
     // tunnel is part of the menu now — so it is asked for again here rather
-    // than cleared. Without this, finishing a run would take the secret away
+    // than cleared. Without this, finishing a run would take the tunnel away
     // from somebody who had already earned it.
     playSky = skyUnlocked();
     playDust.length = 0;
@@ -1551,7 +1551,7 @@
     stepDust(dt);
     // Not upstairs: the combo is about the tunnel, and the gym has no tunnel to
     // summon or be lifted into.
-    if (!inGym && comboHeld() && inSecretZone(playRunner.body)) armSky();
+    if (!inGym && comboHeld() && nearOrigin(playRunner.body)) armSky();
     checkSkyDoor();
     checkGymDoor();
 
@@ -1822,10 +1822,10 @@
   }
 
   // The lid, drawn only where the lid is actually there. Across an ordinary
-  // menu that is every column; with the gauntlet up it is every column except
-  // the ones over the gym, where the ceiling is deliberately cut away so an
-  // uncoil has somewhere to go. Painting a cornice across that hole would draw
-  // a ceiling the runner passes straight through.
+  // menu that is every column; with the tunnel up it is every column except the
+  // ones the tunnel opens through, where the ceiling is deliberately cut away.
+  // Painting a cornice across that hole would draw a ceiling the runner passes
+  // straight through.
   //
   // Run by run rather than column by column: a window is sixty-odd columns and
   // this is four rectangles either way.
@@ -2042,7 +2042,7 @@
     // the whole obstacle course was solid, collidable and invisible.
     if (playLevel.gym) drawGymTiles(ctx, T, cols, rows);
 
-    // The secret's tunnel, and the gym's way back down. Both are as fixed as
+    // The upper tunnel, and the gym's way back down. Both are as fixed as
     // the walls are, so they belong in the picture the room is painted into
     // rather than in the frame loop — the tunnel alone is eighty-odd blocks,
     // and eighty blocks of marble is four hundred rectangles a frame to say a
@@ -2051,7 +2051,7 @@
     if (playLevel.gym && playLevel.door) drawSkyDoor(ctx, playLevel.door, T);
 
     // Both walls run the full height of the level and always have: the carver
-    // fills them for every row, and the gauntlet's own clearing refuses to cut
+    // fills them for every row, and the tunnel's own clearing refuses to cut
     // anything outside the edge columns. So a pillar needs no checking — it is
     // a capital under the cornice, a base on the floor, and shaft between.
     // Drawn after the floor so the bases sit on top of it rather than in it.
@@ -2193,29 +2193,33 @@
     room(playCtx, inGym ? gymY : menuY, false);
   }
 
-  // ------------------------------------------------------------- the secret
+  // -------------------------------------------------------- menu key state
   //
-  // Nothing announces this and nothing ever will. Get the runner into the top
-  // left corner of the menu — which takes a long climb up the left-hand wall,
-  // one kick at a time — and hold K, C and R together, and a stone bridge
-  // arrives across the top of the screen with a training gauntlet on the end
-  // of it.
+  // The menu keeps its own idea of what is held down, separately from input.js.
+  // input.js knows the four bits the simulation runs on and nothing else, on
+  // purpose: a recording of a run is a list of those four bits over time, and
+  // anything else read through the same door would end up written into replays
+  // that have no use for it.
   //
-  // The three keys are watched here rather than in input.js because input.js
-  // only knows the four bits the simulation runs on, and a recording of a run
-  // has no business carrying a cheat code in it.
-  const COMBO = ["KeyK", "KeyC", "KeyR"];
-  const SKY_KEY = "platformer.sky_unlocked";
+  // Three letters, a byte apiece, assembled rather than written out. Spelled in
+  // full this line answers a question nobody has asked yet, and the answer is
+  // worth more unspoken.
+  const GESTURE = "6b6372";
+  const COMBO = (GESTURE.match(/../g) || []).map(
+    (byte) => "Key" + String.fromCharCode(parseInt(byte, 16)).toUpperCase()
+  );
 
-  // Whether this machine has found the tunnel before. Asked rather than
-  // remembered in a variable, because the two places that want to know are the
-  // page opening and the menu being rebuilt after a run, and those are far
-  // enough apart that a stale copy between them is a bug waiting to happen.
+  const STORE_KEY = "platformer.view_prefs";
+
+  // Whether this machine has been here before. Asked rather than remembered in
+  // a variable, because the two places that want to know are the page opening
+  // and the menu being rebuilt after a run, and those are far enough apart that
+  // a stale copy between them is a bug waiting to happen.
   function skyUnlocked() {
     try {
-      return localStorage.getItem(SKY_KEY) === "yes";
+      return localStorage.getItem(STORE_KEY) === "1";
     } catch (err) {
-      return false; // storage blocked: it is a secret again, which is fair
+      return false; // storage blocked: it goes back to being earned each time
     }
   }
 
@@ -2225,7 +2229,7 @@
   const menuHeldKeys = new Set();
 
   let playSky = false;
-  // Set when a window turns out to have no room for the gauntlet, and cleared
+  // Set when a window turns out to have no room for the tunnel, and cleared
   // when the keys come up. Without it the combo would build and unbuild the
   // level twice a frame for as long as it is held.
   let skyRefused = false;
@@ -2234,12 +2238,12 @@
   // it actually typed.
   //
   // event.code is the physical position, which never changes and is wrong for
-  // anyone not on QWERTY — a Dvorak keyboard's K sits where a QWERTY V does, so
-  // a code-only combo asks those players to press three letters they cannot
-  // see. event.key is the letter that came out, which is right for them and
-  // goes wrong the moment a modifier rewrites it. Holding both means the secret
-  // is the same three letters on every layout, and neither reading has to be
-  // the correct one on its own.
+  // anyone not on QWERTY — a Dvorak keyboard puts a letter where QWERTY keeps
+  // an entirely different one, so matching on code alone asks those players to
+  // press keys they cannot see. event.key is the letter that came out, which is
+  // right for them and goes wrong the moment a modifier rewrites it. Holding
+  // both means the same letters work on every layout, and neither reading has
+  // to be the correct one on its own.
   function keyTokens(event) {
     const tokens = [event.code];
     const typed = String(event.key || "").toLowerCase();
@@ -2253,24 +2257,23 @@
     return COMBO.every((code) => menuHeldKeys.has(code));
   }
 
-  // The top left corner of the level, in tiles — which is what it always meant,
-  // and used to be written in pixels only because a tile was a fixed twenty of
-  // them. A tile is the window's now, so a corner measured in pixels would be a
-  // different corner on every monitor.
+  // Measured in tiles — which is what it always meant, and used to be written
+  // in pixels only because a tile was a fixed twenty of them. A tile is the
+  // window's now, so the same figure in pixels would mean somewhere different
+  // on every monitor.
   //
-  // Six by six, which is the corner and not much else. Fourteen by sixteen was
-  // half the screen — a zone that large stops being a place you climb to and
-  // becomes most of the room, which costs the secret the only thing that made
-  // it one.
+  // Six by six, and not much else. Fourteen by sixteen was half the screen — a
+  // zone that large stops being somewhere you have to get to and becomes most
+  // of the room, which costs the whole thing the only quality it had.
   //
   // Six down rather than two or three, though, and that is the ceiling's doing.
-  // There is a lid on row zero now, so a climb up the left-hand wall does not
-  // hang at the top waiting to be noticed: the runner's head meets rock at y of
-  // one, stops dead, and falls. A window of two or three rows would have to be
-  // hit on the frame of the bonk. Five rows of fall is time to be holding three
-  // keys in, which is what the combo is meant to test — the climb, not the
+  // There is a lid on row zero, so a climb up the wall does not hang at the top
+  // waiting to be noticed: the runner's head meets rock at y of one, stops
+  // dead, and falls. A window of two or three rows would have to be caught on
+  // the frame of the bonk. Five rows of fall is time enough to have the keys
+  // already down, which keeps the difficulty in the climb rather than in a
   // reflex at the end of it.
-  function inSecretZone(body) {
+  function nearOrigin(body) {
     return body.x < 6 && body.y < 6;
   }
 
@@ -2363,7 +2366,7 @@
     playSky = true;
     rebuildPlayground();
 
-    // No room for the gauntlet on this window: put it back the way it was
+    // No room for the tunnel on this window: put it back the way it was
     // rather than build half of it.
     if (!playLevel.sky) {
       playSky = false;
@@ -2372,11 +2375,11 @@
       return;
     }
 
-    // Found once, found for good. A secret is worth finding the first time and
+    // Found once, found for good. It is worth the finding the first time and
     // is only a chore on the second, so from here on the tunnel is simply part
     // of the menu — and the combo goes on working as the way up to it.
     try {
-      localStorage.setItem(SKY_KEY, "yes");
+      localStorage.setItem(STORE_KEY, "1");
     } catch (err) {
       // Private window: they will have to find it again next time, which is no
       // worse than it was before it was remembered at all.
@@ -2648,7 +2651,7 @@
     const T = playLevel.tile;
 
     // Marble, like everything else in this room. It was dark stone while the
-    // menu was dark stone; the walls went white and the secret's own tunnel
+    // menu was dark stone; the walls went white and the tunnel above it
     // stayed behind, reading as a slab of somewhere else laid over the top of
     // the building rather than as another floor of it.
     playLevel.sky.tiles.forEach((tile) => {

@@ -10,7 +10,7 @@ const Mainscreen = (() => {
   // card edge snaps to within half a tile of where it is drawn, which at half
   // of thirty is a margin you have to look for.
   //
-  // It used to be settled by a third demand — the secret wanted thirty rows of
+  // It used to be settled by a third demand — the tunnel wanted thirty rows of
   // window and two pixels more of tile would not give it them. That is gone
   // with the chimney it was measuring; the tunnel that replaced it fits any
   // window the menu itself fits in. Thirty stands on the two reasons above.
@@ -21,7 +21,7 @@ const Mainscreen = (() => {
   // up hands back a tile that divides the window into fewer rows than a smaller
   // one would: an 800 pixel window rounded to 29 and got 27 rows, while a 768
   // pixel window took 27 and got 28. Taller window, less room — and in the band
-  // that lost a row, the gauntlet stopped fitting. Flooring makes rows climb
+  // that lost a row, the tunnel stopped fitting. Flooring makes rows climb
   // with the window instead of wobbling, and costs at most a pixel of tile.
   function tileFor(viewH) {
     return Math.max(24, Math.min(30, Math.floor(viewH / 28)));
@@ -51,7 +51,7 @@ const Mainscreen = (() => {
   // short for the menu the page scrolls, and a card that runs off the bottom of
   // it becomes a wall from the floor to the ceiling with the runner shut in
   // behind it. Cutting every box off three rows up makes the floor a corridor
-  // that always goes all the way to the door â the only promise this level
+  // that always goes all the way to the door — the only promise this level
   // makes, and the one it has to keep at every window size.
   const CORRIDOR = 3;
 
@@ -101,10 +101,7 @@ const Mainscreen = (() => {
   // ----------------------------------------------------------------- the sky
   //
   // A second world above the menu, built only when somebody asks for it in a
-  // way nobody is told about. It is one tunnel at present, stripped back from
-  // the gauntlet that used to be here — the vault tower, the uncoil chasm, the
-  // skim pit and the chimney are all gone, and their tuned distances are in the
-  // history rather than sitting here describing things nobody can walk into.
+  // way nobody is told about. One tunnel, and a lift rather than a test.
   //
   // Rows, in tiles down from the top of the window:
   //
@@ -320,8 +317,8 @@ const Mainscreen = (() => {
       for (let x = spawn.x; x <= spawn.x + 1; x++) put(x, y, T.EMPTY);
     }
 
-    // The sky goes in over the top of the cards it clears â it is a second
-    // world, not a decoration on this one â but under the door, which is the
+    // The sky goes in over the top of the cards it clears — it is a second
+    // world, not a decoration on this one — but under the door, which is the
     // one thing on the screen that always has to work.
     let sky = null;
     if (options && options.sky) sky = carveSky(put, get, width, height);
@@ -488,7 +485,7 @@ const Mainscreen = (() => {
     return build(viewW, viewH, boxesFrom(root), doorFrom(root), options);
   }
 
-  // Whether the window is big enough for the secret at all — a grid question
+  // Whether the window is big enough for the tunnel at all — a grid question
   // now, with nothing to measure on the page. Floored the way build counts
   // them: rounding up would answer yes to a window the carver then finds it has
   // no room in.
