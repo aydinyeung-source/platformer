@@ -21,6 +21,10 @@
     <form class="auth__panel" id="auth-form" novalidate>
       <h1 class="auth__title">Platformer</h1>
       <p class="auth__mode">Log in or sign up</p>
+      <!-- Filled in by auth.js, which names the portal this is embedded on if
+           it can tell. Above the fields on purpose: it answers "whose password
+           is this asking for" before anybody types one. -->
+      <p class="auth__note" id="auth-host"></p>
       <label class="auth__field">
         <span class="auth__label">Username</span>
         <input class="auth__input" id="auth-username" type="text"

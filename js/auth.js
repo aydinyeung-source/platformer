@@ -218,6 +218,35 @@
     return email.split("@")[0] || "Player";
   }
 
+  // Which portal this is embedded on, if it is embedded on one.
+  //
+  // A page in an iframe can tell two things about where it is: the address it
+  // was served from, and the page that framed it. Both are guesses — a referrer
+  // can be stripped and the CDN domains are not promises — so this only ever
+  // adds a name to a sentence that is true without one.
+  //
+  // Worth the trouble because the sentence is about somebody else's password.
+  // A game asking for one inside a portal looks exactly like a game fishing for
+  // the portal's own, and saying "not your Newgrounds account" to a player on
+  // Newgrounds answers that where "not your account elsewhere" does not.
+  function hostSite() {
+    const where = (document.referrer || "") + " " + location.hostname;
+    if (/newgrounds\.com|ungrounded\.net|ngfiles\.com/i.test(where)) return "Newgrounds";
+    if (/itch\.io|itch\.zone|hwcdn\.net/i.test(where)) return "itch.io";
+    return null;
+  }
+
+  function sayWhoseAccount() {
+    const line = document.getElementById("auth-host");
+    if (!line) return;
+    const site = hostSite();
+    line.textContent = site
+      ? "This login connects to an external database for cross-platform saves and is" +
+        " entirely independent of your " + site + " account."
+      : "This login connects to an external database for cross-platform saves. It is" +
+        " not connected to any other account you have.";
+  }
+
   // Playing without an account. Remembered, because a guest who has to walk
   // past the login card on every single load has not been let past it — they
   // have been asked the same question again, which is the thing they declined.
@@ -427,6 +456,7 @@
     tick(); // catches a tab that was claimed elsewhere while it was closed
   }
 
+  sayWhoseAccount();
   window.Auth = { authed, loadSession, logOut, isGuest };
   restore();
 })();
