@@ -231,12 +231,30 @@
     window.dispatchEvent(new CustomEvent("platformer:locked"));
   }
 
-  function kicked() {
+  // Two ways to end up back at the login card, and they are not the same event.
+  //
+  // Leaving is something you did: it wants no colour on the message and no
+  // explanation, because you know what you just pressed. Being kicked is
+  // something that happened to you while you were reading the screen, and it
+  // needs to say why or it reads as the game having lost your account.
+  //
+  // They were one function until the gear menu existed, which meant logging out
+  // on purpose told you your account had been used on another device — an
+  // alarming thing to be told about a thing you did yourself.
+  function signOut(text, isError) {
     stopBeat();
     clearSession();
     resetForm();
     lock();
-    setMessage("Signed out — this account was used on another device.", true);
+    setMessage(text, isError);
+  }
+
+  function logOut() {
+    signOut("Logged out.", false);
+  }
+
+  function kicked() {
+    signOut("Signed out — this account was used on another device.", true);
   }
 
   // ------------------------------------------------------------------ form
@@ -368,6 +386,6 @@
     tick(); // catches a tab that was claimed elsewhere while it was closed
   }
 
-  window.Auth = { authed, loadSession, logOut: kicked };
+  window.Auth = { authed, loadSession, logOut };
   restore();
 })();

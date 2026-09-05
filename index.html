@@ -53,7 +53,14 @@
     <span class="corner__player" data-player></span>
     <span class="corner__total" data-total-meters hidden></span>
     <div class="corner__actions">
-      <button class="button button--secondary" type="button" data-action="fullscreen">Fullscreen</button>
+      <details class="settings-dropdown" data-settings>
+        <summary class="button button--secondary settings-dropdown__trigger"
+                 role="button" aria-label="Settings">⚙</summary>
+        <div class="settings-dropdown__panel">
+          <button class="button button--secondary" type="button" data-action="fullscreen">Fullscreen</button>
+          <button class="button button--secondary" type="button" data-action="logout">Log out</button>
+        </div>
+      </details>
     </div>
   </div>
 

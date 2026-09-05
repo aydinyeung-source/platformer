@@ -120,11 +120,16 @@ button {
 
 /* ------------------------------------------------------------ corner cluster */
 
+/* Above the playground, which is fixed over the whole window at 3. It sat below
+   it while everything here was a caption and a single button — the runner
+   crossing in front of the version chip is no loss. A dropdown is different:
+   it is a surface with two things on it to read and hit, and having the runner
+   sprint across the middle of it makes it look like part of the level. */
 .corner {
   position: fixed;
   top: clamp(18px, 4vw, 34px);
   right: clamp(22px, 7vw, 96px);
-  z-index: 2;
+  z-index: 4;
   display: flex;
   align-items: center;
   gap: 16px;
@@ -158,6 +163,69 @@ button {
 .corner__actions {
   display: flex;
   gap: 8px;
+}
+
+/* The gear, and what is under it.
+   A <details> rather than a button and a class, because the open and closed
+   states are the element's own: it opens on click and on Enter, it is in the
+   tab order, and a screen reader is told it expands something. All of that is
+   behaviour that would otherwise be written out in JavaScript and got subtly
+   wrong. Positioned relative so the panel can hang off it. */
+.settings-dropdown {
+  position: relative;
+}
+
+/* The marker is the disclosure triangle browsers draw on a summary. It has to
+   go twice: list-style covers Firefox, which draws it as a list marker, and the
+   pseudo-element covers WebKit, which does not. Missing either leaves a
+   triangle wedged against the gear. */
+.settings-dropdown__trigger {
+  list-style: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  /* Square, and sized off the text so it matches the buttons it replaced rather
+     than a number picked to look right on one machine. */
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  user-select: none;
+}
+
+.settings-dropdown__trigger::-webkit-details-marker {
+  display: none;
+}
+
+.settings-dropdown[open] .settings-dropdown__trigger {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+/* Out of the flow, so opening it cannot reflow the corner cluster underneath —
+   and above the canvas, which is fixed over the whole window at z-index 3 and
+   would otherwise take the clicks meant for these two buttons. */
+.settings-dropdown__panel {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  background: var(--paper-raised);
+  border: 1px solid var(--rule);
+  border-radius: 12px;
+  box-shadow: 0 18px 40px -28px rgba(35, 43, 40, 0.55);
+}
+
+/* The buttons inside stop shrinking to their text and line up as one column. */
+.settings-dropdown__panel .button {
+  white-space: nowrap;
+  text-align: center;
 }
 
 /* ------------------------------------------------------------------- screens */

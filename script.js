@@ -6,14 +6,44 @@
   // keep — and the first thing it costs is the player's trust in every other
   // control on the screen.
   const fullscreenButton = document.querySelector('[data-action="fullscreen"]');
+  const logoutButton = document.querySelector('[data-action="logout"]');
+  const settings = document.querySelector("[data-settings]");
   const playButton = document.querySelector('[data-action="play"]');
 
+  // The gear closes behind whatever you picked. A menu that stays open over the
+  // thing it just did is a menu you have to dismiss twice.
+  function closeSettings() {
+    if (settings) settings.open = false;
+  }
+
   fullscreenButton.addEventListener("click", () => {
+    closeSettings();
     if (document.fullscreenElement) {
       document.exitFullscreen().catch(() => {});
     } else {
       document.documentElement.requestFullscreen().catch(() => {});
     }
+  });
+
+  // Out of the run first, then out of the account. The login card goes over the
+  // top of whatever was on screen rather than replacing it, so signing out
+  // mid-run would leave a run paused underneath — still holding its level, its
+  // ghost and its clock — for the next person to log in and land in the middle
+  // of. quitGame puts the menu back and comes downstairs from the gym on the
+  // way, which is the state a fresh login expects to find.
+  logoutButton.addEventListener("click", () => {
+    closeSettings();
+    quitGame();
+    if (window.Auth && window.Auth.logOut) window.Auth.logOut();
+  });
+
+  // Clicking away closes it, which <details> does not do on its own. pointerdown
+  // rather than click so it goes before the thing you were reaching for, and the
+  // playground canvas is pointer-events:none, so a click on the page still
+  // arrives here even though the canvas covers all of it.
+  document.addEventListener("pointerdown", (event) => {
+    if (!settings || !settings.open) return;
+    if (!settings.contains(event.target)) closeSettings();
   });
 
   // -------------------------------------------------------------- seed choice
@@ -2845,7 +2875,33 @@
 
   // The menu waits for the gate. Booting behind the login card would roll a seed
   // and start the loop for someone who is not signed in yet.
+  //
+  // Every unlock, not only the first. This used to be a once-only listener, on
+  // the reasoning that there is only one page load — which stopped being true
+  // the moment there was a way to log out without one. A second login in the
+  // same tab arrived to whatever the last one left on screen: their seed in the
+  // box, their career total in the corner, their tab open. Booting again is not
+  // the answer either; boot rolls a seed, offers the tutorial and hangs
+  // listeners, and none of that wants doing twice. So the first unlock boots and
+  // the rest put the menu back to how a boot would have left it.
   const gate = document.querySelector(".app");
-  if (!gate || !gate.hidden) boot();
-  else window.addEventListener("platformer:unlocked", boot, { once: true });
+  let booted = false;
+
+  function onUnlocked() {
+    if (!booted) {
+      booted = true;
+      boot();
+      return;
+    }
+
+    quitGame(); // out of any run, and downstairs out of the gym
+    showPanel("play");
+    showTotal(); // a career belongs to an account, not to a tab
+    seedInput.value = Rng.randomSeed();
+    setSource("random");
+    refresh();
+  }
+
+  window.addEventListener("platformer:unlocked", onUnlocked);
+  if (!gate || !gate.hidden) onUnlocked();
 })();
