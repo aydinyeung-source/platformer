@@ -169,8 +169,14 @@ const Runs = (() => {
   // a query without it is the fallback: names are worth having and are not worth
   // an empty board. Always resolves; signed out, the request never had a chance
   // and an empty list is the honest answer.
-  function dailyLeaderboard(seed, limit = 10) {
+  function dailyLeaderboard(seed, limit = 10, mode = null) {
     const count = Math.max(1, limit || 10);
+
+    // Times are only comparable within one length. The daily fixes its length
+    // now, so every row worth ranking carries the same mode — but rows from
+    // before it did are still in the table, and a 500 metre time on a board of
+    // 1000 metre ones would sit at the top of it for ever.
+    const length = mode ? "&mode=eq." + encodeURIComponent(mode) : "";
 
     // Normalised before it is asked for, and this is the whole reason the board
     // was empty. A seed is written down twice in different shapes: the daily is
@@ -187,7 +193,7 @@ const Runs = (() => {
 
     const query = (select) =>
       "/rest/v1/runs?seed=eq." + encodeURIComponent(filed) +
-      "&finished=eq.true&select=" + select +
+      "&finished=eq.true" + length + "&select=" + select +
       "&order=seconds.asc&limit=" + count * 4;
 
     const shape = (rows) => best(Array.isArray(rows) ? rows : [], count);

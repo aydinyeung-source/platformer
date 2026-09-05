@@ -598,6 +598,28 @@ button {
   color: var(--paper-raised);
 }
 
+/* Settled rather than switched off. The daily fixes the length, so the chips
+   stop taking clicks — but the one that is in force keeps its colour, because
+   the point is to show what the run will be, not to grey out the answer. */
+.chip:disabled {
+  cursor: default;
+  opacity: 0.4;
+}
+
+.chip.is-active:disabled {
+  opacity: 1;
+}
+
+.chip:disabled:hover {
+  color: var(--ink-muted);
+  border-color: var(--rule);
+}
+
+.chip.is-active:disabled:hover {
+  color: var(--paper-raised);
+  border-color: var(--accent);
+}
+
 /* ------------------------------------------------------------------- buttons */
 
 .button--primary {

@@ -128,11 +128,34 @@
 
   // Nothing about the run is generated here. The map is not built, drawn or
   // measured until Play is pressed, so the menu cannot give the level away.
+  // The daily is one run, and a length is part of what makes it one.
+  //
+  // The seed was shared and the distance was not, so four people could run "the
+  // daily" and mean four different caves — the carve is laid out across the
+  // width the mode asks for, so 500 and 1000 metres of the same seed are not the
+  // same world at all. Nothing they could compare afterwards would be comparing
+  // anything, and the board silently ranked them against each other anyway.
+  //
+  // So picking the daily picks the length too, and the chips say so by going
+  // dead rather than by a line of text nobody reads. Every route into this
+  // function calls refresh straight after, including typing in the seed box,
+  // which is what lets go of the lock again.
+  const DAILY_MODE = "1k";
+
   function refresh() {
-    resolved.hidden = activeValue(sourceButtons, "source") !== "daily";
-    if (resolved.hidden) return;
+    const daily = activeValue(sourceButtons, "source") === "daily";
+
+    if (daily) {
+      select(modeButtons, modeButtons.find((button) => button.dataset.mode === DAILY_MODE));
+    }
+    modeButtons.forEach((button) => {
+      button.disabled = daily;
+    });
+
+    resolved.hidden = !daily;
+    if (!daily) return;
     resolved.textContent =
-      "Everyone gets the same run on " +
+      "Everyone gets the same 1000 m run on " +
       new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
   }
 
@@ -227,9 +250,27 @@
   // nobody else has any use for it.
   const GHOST_KEY = "platformer.ghost.";
 
-  function ghostFor(seed) {
+  // The length is part of which cave this is, and leaving it out of the key was
+  // a bug you could watch happen.
+  //
+  // A seed does not name one world. The carve is laid out across the width the
+  // mode asks for, so the same seed at 500 and at 1000 metres is two different
+  // caves that happen to share a name — not one cave and a longer walk through
+  // it. Filed under the seed alone, the tape from a 1000 metre run was handed
+  // to a 500 metre one and replayed against terrain that was never there: a
+  // ghost strolling through walls, taking jumps over ground that is solid, on a
+  // route the level does not have.
+  //
+  // Ghosts saved before this are left where they are rather than migrated. They
+  // are keyed by seed with no record of which length earned them, so there is no
+  // honest way to say which cave they belong to.
+  function ghostSlot(seed, mode) {
+    return GHOST_KEY + mode + "." + seed;
+  }
+
+  function ghostFor(seed, mode) {
     try {
-      const raw = localStorage.getItem(GHOST_KEY + seed);
+      const raw = localStorage.getItem(ghostSlot(seed, mode));
       if (!raw) return null;
       const saved = JSON.parse(raw);
       return saved && saved.tape ? saved : null;
@@ -238,11 +279,11 @@
     }
   }
 
-  function keepGhost(seed, seconds, tapeString) {
-    const best = ghostFor(seed);
+  function keepGhost(seed, mode, seconds, tapeString) {
+    const best = ghostFor(seed, mode);
     if (best && best.seconds <= seconds) return;
     try {
-      localStorage.setItem(GHOST_KEY + seed, JSON.stringify({ seconds, tape: tapeString }));
+      localStorage.setItem(ghostSlot(seed, mode), JSON.stringify({ seconds, tape: tapeString }));
     } catch (err) {
       // A full or blocked store costs the ghost, not the run.
     }
@@ -355,7 +396,7 @@
     }
 
     renderBoard([], "Loading today's runs…");
-    Runs.dailyLeaderboard(Rng.dailySeed(), 10).then((rows) => {
+    Runs.dailyLeaderboard(Rng.dailySeed(), 10, DAILY_MODE).then((rows) => {
       renderBoard(rows, "No runs yet today — be the first!");
     });
   }
@@ -1112,7 +1153,7 @@
     gameView.hidden = false;
 
     // Your best on this cave, if you have one, comes along to race.
-    const ghost = level.tutorial ? null : ghostFor(level.seed);
+    const ghost = level.tutorial ? null : ghostFor(level.seed, level.mode);
     session = Game.create(level, { ghostTape: ghost && ghost.tape });
     splitShown = "";
     hudSplit.hidden = true;
@@ -1265,7 +1306,7 @@
     // tutorial: the total is a record of caves crossed, not time spent.
     if (!level.tutorial && player.finished) {
       addToTotal(level.meters);
-      keepGhost(level.seed, player.time, Game.tape(session));
+      keepGhost(level.seed, level.mode, player.time, Game.tape(session));
 
       // Written here rather than on the frame the door was touched, so the row
       // exists before the card announcing it does. The tutorial stays out for
