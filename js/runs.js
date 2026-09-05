@@ -127,18 +127,6 @@ const Runs = (() => {
 
   // ---------------------------------------------------------- the leaderboard
 
-  // Whose run it was. PostgREST hands an embedded row back as an object when
-  // the relationship is many-to-one and as an array when it is one-to-many, and
-  // which of those this is depends on how the foreign key was declared rather
-  // than on anything visible from here — so both are unwrapped. A run with no
-  // name attached is still a run worth showing, so it gets a placeholder rather
-  // than being dropped.
-  function nameOf(row) {
-    const joined = row && row.profiles;
-    const one = Array.isArray(joined) ? joined[0] : joined;
-    return (one && one.username) || "Player";
-  }
-
   // One line per player, their best. Ordered by time already, so the first of
   // anybody's runs to arrive is the one that counts and the rest are the same
   // person having another go — which is worth exactly nothing on a board of ten
@@ -147,11 +135,12 @@ const Runs = (() => {
     const seen = new Set();
     const out = [];
     for (const row of rows) {
-      const who = row.player_id || nameOf(row);
-      if (seen.has(who)) continue;
-      seen.add(who);
+      const id = row.player_id || "";
+      if (id && seen.has(id)) continue;
+      if (id) seen.add(id);
       out.push({
-        who: nameOf(row),
+        id,
+        who: "Player",
         seconds: Number(row.seconds),
         falls: Math.max(0, row.falls | 0),
         created_at: row.created_at,
@@ -161,14 +150,42 @@ const Runs = (() => {
     return out;
   }
 
+  // Whose runs they were, asked for separately.
+  //
+  // The obvious way to do this is to embed the name in the first query and let
+  // the database do the join. It cannot: PostgREST works out embeds from the
+  // foreign keys, runs.player_id has no constraint pointing at profiles.id, and
+  // asking for one anyway is a 400 with PGRST200 on it rather than a row with a
+  // null name. That is a schema fact and no amount of trying it differently
+  // changes it, so the join happens here instead — ten rows in, one query out,
+  // and a board that works on the schema that exists rather than the one it
+  // would have been tidier to have.
+  //
+  // Ranked before this runs, so it asks about ten people rather than forty.
+  // Names are decoration on a list of times: if this fails, every row keeps the
+  // placeholder it already has and the board is still a board.
+  function withNames(rows) {
+    const ids = Array.from(new Set(rows.map((row) => row.id).filter(Boolean)));
+    if (!ids.length) return Promise.resolve(rows);
+
+    return window.Auth.authed(
+      "/rest/v1/profiles?select=id,username&id=in.(" + ids.join(",") + ")"
+    ).then((found) => {
+      const names = new Map(
+        (Array.isArray(found) ? found : []).map((row) => [row.id, row.username])
+      );
+      rows.forEach((row) => {
+        row.who = names.get(row.id) || row.who;
+      });
+      return rows;
+    }, () => rows);
+  }
+
   // Today's cave, fastest first. Finished runs only — a leaderboard of people
   // who did not get there is a different list.
   //
-  // Asked twice if it has to be. The username lives on a related table and this
-  // file cannot see how that relationship was declared, so the join is tried and
-  // a query without it is the fallback: names are worth having and are not worth
-  // an empty board. Always resolves; signed out, the request never had a chance
-  // and an empty list is the honest answer.
+  // Always resolves; signed out, the request never had a chance and an empty
+  // list is the honest answer.
   function dailyLeaderboard(seed, limit = 10, mode = null) {
     const count = Math.max(1, limit || 10);
 
@@ -196,12 +213,9 @@ const Runs = (() => {
       "&finished=eq.true" + length + "&select=" + select +
       "&order=seconds.asc&limit=" + count * 4;
 
-    const shape = (rows) => best(Array.isArray(rows) ? rows : [], count);
-
-    return window.Auth.authed(
-      query("player_id,seconds,falls,created_at,profiles(username)")
-    ).then(shape, () =>
-      window.Auth.authed(query("player_id,seconds,falls,created_at")).then(shape, () => [])
+    return window.Auth.authed(query("player_id,seconds,falls,created_at")).then(
+      (rows) => withNames(best(Array.isArray(rows) ? rows : [], count)),
+      () => []
     );
   }
 
