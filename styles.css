@@ -337,6 +337,36 @@ button {
    on nothing. Sections are separated by a rule rather than by empty space, so
    the card is continuous to look at and continuous to stand on.               */
 
+/* Every tab's card is the same height, and that is a physics requirement
+   rather than a matter of taste.
+
+   The stage centres itself in the window. Centring means the position of
+   everything on it is a function of how tall all of it is, so a card that
+   shrinks when you change tabs does not just shrink — it drags the title, the
+   chips and its own top edge upwards with it, and the runner is standing on
+   that top edge. It ends up in the air, or inside the card.
+
+   So the three cards are held to one height and the stage stops having an
+   opinion. The number is a floor rather than a fixed height: if a card ever
+   outgrows it the layout is wrong again, but it degrades to the old behaviour
+   instead of clipping something off. It is a variable because the play card is
+   two columns on a wide window and one on a narrow one, which are not close to
+   the same height, and a single number would be dead space on one of them. */
+:root {
+  --card-min: 420px;
+}
+
+.panel,
+[data-panel] .shelf {
+  min-height: var(--card-min);
+}
+
+/* And the same distance down from the chips, or the top edge moves by the
+   difference between them the moment you switch. */
+[data-panel] .shelf {
+  margin-top: 28px;
+}
+
 .panel {
   /* One number for the whole card's rhythm, so a short window can tighten it
      in one place instead of restating every rule that spends it. */
@@ -380,6 +410,12 @@ button {
    It is also the better shape to play on: a broad, low card is a plateau to run
    the length of, where the tall one was a face to climb one kick at a time. */
 @media (min-width: 720px) {
+  /* The controls move alongside the rest of the card instead of under it, so
+     the whole thing is a good deal shorter and the other tabs follow it down. */
+  :root {
+    --card-min: 340px;
+  }
+
   .panel {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(0, 320px);
@@ -405,6 +441,13 @@ button {
 
 /* A short window spends its spacing before it spends any of the menu. */
 @media (max-height: 720px) {
+  /* Last of the three, so it wins on a window that is both wide and short —
+     which is the one where a card held open to its full height would not fit.
+     The page does not scroll, so anything that does not fit is simply gone. */
+  :root {
+    --card-min: 300px;
+  }
+
   /* Both floors stand: three tiles of clearance at each end, whatever else the
      window has to give up. */
   .stage {

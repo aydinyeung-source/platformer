@@ -259,6 +259,11 @@
       cell(item, "run__when", when(row.created_at));
       runsList.append(item);
     });
+
+    // Painted twice — once from this machine, once when the cloud answers — and
+    // the second paint can be a taller list than the first. Same reason the
+    // board measures again after its rows land.
+    queuePlayground();
   }
 
   // Painted twice: once from this machine's own copy, which is already in
@@ -330,6 +335,13 @@
     panels.forEach((panel) => {
       panel.hidden = panel.dataset.panel !== name;
     });
+    // The cards are held to one height so this cannot move them, but what is
+    // solid did change: a different card is on screen with different edges on
+    // it. Collision is read off the page, so the page is measured again. The
+    // two loaders below measure again after their rows land; this is for the
+    // switch itself, and for the Play tab, which has nothing to load.
+    queuePlayground();
+
     if (name === "runs") loadRuns();
     if (name === "board") loadBoard();
   }
