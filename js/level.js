@@ -474,9 +474,23 @@ const Level = (() => {
         for (let y = top - HEADROOM; y < bottom; y++) dig(x, y);
       }
 
-      // Fire across the three columns furthest from the shelf. Two of the five
-      // are a fall onto rock and three are a fall into that.
-      for (let x = p0 + 2; x < p0 + W; x++) {
+      // Fire across two of the five columns, and the two in the middle.
+      //
+      // It was three, running to the far wall, and that made the drop a wall as
+      // well as a hazard. The floor it burns away is the floor of the room
+      // underneath — so three columns of fire, plus the two the shelf roofs
+      // over, is a six tile barrier across a room that has to be walked, and
+      // six is past the five a standing jump reaches. Whichever side of it you
+      // came down on was the only side you were ever going to see, and if that
+      // side's other way out happened to be a duct, that was the run.
+      //
+      // Two columns leaves the far one floored, which puts the whole room back
+      // within one jump from the near lip and gives the fall a third outcome:
+      // the two nearest the shelf land on it, the two in the middle are fire,
+      // and the far one is a clean drop to the floor below. That is a better
+      // set-piece than it was as well as a passable one — the drop is a
+      // question with three answers rather than a coin toss.
+      for (let x = p0 + 2; x <= p0 + 3; x++) {
         for (let y = bottom; y <= bottom + 2; y++) put(x, y, TILE.LAVA);
       }
 
