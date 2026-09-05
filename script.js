@@ -1133,6 +1133,11 @@
   }
 
   function quitGame() {
+    // Walking out of the tutorial is an answer to the offer, and the only one
+    // that was not being listened to. Read before the level is let go of, and
+    // before phase moves, because both are gone by the end of this function.
+    if (level && level.tutorial) markTaught();
+
     phase = "menu";
     session = null;
     gameView.hidden = true;
@@ -1204,6 +1209,26 @@
 
   document.querySelector('[data-action="resume"]').addEventListener("click", resumeLesson);
 
+  // What the flag records is that the offer has been dealt with, not that the
+  // lesson was passed.
+  //
+  // It used to be written only on reaching the last door, on the reasoning that
+  // finishing it once is what counts as having done it. That reads well and it
+  // is the wrong rule: quitting was not recorded anywhere, so anyone who did
+  // not want the tutorial was handed it again on every single load and had to
+  // decline it again every single time. An offer you cannot refuse permanently
+  // is not an offer.
+  //
+  // The button on the menu is untouched by any of this, so it stays available
+  // to somebody who does want it a second time.
+  function markTaught() {
+    try {
+      localStorage.setItem(TUTORIAL_KEY, "yes");
+    } catch (err) {
+      // Private window: they will be offered it again, which is no disaster.
+    }
+  }
+
   function startTutorial() {
     // Whatever the menu says, this run is the tutorial.
     startLoading("TUTORIAL");
@@ -1260,14 +1285,7 @@
       loadRuns();
     }
 
-    // Finishing it once is what counts as having done it.
-    if (level.tutorial) {
-      try {
-        localStorage.setItem(TUTORIAL_KEY, "yes");
-      } catch (err) {
-        // Private window: they will be offered it again, which is no disaster.
-      }
-    }
+    if (level.tutorial) markTaught();
   }
 
   // Out through the canvas rather than cut away from it, and into the tab the
