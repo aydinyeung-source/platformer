@@ -27,6 +27,13 @@ const Level = (() => {
     maxStepDown: 4,
     landing: 3,
     runUp: 3,
+    // Tiles of gap a skim carries across, and the one piece of technique in
+    // here. Off the floor at 12 and forward at 10 against a gravity of 90: it
+    // rises 0.8 of a tile, so it stays under a roof too low to stand a jump up
+    // in, and it travels 2.67 before it is down again. Two, not three, because
+    // the arc is what it is and the timing is the player's — the carver has
+    // always cut sunken lava two wide under a low roof on exactly this basis.
+    skim: 2,
   };
 
   // Deep, because the route is dug through it rather than laid on top of it.
@@ -530,18 +537,8 @@ const Level = (() => {
       // And never into rock. A place remembers where its floor was, not whether
       // anything is still standing on it; poured under a roof that closed up
       // since, the pool is lava sealed inside stone.
-      //
-      // Three rows of it, which is one more than a body and the reason for the
-      // extra row. Two rows is a passage you can walk down and cannot jump in:
-      // movesFrom wants a clear row above the head before it allows a hop, so
-      // in a two-row crawlway the only move it will make is a step onto the
-      // tile in front. A pool there is a two-tile gap with no way over, and it
-      // does not read as a hazard — it reads as the corridor ending, with
-      // whatever was past it cut off from the rest of the cave.
       for (let cx = x; cx < x + w; cx++) {
-        for (let y = floorY - 3; y < floorY; y++) {
-          if (peek(cx, y) !== TILE.EMPTY) return false;
-        }
+        if (peek(cx, floorY - 1) !== TILE.EMPTY) return false;
       }
       // The pool itself, plus CRUST rows of rock to hold it: a passage may run
       // under a pool, but never close enough that the floor between them is one
@@ -1709,6 +1706,45 @@ const Level = (() => {
       for (let rise = 1; rise <= RULES.maxWallClimb; rise++) {
         for (let dx = -2; dx <= 2; dx++) {
           if (standable(level, x + dx, y - rise)) visit(x + dx, y - rise);
+        }
+      }
+    }
+
+    // The skim: the one piece of technique this model knows.
+    //
+    // Jump out of a slide and the body leaves the floor at 12 and forward at
+    // 10, and nothing brakes it in the air while it is above running pace. It
+    // rises eight tenths of a tile and travels two and two thirds before it is
+    // back down — flat and fast where a jump is tall and slow, which is exactly
+    // the shape of move a two-row passage has room for.
+    //
+    // Only under a roof too low to jump under. Everywhere else the ordinary
+    // jump goes further and this would add nothing but edges to walk through.
+    // That keeps the change to the one situation it is for: the carver has
+    // always cut sunken lava two tiles wide when the roof is low, on the stated
+    // grounds that a skim crosses two — it was the only party to that bargain
+    // keeping its end of it, and levels were being thrown away as unroutable
+    // for a gap the game expects you to cross.
+    //
+    // Deliberately just the skim. Not the skim into an uncoil, not either of
+    // them into a wall — those exist, and a route that needs one is a route
+    // proved by something no first-time player will find.
+    if (!open(level, x, y - 2)) {
+      for (const s of [-1, 1]) {
+        // Carried into, never started from a standstill: a skim needs a slide,
+        // and a slide needs floor to have run along.
+        if (!standable(level, x - s, y)) continue;
+
+        for (let dx = 2; dx <= RULES.skim + 1; dx++) {
+          // The body crosses at slide height, so what it needs is the passage
+          // it is already in — the two rows the roof allows, all the way over.
+          let through = true;
+          for (let i = 1; i < dx; i++) {
+            if (open(level, x + s * i, y) && open(level, x + s * i, y - 1)) continue;
+            through = false;
+          }
+          if (!through) break;
+          if (standable(level, x + s * dx, y)) visit(x + s * dx, y);
         }
       }
     }
