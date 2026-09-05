@@ -201,6 +201,7 @@
   const confirmField = document.getElementById("auth-confirm-field");
   const loginButton = document.getElementById("auth-login");
   const signupButton = document.getElementById("auth-signup");
+  const guestButton = document.getElementById("auth-guest");
   const messageLine = document.getElementById("auth-message");
   const modeLine = document.querySelector(".auth__mode");
   const playerSlot = document.querySelector("[data-player]");
@@ -217,12 +218,44 @@
     return email.split("@")[0] || "Player";
   }
 
-  function unlock(user) {
-    const name = displayName(user);
+  // Playing without an account. Remembered, because a guest who has to walk
+  // past the login card on every single load has not been let past it — they
+  // have been asked the same question again, which is the thing they declined.
+  const GUEST_KEY = "platformer.guest";
+
+  function isGuest() {
+    try {
+      return localStorage.getItem(GUEST_KEY) === "1";
+    } catch (err) {
+      return false; // storage blocked: the card comes back, which is no worse
+    }
+  }
+
+  function setGuest(on) {
+    try {
+      if (on) localStorage.setItem(GUEST_KEY, "1");
+      else localStorage.removeItem(GUEST_KEY);
+    } catch (err) {}
+  }
+
+  function unlock(user, as) {
+    const name = as || displayName(user);
     if (playerSlot) playerSlot.textContent = name;
     authSection.hidden = true;
     appSection.hidden = false;
     window.dispatchEvent(new CustomEvent("platformer:unlocked", { detail: { username: name } }));
+  }
+
+  // No session, no heartbeat, no request of any kind. Everything the game does
+  // on its own — carving, running, ghosts, the tutorial, the career total — is
+  // local already and carries on working; the only thing missing is the half
+  // that was always the cloud's.
+  function playGuest() {
+    stopBeat();
+    clearSession();
+    setGuest(true);
+    setMessage("");
+    unlock(null, "Guest");
   }
 
   function lock() {
@@ -244,6 +277,7 @@
   function signOut(text, isError) {
     stopBeat();
     clearSession();
+    setGuest(false);
     resetForm();
     lock();
     setMessage(text, isError);
@@ -314,6 +348,7 @@
       }
 
       saveSession(session);
+      setGuest(false);
       await claimSession(newDeviceId());
       const user = session.user || (await getUser(session.access_token));
       startBeat();
@@ -336,6 +371,8 @@
     submit();
   });
 
+  if (guestButton) guestButton.addEventListener("click", playGuest);
+
   form.addEventListener("submit", (event) => {
     event.preventDefault();
     submit();
@@ -353,7 +390,11 @@
 
   async function restore() {
     const session = loadSession();
-    if (!session || !session.access_token) return lock();
+    if (!session || !session.access_token) {
+      // A guest who chose this last time is not asked again.
+      if (isGuest()) return unlock(null, "Guest");
+      return lock();
+    }
 
     try {
       unlock(await getUser(session.access_token));
@@ -386,6 +427,6 @@
     tick(); // catches a tab that was claimed elsewhere while it was closed
   }
 
-  window.Auth = { authed, loadSession, logOut };
+  window.Auth = { authed, loadSession, logOut, isGuest };
   restore();
 })();

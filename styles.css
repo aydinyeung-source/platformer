@@ -958,6 +958,36 @@ button {
   cursor: default;
 }
 
+/* Below a rule rather than beside the other two, because it is not a third way
+   of doing the same thing — it is the way past the card entirely. Presented
+   quietly and not hidden: an account should look like the better option without
+   the alternative looking like a trap door. */
+.auth__guest {
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 1px solid var(--rule);
+}
+
+.auth__button--quiet {
+  width: 100%;
+  font-weight: 400;
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+
+.auth__button--quiet:hover,
+.auth__button--quiet:focus-visible {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.auth__aside {
+  margin-top: 10px;
+  font-size: 10px;
+  line-height: 1.5;
+  color: var(--ink-muted);
+}
+
 /* Held open so the panel does not jump when a message appears. */
 .auth__message {
   min-height: 1.4em;

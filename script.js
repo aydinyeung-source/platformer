@@ -390,8 +390,14 @@
     // The board is everyone's runs, which means it is the one thing here that
     // cannot be answered from this machine. Say so rather than showing an empty
     // list, which reads as "nobody has run today" and is a different claim.
+    //
+    // Anybody reading this panel without a session is a guest, because that is
+    // the only way past the card. So it says what being a guest costs, which is
+    // this panel and nothing else — and says it here, at the moment they went
+    // looking for it, rather than as a warning up front about a feature they
+    // had not asked for yet.
     if (!Runs.signedIn()) {
-      renderBoard([], "Sign in to see today's leaderboard");
+      renderBoard([], "Playing as a guest — sign in to take part");
       return;
     }
 
