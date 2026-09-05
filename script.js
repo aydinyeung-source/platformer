@@ -1315,7 +1315,19 @@
       Runs.submit({
         seed: level.seed,
         mode: level.mode,
-        reached: Player.metres(player),
+        // The length of the run, not the tile the door happened to be on.
+        //
+        // metres() is the runner's x, and the door is never at the far edge of
+        // the map — it is on the last junction the maze put there, which can be
+        // a cell short of the end. So a finished 1000 metre run was filing
+        // itself as 960-odd: a row that says you did not cover the distance
+        // next to a mode label saying you did, a career total that already
+        // counts the full length, and a check constraint on the table that
+        // reads the pair and refuses the row outright.
+        //
+        // Only ever reached here by finishing, so this is the distance. An
+        // unfinished run does not come this way and keeps its own number.
+        reached: level.meters,
         seconds: player.time,
         falls: player.falls,
         finished: true,
