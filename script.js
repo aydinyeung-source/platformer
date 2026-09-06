@@ -619,12 +619,13 @@
   // picture and nothing else, and a roll on the simulation side would cost a
   // seed and a tape their ability to reproduce a run exactly.
   //
-  // The wait is a spread rather than a pair, because it decides *whether you
-  // are still watching*. Two seconds flat is a timer you learn: stand still,
-  // count, look. Somewhere between two and four is long enough that you stop
-  // waiting for it, which is the only state it is any good from. The turn is
-  // two lengths because by then you are already looking, and a sixth of a
-  // second is not two speeds — it is enough that the landing is not clockwork.
+  // Both are spreads, and anywhere inside them will do. The wait decides
+  // whether you are still watching: two seconds flat is a timer you can learn —
+  // stand still, count, look — where somewhere between two and four is long
+  // enough that you stop waiting for it, which is the only state this is any
+  // good from. The turn decides how the landing reads once you are already
+  // looking, and a hundred and fifty milliseconds of play in it is the
+  // difference between a head coming round and a frame being swapped.
   //
   // Kept per player rather than in a pair of variables up here, because poseOf
   // is asked about the ghost and the menu runner as well. Those never glump, so
@@ -635,6 +636,8 @@
   const GLUMP_WAIT = [2, 4];
   const GLUMP_TURN = [0.6, 0.75];
   const glumpRolls = new WeakMap();
+
+  const between = (range) => range[0] + Math.random() * (range[1] - range[0]);
 
   function glumpRoll(player) {
     let roll = glumpRolls.get(player);
@@ -829,8 +832,8 @@
       roll.still = false;
     } else if (!roll.still) {
       roll.still = true;
-      roll.wait = GLUMP_WAIT[0] + Math.random() * (GLUMP_WAIT[1] - GLUMP_WAIT[0]);
-      roll.turn = GLUMP_TURN[Math.floor(Math.random() * GLUMP_TURN.length)];
+      roll.wait = between(GLUMP_WAIT);
+      roll.turn = between(GLUMP_TURN);
     }
 
     if (player.recovering > 0) return FRAME.hurt;
