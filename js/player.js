@@ -60,14 +60,13 @@ const Player = (() => {
     uncoil: 0.05,
     uncoilJump: 29.2,
 
-    // Glumping: two seconds of standing perfectly still before he sits down.
-    //
-    // How long the head then takes to come round is not here, because it is not
-    // simulation — it is re-rolled per sit by the renderer, and a roll inside
-    // this file would mean a seed and a tape no longer reproduce a run bit for
-    // bit. That property is what lets a submitted time be checked rather than
-    // believed, and it is not worth spending on an animation nothing reads.
-    glumpAfter: 2,
+    // Glumping has no numbers here at all, and that is deliberate. This file
+    // counts how long he has been perfectly still, which is a fact about the
+    // run; how long that has to go on before he sits, and how long his head
+    // then takes to come round, are both rolled fresh by the renderer. A
+    // Math.random on this side would mean a seed and a tape no longer reproduce
+    // a run bit for bit, and that property is the whole basis for checking a
+    // submitted time rather than believing it.
   };
 
   // Room for the taller body to come back. Standing up inside a crawlway would
@@ -147,16 +146,18 @@ const Player = (() => {
       safe: { x: body.x, y: body.y },
       recovering: 0,
 
-      // Glumping. How long he has been genuinely still, and whether that has
-      // gone on long enough for him to sit down and look out at you.
+      // Glumping. Seconds he has been perfectly still, and nothing more —
+      // whether that is long enough to sit down is the renderer's to decide,
+      // because the answer is a picture and it is rolled rather than fixed.
       //
-      // Off unless something switches it on. The menu has a runner on it too,
-      // and the menu is somewhere people leave open — a character who sits and
-      // stares out of a menu nobody is playing is a different thing entirely
-      // from one who does it in a cave you walked away from.
+      // Off unless something switches it on, and while it is off this never
+      // leaves nought, which is what keeps it out of the menu without the
+      // drawing side needing to know there is a menu. The menu has a runner on
+      // it too, and the menu is somewhere people leave open — a character who
+      // sits and stares out of a menu nobody is playing is a different thing
+      // entirely from one who does it in a cave you walked away from.
       glumps: false,
       glump: 0,
-      glumping: false,
     };
   }
 
@@ -234,13 +235,7 @@ const Player = (() => {
       const still =
         body.onGround && !player.sliding && body.vx === 0 && body.vy === 0;
 
-      if (asked || !still) {
-        player.glump = 0;
-        player.glumping = false;
-      } else {
-        player.glump += dt;
-        if (player.glump >= TUNING.glumpAfter) player.glumping = true;
-      }
+      player.glump = asked || !still ? 0 : player.glump + dt;
     }
 
     // ------------------------------------------------------------------ walls

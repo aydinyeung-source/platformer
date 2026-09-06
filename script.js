@@ -614,21 +614,36 @@
     glumpStare: 13, // and settled, looking out
   };
 
-  // How long the head takes to come round, re-rolled every time he sits down.
+  // When he sits, and how long his head takes to come round. Both rolled fresh
+  // the moment he goes still, and both the renderer's business: they decide a
+  // picture and nothing else, and a roll on the simulation side would cost a
+  // seed and a tape their ability to reproduce a run exactly.
   //
-  // Two lengths rather than one, because this is the one animation in the game
-  // people will set off on purpose and watch more than once, and a turn that
-  // takes exactly the same time every single time is the thing that gives an
-  // idle away as a timer. A sixth of a second between them is not enough to
-  // read as two speeds — it is enough to stop it reading as clockwork.
+  // The wait is a spread rather than a pair, because it decides *whether you
+  // are still watching*. Two seconds flat is a timer you learn: stand still,
+  // count, look. Somewhere between two and four is long enough that you stop
+  // waiting for it, which is the only state it is any good from. The turn is
+  // two lengths because by then you are already looking, and a sixth of a
+  // second is not two speeds — it is enough that the landing is not clockwork.
   //
-  // Rolled here and held on the renderer rather than on the player, because it
-  // decides a picture and nothing else. Nothing in a run may depend on it: a
-  // seed and a tape reproduce a run exactly, and that is the whole basis for
-  // trusting a submitted time.
+  // Kept per player rather than in a pair of variables up here, because poseOf
+  // is asked about the ghost and the menu runner as well. Those never glump, so
+  // shared state would have their draws resetting his mid-sit — and a reset
+  // every frame is a threshold re-rolled every frame, which is a sit that never
+  // arrives. A WeakMap because these are notes about an object, not part of it,
+  // and they should go when it does.
+  const GLUMP_WAIT = [2, 4];
   const GLUMP_TURN = [0.6, 0.75];
-  let glumpTurn = GLUMP_TURN[0];
-  let glumpSitting = false;
+  const glumpRolls = new WeakMap();
+
+  function glumpRoll(player) {
+    let roll = glumpRolls.get(player);
+    if (!roll) {
+      roll = { still: false, wait: GLUMP_WAIT[0], turn: GLUMP_TURN[0] };
+      glumpRolls.set(player, roll);
+    }
+    return roll;
+  }
 
   const sheet = new Image();
   let sheetReady = false;
@@ -804,24 +819,27 @@
   // hurt outranks being on a wall, which outranks being in the air.
   function poseOf(player) {
     const body = player.body;
-    if (!player.glumping) glumpSitting = false;
+
+    // Both rolls happen on the step he stops, not on the step he sits — by the
+    // time he sits the wait has already had to be known. Rolling at nought also
+    // means one place decides, and it is the same place that notices he moved
+    // again: the clock going back to nought is the whole of the cancel.
+    const roll = glumpRoll(player);
+    if (player.glump <= 0) {
+      roll.still = false;
+    } else if (!roll.still) {
+      roll.still = true;
+      roll.wait = GLUMP_WAIT[0] + Math.random() * (GLUMP_WAIT[1] - GLUMP_WAIT[0]);
+      roll.turn = GLUMP_TURN[Math.floor(Math.random() * GLUMP_TURN.length)];
+    }
+
     if (player.recovering > 0) return FRAME.hurt;
 
     // Sitting outranks standing, and nothing else can be true at the same time:
-    // it only sets while grounded, not sliding, and stopped dead. The head comes
-    // round, and then stays round for as long as you leave him alone.
-    //
-    // Timed off the same clock that triggered it rather than a second one, so
-    // there is no counter to fall out of step with the flag — the flag says he
-    // is sitting and the clock says how long for, and one is read off the other.
-    if (player.glumping) {
-      if (!glumpSitting) {
-        glumpSitting = true;
-        glumpTurn = GLUMP_TURN[Math.floor(Math.random() * GLUMP_TURN.length)];
-      }
-      return player.glump < Player.TUNING.glumpAfter + glumpTurn
-        ? FRAME.glumpTurn
-        : FRAME.glumpStare;
+    // the clock only runs while grounded, not sliding, and stopped dead. The
+    // head comes round, and then stays round for as long as you leave him.
+    if (roll.still && player.glump >= roll.wait) {
+      return player.glump < roll.wait + roll.turn ? FRAME.glumpTurn : FRAME.glumpStare;
     }
 
     // Low first, and before anything airborne. A skim is airborne. So is a
