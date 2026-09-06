@@ -59,6 +59,12 @@ const Player = (() => {
     // than a jump otherwise reaches, with the slide's speed still under you.
     uncoil: 0.05,
     uncoilJump: 29.2,
+
+    // Glumping: two seconds of standing perfectly still before he sits down,
+    // and a quarter second of turning his head before he settles into the
+    // stare. The turn plays once on the way in and never on the way out.
+    glumpAfter: 2,
+    glumpTurn: 0.25,
   };
 
   // Room for the taller body to come back. Standing up inside a crawlway would
@@ -137,6 +143,17 @@ const Player = (() => {
       // death in this game, so every mistake has to resolve into a position.
       safe: { x: body.x, y: body.y },
       recovering: 0,
+
+      // Glumping. How long he has been genuinely still, and whether that has
+      // gone on long enough for him to sit down and look out at you.
+      //
+      // Off unless something switches it on. The menu has a runner on it too,
+      // and the menu is somewhere people leave open — a character who sits and
+      // stares out of a menu nobody is playing is a different thing entirely
+      // from one who does it in a cave you walked away from.
+      glumps: false,
+      glump: 0,
+      glumping: false,
     };
   }
 
@@ -186,6 +203,42 @@ const Player = (() => {
 
     player.time += dt;
     if (player.recovering > 0) player.recovering = Math.max(0, player.recovering - dt);
+
+    // ------------------------------------------------------------- glumping
+    //
+    // Stand still long enough and he sits down and turns to look at you.
+    //
+    // Read here, at the top, before a single thing has been done with this
+    // step's input. That is what makes letting go of it instant: the key going
+    // down clears the flag on the same step it is first seen, so the frame
+    // after a keypress is already the running pose. Waiting for the body to
+    // actually start moving would cost a step, and a step of a character still
+    // sitting down while you are holding right is exactly the lag this is not
+    // allowed to have.
+    //
+    // Exactly zero, as specified, and it is reachable: friction winds vx down
+    // to its target with a Math.max clamp, so it lands on nought rather than
+    // creeping toward it, and a landing sets vy to nought outright.
+    //
+    // Not while sliding, which is the one addition. A slide can decay to a
+    // standstill under a two-row roof, and the sitting frames are twenty-three
+    // pixels of a thirty pixel character — drawn on a body that is half height
+    // because it is somewhere only half a body fits, his head goes through the
+    // ceiling.
+    if (player.glumps) {
+      const asked =
+        input.left || input.right || input.jumpHeld || input.jumpPressed || input.slideHeld;
+      const still =
+        body.onGround && !player.sliding && body.vx === 0 && body.vy === 0;
+
+      if (asked || !still) {
+        player.glump = 0;
+        player.glumping = false;
+      } else {
+        player.glump += dt;
+        if (player.glump >= TUNING.glumpAfter) player.glumping = true;
+      }
+    }
 
     // ------------------------------------------------------------------ walls
     const touching = Physics.walls(level, body);

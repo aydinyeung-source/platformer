@@ -161,6 +161,16 @@ const Game = (() => {
       ghostInput: null,
     };
 
+    // Inside a level, and only inside one. The menu builds its own runner and
+    // never comes through here, which is what keeps him from sitting down and
+    // staring out of a menu somebody left open in a background tab.
+    //
+    // The live runner and not the ghost. The ghost is a pacing line drawn at a
+    // third alpha — faithful to the tape, so if you stood still it stands still
+    // — but a second figure turning to look at you while you are racing reads
+    // as a bug or a stranger rather than as a replay of yourself.
+    session.player.glumps = true;
+
     if (options.ghostTape) {
       session.ghost = Player.create(level);
       session.ghostInput = decodeTape(options.ghostTape);

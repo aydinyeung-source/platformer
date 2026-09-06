@@ -581,15 +581,24 @@
 
   // --------------------------------------------------------------- the sprite
   //
-  // Twelve frames of 24x32 in one strip. Ten of them are the runner and two are
-  // weather: dust and heat, spawned by the renderer and simulated nowhere,
-  // because nothing a particle does may change what a seed produces.
-  // The art does not fill the cell. Every one of the ten character frames ends
-  // at pixel row 29, leaving two transparent rows at the bottom of the 32 — so
-  // a frame anchored by its cell hangs the runner two pixels above the floor.
-  // activeH is what the body's height is measured against; padBottom is what
-  // the anchor has to give back.
-  const SHEET = { cols: 12, fw: 24, fh: 32, activeH: 30, padBottom: 2 };
+  // Fourteen frames of 24x32 in one strip. Ten of them are the runner, two are
+  // weather — dust and heat, spawned by the renderer and simulated nowhere,
+  // because nothing a particle does may change what a seed produces — and the
+  // last two are him sitting down looking at you.
+  //
+  // The art does not fill the cell. Every character frame ends at pixel row 29,
+  // leaving two transparent rows at the bottom of the 32 — so a frame anchored
+  // by its cell hangs the runner two pixels above the floor. activeH is what the
+  // body's height is measured against; padBottom is what the anchor has to give
+  // back. The sitting frames share that row 29 baseline, so they need nothing
+  // special: they are shorter, and the shortness is at the top where a sitting
+  // character's shortness belongs.
+  //
+  // The file is wider than the strip. Fourteen cells is 336 pixels and the image
+  // is 448, so there is blank canvas after the last frame. Nothing reads it —
+  // frames are indexed, not counted off the width — and it costs a few hundred
+  // bytes, so it is left alone rather than tidied into a re-export.
+  const SHEET = { cols: 14, fw: 24, fh: 32, activeH: 30, padBottom: 2 };
   const STRIDE = 1.75; // frames per tile: a four frame cycle every 2.3 tiles
   const FRAME = {
     idle: 0,
@@ -601,6 +610,8 @@
     hurt: 9,
     dust: 10,
     heat: 11,
+    glumpTurn: 12, // head coming round
+    glumpStare: 13, // and settled, looking out
   };
 
   const sheet = new Image();
@@ -778,6 +789,16 @@
   function poseOf(player) {
     const body = player.body;
     if (player.recovering > 0) return FRAME.hurt;
+
+    // Sitting outranks standing, and nothing else can be true at the same time:
+    // it only sets while grounded, not sliding, and stopped dead. The head turns
+    // for a quarter second and then stays turned for as long as you leave him.
+    // Timed off the same clock that triggered it rather than a second one, so
+    // there is no state to get out of step with the flag.
+    if (player.glumping) {
+      const turning = player.glump < Player.TUNING.glumpAfter + Player.TUNING.glumpTurn;
+      return turning ? FRAME.glumpTurn : FRAME.glumpStare;
+    }
 
     // Low first, and before anything airborne. A skim is airborne. So is a
     // slide taken off an edge, and so is a crouch that walked off one — and in
