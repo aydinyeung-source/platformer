@@ -60,11 +60,14 @@ const Player = (() => {
     uncoil: 0.05,
     uncoilJump: 29.2,
 
-    // Glumping: two seconds of standing perfectly still before he sits down,
-    // and a quarter second of turning his head before he settles into the
-    // stare. The turn plays once on the way in and never on the way out.
+    // Glumping: two seconds of standing perfectly still before he sits down.
+    //
+    // How long the head then takes to come round is not here, because it is not
+    // simulation — it is re-rolled per sit by the renderer, and a roll inside
+    // this file would mean a seed and a tape no longer reproduce a run bit for
+    // bit. That property is what lets a submitted time be checked rather than
+    // believed, and it is not worth spending on an animation nothing reads.
     glumpAfter: 2,
-    glumpTurn: 0.25,
   };
 
   // Room for the taller body to come back. Standing up inside a crawlway would

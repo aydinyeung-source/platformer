@@ -614,6 +614,22 @@
     glumpStare: 13, // and settled, looking out
   };
 
+  // How long the head takes to come round, re-rolled every time he sits down.
+  //
+  // Two lengths rather than one, because this is the one animation in the game
+  // people will set off on purpose and watch more than once, and a turn that
+  // takes exactly the same time every single time is the thing that gives an
+  // idle away as a timer. A sixth of a second between them is not enough to
+  // read as two speeds — it is enough to stop it reading as clockwork.
+  //
+  // Rolled here and held on the renderer rather than on the player, because it
+  // decides a picture and nothing else. Nothing in a run may depend on it: a
+  // seed and a tape reproduce a run exactly, and that is the whole basis for
+  // trusting a submitted time.
+  const GLUMP_TURN = [0.6, 0.75];
+  let glumpTurn = GLUMP_TURN[0];
+  let glumpSitting = false;
+
   const sheet = new Image();
   let sheetReady = false;
   sheet.addEventListener("load", () => {
@@ -788,16 +804,24 @@
   // hurt outranks being on a wall, which outranks being in the air.
   function poseOf(player) {
     const body = player.body;
+    if (!player.glumping) glumpSitting = false;
     if (player.recovering > 0) return FRAME.hurt;
 
     // Sitting outranks standing, and nothing else can be true at the same time:
-    // it only sets while grounded, not sliding, and stopped dead. The head turns
-    // for a quarter second and then stays turned for as long as you leave him.
+    // it only sets while grounded, not sliding, and stopped dead. The head comes
+    // round, and then stays round for as long as you leave him alone.
+    //
     // Timed off the same clock that triggered it rather than a second one, so
-    // there is no state to get out of step with the flag.
+    // there is no counter to fall out of step with the flag — the flag says he
+    // is sitting and the clock says how long for, and one is read off the other.
     if (player.glumping) {
-      const turning = player.glump < Player.TUNING.glumpAfter + Player.TUNING.glumpTurn;
-      return turning ? FRAME.glumpTurn : FRAME.glumpStare;
+      if (!glumpSitting) {
+        glumpSitting = true;
+        glumpTurn = GLUMP_TURN[Math.floor(Math.random() * GLUMP_TURN.length)];
+      }
+      return player.glump < Player.TUNING.glumpAfter + glumpTurn
+        ? FRAME.glumpTurn
+        : FRAME.glumpStare;
     }
 
     // Low first, and before anything airborne. A skim is airborne. So is a
